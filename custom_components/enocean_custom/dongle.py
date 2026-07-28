@@ -40,10 +40,24 @@ class EnOceanDongle:
         )
 
     def unload(self):
-        """Disconnect callbacks established at init time."""
+        """Stop the serial reader and disconnect callbacks established at init time.
+
+        The communicator owns the USB serial file descriptor in a background
+        thread.  It must be fully stopped before Home Assistant creates the
+        replacement config-entry instance, otherwise two readers can compete
+        for the same ESP3 stream and produce CRC/serial-port errors.
+        """
         if self.dispatcher_disconnect_handle:
             self.dispatcher_disconnect_handle()
             self.dispatcher_disconnect_handle = None
+
+        self._communicator.stop()
+        # SerialCommunicator reads with a 0.1 second timeout.  One second gives
+        # it ample time to leave its loop and close the serial descriptor while
+        # keeping config-entry reload bounded.
+        self._communicator.join(timeout=1)
+        if self._communicator.is_alive():
+            _LOGGER.warning("EnOcean serial communicator did not stop within 1 second")
 
     def _send_message_callback(self, command):
         """Send a command through the EnOcean dongle."""
