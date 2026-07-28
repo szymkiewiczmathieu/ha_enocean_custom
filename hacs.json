@@ -1,5 +1,6 @@
 {
-    "name": "EnOcean Custom",
-    "render_readme": true,
-    "domains": ["binary_sensor", "climate", "light", "sensor", "switch"]
-  }
+  "name": "EnOcean Custom",
+  "render_readme": true,
+  "homeassistant": "2025.1.0",
+  "domains": ["binary_sensor", "climate", "light", "sensor", "switch"]
+}

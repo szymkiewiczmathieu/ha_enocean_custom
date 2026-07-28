@@ -18,7 +18,6 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from .device import EnOceanEntity
 
 DEFAULT_NAME = "EnOcean binary sensor"
-DEPENDENCIES = ["enocean"]
 EVENT_BUTTON_PRESSED = "button_pressed"
 
 ATTR_ONOFF = "OnOff"

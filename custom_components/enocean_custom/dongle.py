@@ -3,13 +3,12 @@ import glob
 import logging
 from os.path import basename, normpath
 
-from .enocean_library.communicators import SerialCommunicator
-from .enocean_library.protocol.packet import RadioPacket
 import serial
-
 from homeassistant.helpers.dispatcher import async_dispatcher_connect, dispatcher_send
 
 from .const import SIGNAL_RECEIVE_MESSAGE, SIGNAL_SEND_MESSAGE
+from .enocean_library.communicators import SerialCommunicator
+from .enocean_library.protocol.packet import RadioPacket
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,25 +38,27 @@ class EnOceanDongle:
             self.hass, SIGNAL_SEND_MESSAGE, self._send_message_callback
         )
 
-    def unload(self):
+    async def async_unload(self) -> bool:
         """Stop the serial reader and disconnect callbacks established at init time.
 
         The communicator owns the USB serial file descriptor in a background
-        thread.  It must be fully stopped before Home Assistant creates the
+        thread. It must be fully stopped before Home Assistant creates the
         replacement config-entry instance, otherwise two readers can compete
         for the same ESP3 stream and produce CRC/serial-port errors.
         """
+        self._communicator.stop()
+        # SerialCommunicator reads with a 0.1 second timeout. One second gives
+        # it ample time to leave its loop and close the serial descriptor while
+        # keeping config-entry reload bounded without blocking HA's event loop.
+        await self.hass.async_add_executor_job(self._communicator.join, 1)
+        if self._communicator.is_alive():
+            _LOGGER.warning("EnOcean serial communicator did not stop within 1 second")
+            return False
+
         if self.dispatcher_disconnect_handle:
             self.dispatcher_disconnect_handle()
             self.dispatcher_disconnect_handle = None
-
-        self._communicator.stop()
-        # SerialCommunicator reads with a 0.1 second timeout.  One second gives
-        # it ample time to leave its loop and close the serial descriptor while
-        # keeping config-entry reload bounded.
-        self._communicator.join(timeout=1)
-        if self._communicator.is_alive():
-            _LOGGER.warning("EnOcean serial communicator did not stop within 1 second")
+        return True
 
     def _send_message_callback(self, command):
         """Send a command through the EnOcean dongle."""
@@ -91,11 +92,15 @@ def detect():
 
 def validate_path(path: str):
     """Return True if the provided path points to a valid serial port, False otherwise."""
+    communicator = None
     try:
         # Creating the serial communicator will raise an exception
-        # if it cannot connect
-        SerialCommunicator(port=path)
+        # if it cannot connect.
+        communicator = SerialCommunicator(port=path)
         return True
     except serial.SerialException as exception:
         _LOGGER.warning("Dongle path %s is invalid: %s", path, str(exception))
         return False
+    finally:
+        if communicator is not None:
+            communicator.close()

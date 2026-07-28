@@ -1,8 +1,7 @@
-# -*- encoding: utf-8 -*-
-from __future__ import print_function, unicode_literals, division, absolute_import
 import logging
-import serial
 import time
+
+import serial
 
 from .communicator import Communicator
 
@@ -12,35 +11,47 @@ class SerialCommunicator(Communicator):
     logger = logging.getLogger(__name__)
 
     def __init__(self, port='/dev/ttyAMA0', callback=None):
-        super(SerialCommunicator, self).__init__(callback)
+        super().__init__(callback)
+        self.name = f"EnOceanSerialCommunicator[{port}]"
+        self.daemon = True
         # Initialize serial port
         self.__ser = serial.Serial(port, 57600, timeout=0.1)
 
     def run(self):
         self.logger.info('SerialCommunicator started')
-        while not self._stop_flag.is_set():
-            # If there's messages in transmit queue
-            # send them
-            while True:
-                packet = self._get_from_send_queue()
-                if not packet:
-                    break
+        try:
+            while not self._stop_flag.is_set():
+                # If there are messages in the transmit queue, send them.
+                while True:
+                    packet = self._get_from_send_queue()
+                    if not packet:
+                        break
+                    try:
+                        self.__ser.write(bytearray(packet.build()))
+                    except serial.SerialException:
+                        self.logger.exception('Serial port exception while writing')
+                        self.stop()
+
+                # Read chars from serial port as hex numbers.
                 try:
-                    self.__ser.write(bytearray(packet.build()))
+                    self._buffer.extend(bytearray(self.__ser.read(16)))
                 except serial.SerialException:
+                    self.logger.exception(
+                        'Serial port exception! (device disconnected or multiple access on port?)'
+                    )
                     self.stop()
+                try:
+                    self.parse()
+                except Exception:
+                    self.logger.exception('Exception occurred while parsing')
+                time.sleep(0)
+        finally:
+            self.close()
+            self.logger.info('SerialCommunicator stopped')
 
-            # Read chars from serial port as hex numbers
-            try:
-                self._buffer.extend(bytearray(self.__ser.read(16)))
-            except serial.SerialException:
-                self.logger.error('Serial port exception! (device disconnected or multiple access on port?)')
-                self.stop()
-            try:
-                self.parse()
-            except Exception as e:
-                self.logger.error('Exception occured while parsing: ' + str(e))
-            time.sleep(0)
-
-        self.__ser.close()
-        self.logger.info('SerialCommunicator stopped')
+    def close(self):
+        '''Close the serial descriptor. Safe to call more than once.'''
+        try:
+            self.__ser.close()
+        except serial.SerialException:
+            self.logger.exception('Exception while closing serial port')

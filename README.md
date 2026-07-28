@@ -4,6 +4,14 @@
 
 > Custom EnOcean integration for Home Assistant, fork of the official integration.
 
+This maintained fork adds safe serial-port lifecycle handling for current Home
+Assistant releases. It stops and joins the USB reader thread before a config-entry
+reload and closes probe descriptors deterministically.
+
+> **Publication status:** suitable for local/fork testing. The immediate upstream
+> repository has no declared license; default-catalogue publication should wait
+> for licensing clarification. See [NOTICE.md](NOTICE.md).
+
 ## Background
 
 The official EnOcean integration for Home Assistant is currently not being extended by new functionality as the code needs a major refactory. Pull requests to add new sensors etc. are [not being accepted](https://github.com/home-assistant/core/pull/86461#discussion_r1084908489). That is why this custom integration was created. Also, the EnOcean protocol library being used by Home Assistant seems to be abandoned, that is why a fork is included in this custom integration.
@@ -12,7 +20,7 @@ The official EnOcean integration for Home Assistant is currently not being exten
 
 1. [Install HACS](https://hacs.xyz/docs/setup/download/)
 2. Open HACS in your Home Assistant installation
-3. Add the repository URL to your HACS installation as [custom repository](https://hacs.xyz/docs/faq/custom_repositories): `Integrations > Three Dots > Custom integrations > Add URL`
+3. Add `https://github.com/szymkiewiczmathieu/ha_enocean_custom` as a HACS [custom repository](https://hacs.xyz/docs/faq/custom_repositories): `Integrations > Three Dots > Custom repositories > Integration`
 4. Install `EnOcean Custom`
 
 ## Description
@@ -139,4 +147,7 @@ data:
 
 ### Bug fixes
 
+- Stop and join the serial communicator before config-entry reload, preventing
+  stale readers and multiple access to the same USB port.
+- Close serial descriptors opened during config-flow validation.
 - Exception to handle parsing of malformed packets: With the official protocol library, the EnOcean integration would crash when receiving a malformed package. In practice, this happens every few weeks to months for some installations. An exception handler was added to drop malformed packages, see [PR for original protocol library](https://github.com/kipe/enocean/pull/138)
