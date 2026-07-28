@@ -5,6 +5,7 @@ import asyncio
 import json
 import queue
 import threading
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -83,6 +84,7 @@ def _load_serial_class(serial_port=None):
             "__init__",
             "run",
             "close",
+            "send",
             "stop",
         }:
             members.append(node)
@@ -115,6 +117,12 @@ def _load_serial_class(serial_port=None):
         def stop(self):
             self._stop_flag.set()
 
+        def send(self, packet):
+            if started := getattr(self, "_test_send_started", None):
+                started.set()
+                self._test_send_release.wait(1)  # type: ignore[attr-defined]
+            self.transmit.put(packet)
+
         def parse(self):
             return None
 
@@ -122,7 +130,12 @@ def _load_serial_class(serial_port=None):
         Serial=lambda *args, **kwargs: serial_port or Mock(),
         SerialException=OSError,
     )
-    namespace = {"Communicator": Communicator, "serial": serial, "time": Mock()}
+    namespace = {
+        "Communicator": Communicator,
+        "serial": serial,
+        "threading": threading,
+        "time": Mock(),
+    }
     exec(compile(isolated, str(SERIAL_PATH), "exec"), namespace)  # noqa: S102
     return namespace["SerialCommunicator"]
 
@@ -189,18 +202,25 @@ class DongleLifecycleTests(unittest.IsolatedAsyncioTestCase):
         serial_port.close.assert_called_once_with()
         communicator.logger.info.assert_any_call("SerialCommunicator stopped")
 
-    def test_stop_interrupts_a_blocked_serial_write(self):
+    def test_stop_interrupts_write_without_draining_queued_packets(self):
         class BlockingSerial:
             def __init__(self):
                 self.write_started = threading.Event()
-                self.write_cancelled = threading.Event()
+                self.first_write_cancelled = threading.Event()
                 self.cancel_read_calls = 0
                 self.cancel_write_calls = 0
                 self.closed = False
+                self.write_count = 0
 
             def write(self, data):
-                self.write_started.set()
-                self.write_cancelled.wait(5)
+                self.write_count += 1
+                if self.write_count == 1:
+                    self.write_started.set()
+                    self.first_write_cancelled.wait(5)
+                else:
+                    # pyserial cancellation is one-shot. A worker that drains
+                    # the remaining queue can spend one timeout per packet.
+                    time.sleep(0.5)
                 return len(data)
 
             def read(self, size):
@@ -211,7 +231,7 @@ class DongleLifecycleTests(unittest.IsolatedAsyncioTestCase):
 
             def cancel_write(self):
                 self.cancel_write_calls += 1
-                self.write_cancelled.set()
+                self.first_write_cancelled.set()
 
             def close(self):
                 self.closed = True
@@ -224,7 +244,8 @@ class DongleLifecycleTests(unittest.IsolatedAsyncioTestCase):
         serial_class = _load_serial_class(serial_port)
         communicator = serial_class("/dev/test")
         communicator.logger = Mock()
-        communicator.transmit.put(Packet())
+        for _ in range(5):
+            communicator.transmit.put(Packet())
         communicator.start()
         self.assertTrue(serial_port.write_started.wait(1))
 
@@ -234,10 +255,53 @@ class DongleLifecycleTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(communicator.is_alive())
             self.assertEqual(serial_port.cancel_read_calls, 1)
             self.assertEqual(serial_port.cancel_write_calls, 1)
+            self.assertEqual(serial_port.write_count, 1)
             self.assertTrue(serial_port.closed)
         finally:
-            serial_port.write_cancelled.set()
+            serial_port.first_write_cancelled.set()
             communicator.join(1)
+
+    def test_send_rejects_packets_after_stop(self):
+        serial_class = _load_serial_class(Mock())
+        communicator = serial_class("/dev/test")
+        communicator.logger = Mock()
+        communicator.stop()
+
+        accepted = communicator.send(Mock())
+
+        self.assertFalse(accepted)
+        self.assertTrue(communicator.transmit.empty())
+
+    def test_stop_is_serialized_with_an_inflight_send(self):
+        serial_class = _load_serial_class(Mock())
+        communicator = serial_class("/dev/test")
+        communicator.logger = Mock()
+        communicator._test_send_started = threading.Event()
+        communicator._test_send_release = threading.Event()
+        stop_done = threading.Event()
+        send_result = []
+
+        sender = threading.Thread(
+            target=lambda: send_result.append(communicator.send(Mock()))
+        )
+        sender.start()
+        self.assertTrue(communicator._test_send_started.wait(1))
+
+        stopper = threading.Thread(
+            target=lambda: (communicator.stop(), stop_done.set())
+        )
+        stopper.start()
+        try:
+            self.assertFalse(
+                stop_done.wait(0.05), "stop overtook a send already in progress"
+            )
+        finally:
+            communicator._test_send_release.set()
+            sender.join(1)
+            stopper.join(1)
+
+        self.assertEqual(send_result, [True])
+        self.assertTrue(stop_done.is_set())
 
     def test_invalid_packet_does_not_kill_serial_worker(self):
         class SerialPort:

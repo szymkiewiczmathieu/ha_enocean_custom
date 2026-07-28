@@ -85,6 +85,11 @@ Configuration variables:
   - `pi_control_Kp`: Parameter for the proportional controller (`%/K`), default: `5`. Make sure to program the heating controller accordingly.
   - `pi_control_Tn`: Parameter for the integral controller (`min`), default: `240`. Make sure to program the heating controller accordingly.
 
+All climate numeric parameters must be finite and remain within the physical
+ranges enforced by the configuration schema. Switching the entity to `off`
+always sends the actor's switch-off telegram, even if the temperature sensor is
+temporarily unavailable.
+
 Example definition of a climate entity:
 
 ```yaml

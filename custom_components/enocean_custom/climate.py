@@ -89,6 +89,16 @@ ATTR_TEMPERATURE_AWAY =  "temperature_away"
 BYTE = vol.All(vol.Coerce(int), vol.Range(min=0, max=255))
 ENOCEAN_ID = vol.All(cv.ensure_list, [BYTE], vol.Length(min=4, max=4))
 
+
+def _ensure_finite(value: float) -> float:
+    """Reject NaN and infinities before they reach climate calculations."""
+    if not math.isfinite(value):
+        raise vol.Invalid("value must be finite")
+    return value
+
+
+FINITE_FLOAT = vol.All(vol.Coerce(float), _ensure_finite)
+
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
         vol.Required(CONF_ID): ENOCEAN_ID,
@@ -96,17 +106,29 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Required(CONF_SENDER_ID_SWITCH): ENOCEAN_ID,
         vol.Required(CONF_DEVICE_TYPE): vol.In(DEVICE_SUPPORTED_LIST),
         vol.Required(CONF_SENSOR_ENTITY_ID): cv.entity_id,
-        vol.Optional(CONF_SENSOR_TARGET_TEMP_FROST_PROTECTION, default=8.0): cv.positive_float,
-        vol.Optional(CONF_SENSOR_TARGET_TEMP_RANGE, default=5): cv.positive_int,
-        vol.Optional(CONF_SENSOR_TARGET_TEMP_TOLERANCE, default=0.5): cv.positive_float,
-        vol.Optional(CONF_TARGET_TEMP_BASE, default=21.0): cv.positive_float,
-        vol.Optional(CONF_TARGET_TEMP_NIGHT_REDUCTION, default=4.0): cv.positive_float,
+        vol.Optional(CONF_SENSOR_TARGET_TEMP_FROST_PROTECTION, default=8.0): vol.All(
+            FINITE_FLOAT, vol.Range(min=0, max=20)
+        ),
+        vol.Optional(CONF_SENSOR_TARGET_TEMP_RANGE, default=5): vol.All(
+            vol.Coerce(int), vol.Range(min=0, max=20)
+        ),
+        vol.Optional(CONF_SENSOR_TARGET_TEMP_TOLERANCE, default=0.5): vol.All(
+            FINITE_FLOAT, vol.Range(min=0, max=10)
+        ),
+        vol.Optional(CONF_TARGET_TEMP_BASE, default=21.0): vol.All(
+            FINITE_FLOAT, vol.Range(min=5, max=35)
+        ),
+        vol.Optional(CONF_TARGET_TEMP_NIGHT_REDUCTION, default=4.0): vol.All(
+            FINITE_FLOAT, vol.Range(min=0, max=20)
+        ),
         vol.Optional(CONF_COMMAND_FREQUENCY, default="00:17:00"): vol.All(
             cv.positive_time_period, vol.Range(min=timedelta(seconds=1))
         ),
-        vol.Optional(CONF_PI_CONTROL_KP, default=5.0): cv.positive_float,
+        vol.Optional(CONF_PI_CONTROL_KP, default=5.0): vol.All(
+            FINITE_FLOAT, vol.Range(min=0.001, max=100)
+        ),
         vol.Optional(CONF_PI_CONTROL_TN, default=240.0): vol.All(
-            vol.Coerce(float), vol.Range(min=0.000001)
+            FINITE_FLOAT, vol.Range(min=0.001, max=1440)
         ),
     }
 )
@@ -564,6 +586,13 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
         _LOGGER.debug(f"Update for {self.dev_name}{periodic}, hvac_mode: {self._attr_hvac_mode}, preset_mode: {self._attr_preset_mode}, target_temperature: {self._attr_target_temp}.")
 
         if self._attr_current_temperature is None:
+            if self._attr_hvac_mode == HVACMode.OFF:
+                _LOGGER.warning(
+                    "Current temperature unavailable for %s; sending switch-off only",
+                    self.dev_name,
+                )
+                self.sendPacket([0x00])
+                return
             _LOGGER.debug(
                 "Skipping heating update for %s: current temperature unavailable",
                 self.dev_name,

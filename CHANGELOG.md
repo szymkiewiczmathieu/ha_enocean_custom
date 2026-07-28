@@ -6,12 +6,15 @@
 - Abort config-entry reload if the old serial reader remains alive.
 - Guarantee serial descriptor closure when the worker exits.
 - Bound serial writes and actively cancel pending reads/writes during shutdown.
+- Stop accepting or draining queued writes as soon as shutdown begins.
 - Drop malformed outbound packets without terminating the serial worker.
 - Close temporary serial descriptors opened by config-flow validation.
 - Open the USB communicator in Home Assistant's executor.
 - Remove the unsafe raw `send_packet` service.
 - Declare all runtime dependencies and enforce a single config entry.
 - Cancel periodic climate control callbacks when an entity is removed.
+- Always transmit climate switch-off even when the temperature sensor is unavailable.
+- Reject non-finite and physically out-of-range climate control parameters.
 - Remove the accidental dependency on the native `enocean` integration.
 - Add deterministic lifecycle tests plus HACS and hassfest CI.
 
