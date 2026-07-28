@@ -4,9 +4,10 @@
 
 > Custom EnOcean integration for Home Assistant, fork of the official integration.
 
-This maintained fork adds safe serial-port lifecycle handling for current Home
-Assistant releases. It stops and joins the USB reader thread before a config-entry
-reload and closes probe descriptors deterministically.
+This maintained fork targets Home Assistant 2026.7.3 and adds safe serial-port
+lifecycle handling. It stops and joins the USB reader thread before a config-entry
+reload and closes probe descriptors deterministically. Compatibility is confirmed
+only after the live test procedure described in [PATCH_NOTES.md](PATCH_NOTES.md).
 
 > **Publication status:** suitable for local/fork testing. The immediate upstream
 > repository has no declared license; default-catalogue publication should wait
