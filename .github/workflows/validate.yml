@@ -76,6 +76,9 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/hacs
         with:
+          # Upstream has no repository-wide license; see NOTICE.md and issue #6.
+          # Keep every technical HACS check enabled while reporting that legal gap.
+          ignore: license
           category: integration
           comment: false
 
