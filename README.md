@@ -1,8 +1,12 @@
 # EnOcean Custom
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
+[![Validate](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml/badge.svg?branch=review%2Fv1.2.4)](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.7.3-18BCF2.svg)](https://www.home-assistant.io/)
+[![Python](https://img.shields.io/badge/Python-3.14-3776AB.svg)](https://www.python.org/)
 
-> Custom EnOcean integration for Home Assistant, fork of the official integration.
+> Maintained Home Assistant custom integration derived from
+> `kridgo/ha_enocean_custom` and its legacy EnOcean lineage.
 
 This maintained fork targets Home Assistant 2026.7.3 and adds safe serial-port
 lifecycle handling. It stops and joins the USB reader thread before a config-entry
@@ -12,6 +16,36 @@ only after the live test procedure described in [PATCH_NOTES.md](PATCH_NOTES.md)
 > **Publication status:** suitable for local/fork testing. The immediate upstream
 > repository has no declared license; default-catalogue publication should wait
 > for licensing clarification. See [NOTICE.md](NOTICE.md).
+
+## Why this fork is different
+
+`v1.2.4` treats the USB dongle as a single-owner runtime resource rather than
+just another background thread:
+
+- shutdown cancels blocked reads and writes, abandons queued transmissions and
+  refuses new packets as soon as stopping begins;
+- Home Assistant will refuse an unload/reload while the old reader survives;
+- all EnOcean entities become unavailable when the serial worker exits;
+- an unexpected worker exit creates a native Home Assistant Repair issue;
+- config-entry diagnostics distinguish locally queued transmissions from ESP3
+  `OK`/error responses, expose thread health and queue depth, and redact the
+  configured device path;
+- the serial path can be changed through **Reconfigure**, without deleting the
+  config entry;
+- every configured EnOcean ID is exactly four bytes and all protocol-specific
+  ranges are validated before an entity is created;
+- malformed inbound telegrams and rejected outbound commands cannot kill the
+  serial worker or create a false optimistic state;
+- ESP3 responses are correlated in serial-write order, so switch/light state is
+  applied only after the dongle returns `OK`; RPS press/release requires two
+  successful responses;
+- outbound ERP1 frames carry the seven ESP3 optional bytes required by the
+  protocol. Light and switch states remain marked as assumed because ESP3 `OK`
+  confirms dongle acceptance, not remote execution; incoming telegrams can
+  still update their displayed state.
+
+These are software guarantees covered by tests. They do **not** replace the
+live dongle validation checklist in [PATCH_NOTES.md](PATCH_NOTES.md).
 
 ## Background
 
@@ -31,9 +65,30 @@ integration, not its replacement or an official Home Assistant project.
 Do not configure the native `enocean` integration and `enocean_custom` against
 the same serial device. A dongle must have exactly one reader.
 
+### Reconfigure and diagnostics
+
+Open **Settings > Devices & services > EnOcean Custom** and use:
+
+- **Reconfigure** to move from an unstable `/dev/ttyUSB*` path to a persistent
+  `/dev/serial/by-id/*` path;
+- **Download diagnostics** to capture serial lifecycle evidence without sharing
+  the full configured device path. `transmit_queued` means the local worker
+  accepted a packet; `last_response_code=OK` means the dongle accepted the ESP3
+  command. Neither alone proves that the remote actuator executed it.
+
+If the worker stops unexpectedly, Home Assistant raises a Repair issue and all
+EnOcean entities become unavailable. Do not blindly start another reader.
+Resolve the USB/ownership problem first, then reload the config entry. If the
+old thread does not stop within the bounded join, the reload intentionally
+fails instead of opening the port a second time.
+
 ## Description
 
-This custom integration uses the code of the [official EnOcean integration](https://www.home-assistant.io/integrations/enocean/) and the [EnOcean library, `kipe/enocean`](https://github.com/kipe/enocean) and implements bug fixes and new functionalities. To use EnOcean devices with this integration, specify the key `- platform: enocean_custom` instead of `- platform: enocean` when defining an EnOcean device in your `configuration.yaml`
+This custom integration contains legacy Home Assistant-derived platform code and
+a vendored snapshot of the [`kipe/enocean`](https://github.com/kipe/enocean)
+library, plus fixes and features maintained in this fork. To use it, specify
+`- platform: enocean_custom` instead of `- platform: enocean` when defining an
+EnOcean entity in `configuration.yaml`.
 
 ### Binary sensors
 
@@ -62,7 +117,8 @@ To teach-in the switch to your EnOcean device, put the device in learning mode a
 ### Climate device
 
 The custom integration adds support for heating controller Thermokon SRC-D08. The climate entity takes temperature readings from a sensor entity and sends target temperature commands to the heating controller.
-Currently supported HVAC modes are `off` and `heat` with preset modes `comfort`, `sleep` and `away`.
+Currently supported HVAC modes are `off` and `heat` with preset modes `comfort`,
+`sleep`, `away` and `boost`.
 
 Configuration variables:
 
@@ -74,9 +130,13 @@ Configuration variables:
   - `SlideSwitch`: Set to preset mode comfort if equals `1` and preset mode sleep if equals `0`
   - `SetPoint`: Value in the range of `0...255` that represents the target temperature set by the room operating panel. Set to a constant value if not needed.
 - `target_temperature_base_value`: Base value for comfort temperature, default: `21`. Make sure to program the heating controller accordingly.
-- `sensor_target_temperature_range`: Target temperature allowed range, default: `10`. Controls minimum and maximum target temperature values. Make sure to program the heating controller accordingly.
-  - Minimum target temperature: `target_temperature_base_value - sensor_target_temperature_range`
-  - Maximum target temperature: `target_temperature_base_value + sensor_target_temperature_range`
+- `sensor_target_temperature_range`: Scale used to map the sensor's `SetPoint`
+  value (`0...255`) onto a target-temperature span around
+  `target_temperature_base_value`, default: `5`. Make sure to program the
+  heating controller accordingly. This does not set Home Assistant's displayed
+  minimum/maximum, which remain `target_temperature_base_value ± 10 °C`.
+  - Minimum sensor-mapped target: `target_temperature_base_value - sensor_target_temperature_range`
+  - Maximum sensor-mapped target: `target_temperature_base_value + sensor_target_temperature_range`
 - `target_temperature_reduction_night`: Offset for night time reduction of target temperature. Make sure to program the heating controller accordingly.
   - Night time absolute temperature: `target_temperature_base_value - target_temperature_reduction_night`
 - `temperature_frost_protection`: Target temperature for frost protection, this value will be commanded when the climate entity is switched to HVAC mode `off`. Make sure to program the heating controller accordingly.

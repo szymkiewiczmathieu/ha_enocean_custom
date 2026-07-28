@@ -1,9 +1,10 @@
 climate_teach_in_actor:
-  name: Send teach-in telegram for thermostat to climate actor
+  name: Send teach-in telegram to climate actor
   description: Send teach-in telegram to climate actor
   target:
     entity:
       domain: climate
+
 climate_teach_in_actor_switch:
   name: Send teach-in telegram for switch to climate actor
   description: Send teach-in telegram for switch to climate actor

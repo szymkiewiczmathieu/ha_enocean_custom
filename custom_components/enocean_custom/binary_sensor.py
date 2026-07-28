@@ -1,9 +1,9 @@
 """Support for EnOcean binary sensors."""
+
 from __future__ import annotations
 
-from .enocean_library.utils import combine_hex
+import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-
 from homeassistant.components.binary_sensor import (
     DEVICE_CLASSES_SCHEMA,
     PLATFORM_SCHEMA,
@@ -11,11 +11,12 @@ from homeassistant.components.binary_sensor import (
 )
 from homeassistant.const import CONF_DEVICE_CLASS, CONF_ID, CONF_NAME
 from homeassistant.core import HomeAssistant
-import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .device import EnOceanEntity
+from .enocean_library.utils import combine_hex
+from .schema import ENOCEAN_ID
 
 DEFAULT_NAME = "EnOcean binary sensor"
 EVENT_BUTTON_PRESSED = "button_pressed"
@@ -24,9 +25,10 @@ ATTR_ONOFF = "OnOff"
 ATTR_WHICH = "Which"
 ATTR_REPEATED_TELEGRAM = "Repeated telegram"
 
+
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
-        vol.Required(CONF_ID): vol.All(cv.ensure_list, [vol.Coerce(int)]),
+        vol.Required(CONF_ID): ENOCEAN_ID,
         vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
         vol.Optional(CONF_DEVICE_CLASS): DEVICE_CLASSES_SCHEMA,
     }
@@ -96,17 +98,20 @@ class EnOceanBinarySensor(EnOceanEntity, BinarySensorEntity):
         - button released
             ['0xf6', '0x00', '0x00', '0x2d', '0xcf', '0x45', '0x20']
         """
+        if packet.rorg != 0xF6 or len(packet.data) < 7:
+            return
+
         # Energy Bow
         pushed = None
-        
+
         # take first byte for pushed status
-        if packet.data[6]//16 == 3:
+        if packet.data[6] // 16 == 3:
             pushed = 1
-        elif packet.data[6]//16 == 2:
+        elif packet.data[6] // 16 == 2:
             pushed = 0
 
         # take second byte for repeated status
-        self.repeated_telegram = packet.data[6]%16
+        self.repeated_telegram = packet.data[6] % 16
 
         # set state
         if pushed == 1:

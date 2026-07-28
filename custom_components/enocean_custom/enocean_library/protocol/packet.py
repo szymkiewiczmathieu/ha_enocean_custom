@@ -114,43 +114,62 @@ class Packet(object):
         if 0x55 not in buf:
             return PARSE_RESULT.INCOMPLETE, [], None
 
-        Packet.logger.debug("parse_msg called with buf=%s", buf)
+        Packet.logger.debug("parse_msg called with buffered_bytes=%s", len(buf))
 
         # Valid buffer starts from 0x55
         # Convert to list, as index -method isn't defined for bytearray
         buf = [ord(x) if not isinstance(x, int) else x for x in buf[list(buf).index(0x55):]]
+        if len(buf) < 6:
+            Packet.logger.warning("Message incomplete, buffered_bytes=%s", len(buf))
+            return PARSE_RESULT.INCOMPLETE, buf, None
+
+        # Validate the fixed-size header before trusting its declared payload
+        # length. On failure, discard only this sync byte so a following valid
+        # frame can be discovered without waiting for a bogus 16-bit length.
+        if buf[5] != crc8.calc(buf[1:5]):
+            Packet.logger.error('Header CRC error!')
+            return PARSE_RESULT.CRC_MISMATCH, buf[1:], None
+
         try:
             data_len = (buf[1] << 8) | buf[2]
             opt_len = buf[3]
         except IndexError:
             # If the fields don't exist, message is incomplete
-            Packet.logger.warning("Message incomplete, buf: %s", buf)
+            Packet.logger.warning("Message incomplete, buffered_bytes=%s", len(buf))
             return PARSE_RESULT.INCOMPLETE, buf, None
+
+        packet_type = buf[4]
+        # ESP3 RADIO_ERP1 has a protocol-defined shape: 7..20 data bytes and
+        # exactly seven optional bytes. Reject an impossible declaration now
+        # rather than retaining up to 65 KiB behind an otherwise valid CRC8H.
+        # Other ESP3 packet types retain their full 16-bit length semantics;
+        # SerialCommunicator's inter-byte timeout safely abandons those only
+        # after actual receive progress has stopped.
+        if packet_type == PACKET.RADIO_ERP1 and not (
+            7 <= data_len <= 20 and opt_len == 7
+        ):
+            Packet.logger.error('Invalid ESP3 RADIO_ERP1 frame length!')
+            return PARSE_RESULT.CRC_MISMATCH, buf[1:], None
 
         # Header: 6 bytes, data, optional data and data checksum
         msg_len = 6 + data_len + opt_len + 1
         if len(buf) < msg_len:
-            # If buffer isn't long enough, the message is incomplete
             return PARSE_RESULT.INCOMPLETE, buf, None
 
         msg = buf[0:msg_len]
-        buf = buf[msg_len:]
+        remaining = buf[msg_len:]
 
-        packet_type = msg[4]
         data = msg[6:6 + data_len]
         opt_data = msg[6 + data_len:6 + data_len + opt_len]
 
         # Check CRCs for header and data
-        if msg[5] != crc8.calc(msg[1:5]):
-            # Fail if doesn't match message
-            Packet.logger.error('Header CRC error!')
-            # Return CRC_MISMATCH
-            return PARSE_RESULT.CRC_MISMATCH, buf, None
         if msg[6 + data_len + opt_len] != crc8.calc(msg[6:6 + data_len + opt_len]):
             # Fail if doesn't match message
             Packet.logger.error('Data CRC error!')
-            # Return CRC_MISMATCH
-            return PARSE_RESULT.CRC_MISMATCH, buf, None
+            # Discard only the corrupt frame's sync byte.  In particular, do
+            # not consume a following 0x55 that may merely have filled the
+            # missing CRC byte of a truncated frame.
+            return PARSE_RESULT.CRC_MISMATCH, buf[1:], None
 
         # If we got this far, everything went ok (?)
         if packet_type == PACKET.RADIO_ERP1:
@@ -166,7 +185,7 @@ class Packet(object):
         else:
             packet = Packet(packet_type, data, opt_data)
 
-        return PARSE_RESULT.OK, buf, packet
+        return PARSE_RESULT.OK, remaining, packet
 
     @staticmethod
     def create(packet_type, rorg, rorg_func, rorg_type, direction=None, command=None,

@@ -1,4 +1,5 @@
 """Support for EnOcean sensors."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -30,6 +31,7 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .device import EnOceanEntity
 from .enocean_library.utils import combine_hex
+from .schema import ENOCEAN_ID, exact_finite_int
 
 CONF_MAX_TEMP = "max_temp"
 CONF_MIN_TEMP = "min_temp"
@@ -46,6 +48,7 @@ SENSOR_TYPE_SHUTTERCONTACT = "shuttercontact"
 
 ATTR_SETPOINT = "SetPoint"
 ATTR_SLIDESWITCH = "SlideSwitch"
+
 
 @dataclass
 class EnOceanSensorEntityDescriptionMixin:
@@ -106,16 +109,48 @@ SENSOR_DESC_SHUTTERCONTACT = EnOceanSensorEntityDescription(
 )
 
 
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
-    {
-        vol.Required(CONF_ID): vol.All(cv.ensure_list, [vol.Coerce(int)]),
-        vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
-        vol.Optional(CONF_DEVICE_CLASS, default=SENSOR_TYPE_POWER): cv.string,
-        vol.Optional(CONF_MAX_TEMP, default=40): vol.Coerce(int),
-        vol.Optional(CONF_MIN_TEMP, default=0): vol.Coerce(int),
-        vol.Optional(CONF_RANGE_FROM, default=255): cv.positive_int,
-        vol.Optional(CONF_RANGE_TO, default=0): cv.positive_int,
-    }
+SENSOR_TYPES = (
+    SENSOR_TYPE_HUMIDITY,
+    SENSOR_TYPE_POWER,
+    SENSOR_TYPE_TEMPERATURE,
+    SENSOR_TYPE_WINDOWHANDLE,
+    SENSOR_TYPE_SHUTTERCONTACT,
+)
+
+
+def _validate_sensor_config(config: ConfigType) -> ConfigType:
+    """Reject impossible temperature scaling before entity creation."""
+    if config[CONF_DEVICE_CLASS] == SENSOR_TYPE_TEMPERATURE:
+        if config[CONF_MIN_TEMP] >= config[CONF_MAX_TEMP]:
+            raise vol.Invalid("min_temp must be lower than max_temp")
+        if config[CONF_RANGE_FROM] == config[CONF_RANGE_TO]:
+            raise vol.Invalid("range_from and range_to must differ")
+    return config
+
+
+PLATFORM_SCHEMA = vol.All(
+    PLATFORM_SCHEMA.extend(
+        {
+            vol.Required(CONF_ID): ENOCEAN_ID,
+            vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
+            vol.Optional(CONF_DEVICE_CLASS, default=SENSOR_TYPE_POWER): vol.In(
+                SENSOR_TYPES
+            ),
+            vol.Optional(CONF_MAX_TEMP, default=40): vol.All(
+                exact_finite_int, vol.Range(min=-100, max=100)
+            ),
+            vol.Optional(CONF_MIN_TEMP, default=0): vol.All(
+                exact_finite_int, vol.Range(min=-100, max=100)
+            ),
+            vol.Optional(CONF_RANGE_FROM, default=255): vol.All(
+                exact_finite_int, vol.Range(min=0, max=255)
+            ),
+            vol.Optional(CONF_RANGE_TO, default=0): vol.All(
+                exact_finite_int, vol.Range(min=0, max=255)
+            ),
+        }
+    ),
+    _validate_sensor_config,
 )
 
 
@@ -204,7 +239,7 @@ class EnOceanPowerSensor(EnOceanSensor):
 
     def value_changed(self, packet):
         """Update the internal state of the sensor."""
-        if packet.rorg != 0xA5:
+        if packet.rorg != 0xA5 or len(packet.data) < 5:
             return
         packet.parse_eep(0x12, 0x01)
         if packet.parsed["DT"]["raw_value"] == 1:
@@ -261,14 +296,10 @@ class EnOceanTemperatureSensor(EnOceanSensor):
         if (old_state := await self.async_get_last_state()) is not None:
             # state is restored in EnOceanSensor class
             # restore attributes
-            if self.setpoint is None and old_state.attributes.get(ATTR_SETPOINT):
+            if self.setpoint is None:
                 self.setpoint = old_state.attributes.get(ATTR_SETPOINT)
-            else:
-                self.setpoint = 0
-            if self.slideswitch is None and old_state.attributes.get(ATTR_SLIDESWITCH):
+            if self.slideswitch is None:
                 self.slideswitch = old_state.attributes.get(ATTR_SLIDESWITCH)
-            else:
-                self.slideswitch = 0
 
     @property
     def extra_state_attributes(self):
@@ -281,7 +312,7 @@ class EnOceanTemperatureSensor(EnOceanSensor):
 
     def value_changed(self, packet):
         """Update the internal state of the sensor."""
-        if packet.data[0] != 0xA5:
+        if packet.rorg != 0xA5 or len(packet.data) < 5:
             return
         temp_scale = self._scale_max - self._scale_min
         temp_range = self.range_to - self.range_from
@@ -290,7 +321,7 @@ class EnOceanTemperatureSensor(EnOceanSensor):
         temperature += self._scale_min
         self._attr_native_value = round(temperature, 1)
         self.setpoint = packet.data[2]
-        self.slideswitch = packet.data[4]&1
+        self.slideswitch = packet.data[4] & 1
         self.schedule_update_ha_state()
 
 
@@ -305,7 +336,7 @@ class EnOceanHumiditySensor(EnOceanSensor):
 
     def value_changed(self, packet):
         """Update the internal state of the sensor."""
-        if packet.rorg != 0xA5:
+        if packet.rorg != 0xA5 or len(packet.data) < 3:
             return
         humidity = packet.data[2] * 100 / 250
         self._attr_native_value = round(humidity, 1)
@@ -321,6 +352,8 @@ class EnOceanWindowHandle(EnOceanSensor):
 
     def value_changed(self, packet):
         """Update the internal state of the sensor."""
+        if packet.rorg != 0xF6 or len(packet.data) < 2:
+            return
         action = (packet.data[1] & 0x70) >> 4
 
         if action == 0x07:
@@ -335,14 +368,14 @@ class EnOceanWindowHandle(EnOceanSensor):
 
 class EnOceanShutterContact(EnOceanSensor):
     """Representation of an EnOcean shutter contact device.
-    
+
     EEPs (EnOcean Equipment Profiles):
     - D5-00-01 (Shutter contact)
     """
 
     def value_changed(self, packet):
         """Update the internal state of the sensor."""
-        if packet.rorg != 0xD5:
+        if packet.rorg != 0xD5 or len(packet.data) < 2:
             return
         if packet.data[1] == 0x09:
             self._attr_native_value = STATE_CLOSED
