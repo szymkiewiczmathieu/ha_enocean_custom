@@ -10,22 +10,3 @@ climate_teach_in_actor_switch:
   target:
     entity:
       domain: climate
-send_packet:
-  name: Send EnOcean packet with dongle
-  description: Send EnOcean packet with dongle
-  fields:
-    packet_type:
-      example: 0x01
-      default: 0x01
-    optional:
-      example: [0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00]
-      default: []
-    data:
-      example: [0xA5, 0xFF, 0xFF, 0xFF, 0xFF]
-      default: [0xD5, 0x00]
-    status:
-      example: [0x00]
-      default: [0x00]
-    sender_id:
-      example: [0xFF, 0xFF, 0xFF, 0xFF]
-      default: [0xFF, 0xFF, 0xFF, 0xFF]

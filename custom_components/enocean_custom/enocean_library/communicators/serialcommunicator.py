@@ -15,7 +15,21 @@ class SerialCommunicator(Communicator):
         self.name = f"EnOceanSerialCommunicator[{port}]"
         self.daemon = True
         # Initialize serial port
-        self.__ser = serial.Serial(port, 57600, timeout=0.1)
+        self.__ser = serial.Serial(
+            port, 57600, timeout=0.1, write_timeout=0.5
+        )
+
+    def stop(self):
+        """Stop the worker and actively interrupt pending serial I/O."""
+        super().stop()
+        for method_name in ("cancel_read", "cancel_write"):
+            cancel_io = getattr(self.__ser, method_name, None)
+            if cancel_io is None:
+                continue
+            try:
+                cancel_io()
+            except (OSError, serial.SerialException, NotImplementedError):
+                self.logger.exception("Unable to %s", method_name)
 
     def run(self):
         self.logger.info('SerialCommunicator started')
@@ -28,9 +42,14 @@ class SerialCommunicator(Communicator):
                         break
                     try:
                         self.__ser.write(bytearray(packet.build()))
+                    except (TypeError, ValueError):
+                        self.logger.exception("Invalid EnOcean packet; dropping it")
                     except serial.SerialException:
                         self.logger.exception('Serial port exception while writing')
                         self.stop()
+
+                if self._stop_flag.is_set():
+                    continue
 
                 # Read chars from serial port as hex numbers.
                 try:

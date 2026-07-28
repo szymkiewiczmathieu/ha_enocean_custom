@@ -15,7 +15,11 @@ only after the live test procedure described in [PATCH_NOTES.md](PATCH_NOTES.md)
 
 ## Background
 
-The official EnOcean integration for Home Assistant is currently not being extended by new functionality as the code needs a major refactory. Pull requests to add new sensors etc. are [not being accepted](https://github.com/home-assistant/core/pull/86461#discussion_r1084908489). That is why this custom integration was created. Also, the EnOcean protocol library being used by Home Assistant seems to be abandoned, that is why a fork is included in this custom integration.
+This fork preserves devices and features from `kridgo/ha_enocean_custom` while
+hardening serial lifecycle handling for current Home Assistant releases. The
+official Home Assistant EnOcean integration remains active and now follows a
+different protocol-library path; this repository is an independent custom
+integration, not its replacement or an official Home Assistant project.
 
 ## Installation
 
@@ -23,6 +27,9 @@ The official EnOcean integration for Home Assistant is currently not being exten
 2. Open HACS in your Home Assistant installation
 3. Add `https://github.com/szymkiewiczmathieu/ha_enocean_custom` as a HACS [custom repository](https://hacs.xyz/docs/faq/custom_repositories): `Integrations > Three Dots > Custom repositories > Integration`
 4. Install `EnOcean Custom`
+
+Do not configure the native `enocean` integration and `enocean_custom` against
+the same serial device. A dongle must have exactly one reader.
 
 ## Description
 
@@ -45,7 +52,7 @@ To emulate double rocker push buttons, the keywords `switch_type` and `channel` 
 switch:
   - platform: enocean_custom
     name: switch_livingroom
-    switch_type: RPS    # emulate doouble rocker push button
+    switch_type: RPS    # emulate double rocker push button
     channel: 0          # 0 for left rocker, 1 for right rocker
     id: [0xFF, 0xD9, 0x04, 0x81]
 ```
@@ -63,17 +70,17 @@ Configuration variables:
 - `name`: entity name
 - `id`: EnOcean ID to send temperature set point commands to the heating controller. Must fit to your [dongle's base ID](https://community.home-assistant.io/t/enocean-switch/1958/36). Commands replicate EnOcean room operating panel telegrams and use EEP A5-10-06 format.
 - `id_switch`: EnOcean ID to send digital switch commands to the heating controller. Must fit to your [dongle's base ID](https://community.home-assistant.io/t/enocean-switch/1958/36).
-- `sensor_entity_id`: Entity ID of the temperature sensor. Expects an [EnOcean temperature sensor](https://www.home-assistant.io/integrations/enocean/#temperature-sensor), but you may use any entity that provides the measured temperature as state and the state attributes `slideSwitch` and `setPoint`. Explanation:
-  - `slideSwitch`: Set to preset mode comfort if equals `1` and preset mode sleep if equals `0`
-  - `setPoint`: Value in the range of `0...255` that represents the target temperature set by the room operating panel. Set to constant value if not needed.
-- `target_temperature_base_value`: Base value for comfort temperatur, default: `21`. Make sure to program the heating controller accordingly.
+- `sensor_entity_id`: Entity ID of the temperature sensor. Expects an [EnOcean temperature sensor](https://www.home-assistant.io/integrations/enocean/#temperature-sensor), but you may use any entity that provides the measured temperature as state and the state attributes `SlideSwitch` and `SetPoint`. Explanation:
+  - `SlideSwitch`: Set to preset mode comfort if equals `1` and preset mode sleep if equals `0`
+  - `SetPoint`: Value in the range of `0...255` that represents the target temperature set by the room operating panel. Set to a constant value if not needed.
+- `target_temperature_base_value`: Base value for comfort temperature, default: `21`. Make sure to program the heating controller accordingly.
 - `sensor_target_temperature_range`: Target temperature allowed range, default: `10`. Controls minimum and maximum target temperature values. Make sure to program the heating controller accordingly.
   - Minimum target temperature: `target_temperature_base_value - sensor_target_temperature_range`
   - Maximum target temperature: `target_temperature_base_value + sensor_target_temperature_range`
 - `target_temperature_reduction_night`: Offset for night time reduction of target temperature. Make sure to program the heating controller accordingly.
   - Night time absolute temperature: `target_temperature_base_value - target_temperature_reduction_night`
 - `temperature_frost_protection`: Target temperature for frost protection, this value will be commanded when the climate entity is switched to HVAC mode `off`. Make sure to program the heating controller accordingly.
-- `command_frequency`: Heating controller require periodic sending of commands, otherwise the actor will switch to contingency operating mode, default: `minutes: 17`
+- `command_frequency`: The heating controller requires periodic commands; otherwise the actor switches to contingency operating mode. Default: `minutes: 17`.
 - Heating controller PI parameter: The heating controller `SRC-D08` does not send status telegrams, so there is no information of the current valve position (which is internally calculated by a PI control law). To provide the controller output to Home Assistant, the integration calculates the controller output based on the provided controller parameters:
   - `pi_control_Kp`: Parameter for the proportional controller (`%/K`), default: `5`. Make sure to program the heating controller accordingly.
   - `pi_control_Tn`: Parameter for the integral controller (`min`), default: `240`. Make sure to program the heating controller accordingly.
@@ -82,20 +89,20 @@ Example definition of a climate entity:
 
 ```yaml
 climate:
-  - platform: enocean_custom
-    name: heating_controller_livingroom
-    device_type: "SRC-D08"
-    id: [0x0F, 0x53, 0xD6, 0x83]
-    id_switch: [0x12, 0x34, 0x56, 0x78]
-    sensor_entity_id: "sensor.temperature_livingroom"
-    target_temperature_base_value: 21
-    target_temperature_reduction_night: 5
-    sensor_target_temperature_range: 10
-    temperature_frost_protection: 8
-    command_frequency:
-      minutes: 20
-    pi_control_Kp: 5
-    pi_control_Tn: 240
+  - platform: enocean_custom
+    name: heating_controller_livingroom
+    device_type: "SRC-D08"
+    id: [0x0F, 0x53, 0xD6, 0x83]
+    id_switch: [0x12, 0x34, 0x56, 0x78]
+    sensor_entity_id: "sensor.temperature_livingroom"
+    target_temperature_base_value: 21
+    target_temperature_reduction_night: 5
+    sensor_target_temperature_range: 10
+    temperature_frost_protection: 8
+    command_frequency:
+      minutes: 20
+    pi_control_Kp: 5
+    pi_control_Tn: 240
 ```
 
 #### Teach-In
@@ -124,27 +131,10 @@ target:
 
 ### Integration services
 
-The integration provides the service `send_packet` to send an arbitrary radio telegrams.
-
-Configuration variables:
-
-- `packet_type`: packet type, 1 is normal packet type. Check `enocean_library/protocol/constants.py` for valid packet types.
-- `data`: data of the radio packet. The first byte indicates packet type, e.g. `0xA5` for `4BS` packets.
-- `optional`: optional data attached to the data
-- `status`: status byte of telegram. Used to indicate repeater status of telegram, checksum etc.
-- `sender_id`: EnOcean ID used as sender of the telegram. Must fit to your [dongle's base ID](https://community.home-assistant.io/t/enocean-switch/1958/36). 
-
-Example service call:
-
-```yaml
-service: enocean_custom.send_packet
-data:
-  packet_type: 1
-  optional: []
-  data: [0xA5, 0xFF, 0xFF, 0xFF, 0xFF]
-  status: 1
-  sender_id: [0xFF, 0xFF, 0xFF, 0xFF]
-```
+The climate teach-in services documented above remain available. The old
+`enocean_custom.send_packet` service was removed in `v1.2.4`: it allowed
+arbitrary sender spoofing and malformed calls could terminate the serial
+worker. Normal entities do not use that public service.
 
 ### Bug fixes
 

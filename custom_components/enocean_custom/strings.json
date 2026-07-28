@@ -5,13 +5,13 @@
       "detect": {
         "title": "Select the path to your EnOcean dongle",
         "data": {
-          "path": "USB dongle path"
+          "device": "USB dongle path"
         }
       },
       "manual": {
         "title": "Enter the path to your EnOcean dongle",
         "data": {
-          "path": "USB dongle path"
+          "device": "USB dongle path"
         }
       }
     },
@@ -31,10 +31,6 @@
     "climate_teach_in_actor_switch": {
       "name": "Send teach-in telegram for switch to climate actor",
       "description": "Send teach-in telegram for switch to climate actor"
-    },
-    "send_packet": {
-      "name": "Send EnOcean packet with dongle",
-      "description": "Send EnOcean packet with dongle"
     }
   }
 }

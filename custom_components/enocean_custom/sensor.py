@@ -4,9 +4,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from .enocean_library.utils import combine_hex
+import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-
 from homeassistant.components.sensor import (
     PLATFORM_SCHEMA,
     SensorDeviceClass,
@@ -25,12 +24,12 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant
-import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .device import EnOceanEntity
+from .enocean_library.utils import combine_hex
 
 CONF_MAX_TEMP = "max_temp"
 CONF_MIN_TEMP = "min_temp"
@@ -184,7 +183,13 @@ class EnOceanSensor(EnOceanEntity, RestoreEntity, SensorEntity):
             return
 
         if (state := await self.async_get_last_state()) is not None:
-            self._attr_native_value = state.state
+            if self.entity_description.state_class is None:
+                self._attr_native_value = state.state
+                return
+            try:
+                self._attr_native_value = float(state.state)
+            except (TypeError, ValueError):
+                return
 
     def value_changed(self, packet):
         """Update the internal state of the sensor."""

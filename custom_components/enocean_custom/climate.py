@@ -1,59 +1,59 @@
 """Support for EnOcean climate devices."""
 from __future__ import annotations
 
-from typing import Any
-
 import logging
-import time
 import math
 import random
-from datetime import datetime, timedelta
+from datetime import timedelta
+from time import monotonic
+from typing import Any
 
-from .enocean_library.utils import combine_hex
 import voluptuous as vol
-
 from homeassistant.components.climate import (
-    PLATFORM_SCHEMA,
-    ATTR_CURRENT_TEMPERATURE,
     ATTR_PRESET_MODE,
     ATTR_TEMPERATURE,
-    DOMAIN as CLIMATE_DOMAIN,
+    PLATFORM_SCHEMA,
+    PRESET_AWAY,
     PRESET_BOOST,
     PRESET_COMFORT,
-    PRESET_SLEEP,
-    PRESET_AWAY,
     PRESET_NONE,
+    PRESET_SLEEP,
     ClimateEntity,
     ClimateEntityFeature,
     HVACAction,
     HVACMode,
 )
+from homeassistant.components.climate import (
+    DOMAIN as CLIMATE_DOMAIN,
+)
 from homeassistant.const import (
     CONF_ID,
     CONF_NAME,
     EVENT_HOMEASSISTANT_START,
-    Platform,
-    STATE_ON,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
-    UnitOfTemperature
+    Platform,
+    UnitOfTemperature,
 )
-from homeassistant.core import HomeAssistant, callback, State, CoreState, Event
-from homeassistant.helpers import config_validation as cv, entity_registry as er
+from homeassistant.core import CoreState, Event, HomeAssistant, State, callback
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_platform
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.reload import async_setup_reload_service
-from homeassistant.helpers.restore_state import RestoreEntity
-from homeassistant.helpers import entity_platform, service, entity_component
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.helpers.event import (
     EventStateChangedData,
+    async_track_point_in_time,
     async_track_state_change_event,
     async_track_time_interval,
-    async_track_point_in_time,
 )
+from homeassistant.helpers.reload import async_setup_reload_service
+from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, LOGGER
 from .device import EnOceanEntity
+from .enocean_library.utils import combine_hex
 
 DEVICE_SUPPORTED_LIST = ["SRC-D08"]
 '''
@@ -86,21 +86,28 @@ ATTR_TEMPERATURE_COMFORT = "temperature_comfort"
 ATTR_TEMPERATURE_SLEEP = "temperature_sleep"
 ATTR_TEMPERATURE_AWAY =  "temperature_away"
 
+BYTE = vol.All(vol.Coerce(int), vol.Range(min=0, max=255))
+ENOCEAN_ID = vol.All(cv.ensure_list, [BYTE], vol.Length(min=4, max=4))
+
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
-        vol.Optional(CONF_ID, default=[]): vol.All(cv.ensure_list, [vol.Coerce(int)]),
+        vol.Required(CONF_ID): ENOCEAN_ID,
         vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
-        vol.Required(CONF_SENDER_ID_SWITCH): vol.All(cv.ensure_list, [vol.Coerce(int)]),
-        vol.Required(CONF_DEVICE_TYPE): cv.string,
-        vol.Required(CONF_SENSOR_ENTITY_ID): cv.string,
+        vol.Required(CONF_SENDER_ID_SWITCH): ENOCEAN_ID,
+        vol.Required(CONF_DEVICE_TYPE): vol.In(DEVICE_SUPPORTED_LIST),
+        vol.Required(CONF_SENSOR_ENTITY_ID): cv.entity_id,
         vol.Optional(CONF_SENSOR_TARGET_TEMP_FROST_PROTECTION, default=8.0): cv.positive_float,
         vol.Optional(CONF_SENSOR_TARGET_TEMP_RANGE, default=5): cv.positive_int,
         vol.Optional(CONF_SENSOR_TARGET_TEMP_TOLERANCE, default=0.5): cv.positive_float,
         vol.Optional(CONF_TARGET_TEMP_BASE, default=21.0): cv.positive_float,
         vol.Optional(CONF_TARGET_TEMP_NIGHT_REDUCTION, default=4.0): cv.positive_float,
-        vol.Optional(CONF_COMMAND_FREQUENCY, default="00:17:00"): cv.positive_time_period,
+        vol.Optional(CONF_COMMAND_FREQUENCY, default="00:17:00"): vol.All(
+            cv.positive_time_period, vol.Range(min=timedelta(seconds=1))
+        ),
         vol.Optional(CONF_PI_CONTROL_KP, default=5.0): cv.positive_float,
-        vol.Optional(CONF_PI_CONTROL_TN, default=240.0): cv.positive_float,
+        vol.Optional(CONF_PI_CONTROL_TN, default=240.0): vol.All(
+            vol.Coerce(float), vol.Range(min=0.000001)
+        ),
     }
 )
 
@@ -237,13 +244,15 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
         self._attr_pi_control_output = None
         self._attr_pi_control_unit = "%"
         self._pi_control_error = 0
-        self._pi_control_update_time = datetime.now()
+        self._pi_control_update_time = monotonic()
         self._pi_control_integrator_state = None
         
-    async def _async_create_timer(self, time=None):
-        async_track_time_interval(
+    async def _async_create_timer(self, _time=None):
+        self.async_on_remove(
+            async_track_time_interval(
                 self.hass, self._async_control_heating, self._command_frequency
             )
+        )
 
     async def async_added_to_hass(self) -> None:
         """Run when entity about to be added."""
@@ -259,11 +268,18 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
         # Add timer to periodically send commands to heating actor
         # periodic commands are needed, otherwise the actor will switch to contingency operating mode
         # wait for random time before enabling time interval, so that events for different entities will not fire all at once
-        random.seed(self._attr_unique_id)   # initialize random generator with different seed for each entity
+        timer_random = random.Random(self._attr_unique_id)
         self.async_on_remove(
             async_track_point_in_time(
-                    self.hass, self._async_create_timer, datetime.now() + timedelta( seconds = random.uniform(0,self._command_frequency.total_seconds()) )
-                )
+                self.hass,
+                self._async_create_timer,
+                dt_util.now()
+                + timedelta(
+                    seconds=timer_random.uniform(
+                        0, self._command_frequency.total_seconds()
+                    )
+                ),
+            )
         )
 
         @callback
@@ -451,7 +467,7 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
         """Set new target temperature."""
         if (temperature := kwargs.get(ATTR_TEMPERATURE)) is None:
             return
-        if not self._attr_hvac_mode == HVACMode.OFF:
+        if self._attr_hvac_mode != HVACMode.OFF:
             # only update target_temp from UI when mode other than OFF
             self._attr_target_temp = temperature
             await self._async_control_heating()
@@ -500,7 +516,7 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
             
             await self._async_control_heating()
             self.async_write_ha_state()
-        except ValueError as ex:
+        except (KeyError, TypeError, ValueError) as ex:
             _LOGGER.error("Unable to update from sensor: %s", ex)
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
@@ -539,13 +555,20 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
             await self._async_control_heating()
             self.async_write_ha_state()
 
-    async def _async_control_heating(self, time=None):
+    async def _async_control_heating(self, event_time=None):
         """Calculate controller commands and send to actor"""
         periodic = ""
-        if time is not None:
+        if event_time is not None:
             #_LOGGER.debug(f"Update for {self.dev_name} invoked by periodic command")
             periodic = " invoked by periodic command"
         _LOGGER.debug(f"Update for {self.dev_name}{periodic}, hvac_mode: {self._attr_hvac_mode}, preset_mode: {self._attr_preset_mode}, target_temperature: {self._attr_target_temp}.")
+
+        if self._attr_current_temperature is None:
+            _LOGGER.debug(
+                "Skipping heating update for %s: current temperature unavailable",
+                self.dev_name,
+            )
+            return
 
         # set target temperature depending on mode
         if self._attr_hvac_mode == HVACMode.OFF:
@@ -555,9 +578,15 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
 
         # Update controller state
         ## integrator state based on previous error
-        cur_time = datetime.now()
-        pi_control_timedelta = (cur_time - self._pi_control_update_time).total_seconds()/60
+        cur_time = monotonic()
+        pi_control_timedelta = (cur_time - self._pi_control_update_time) / 60
         self._pi_control_update_time = cur_time
+        if (
+            self._attr_pi_control_output is None
+            or self._pi_control_integrator_state is None
+        ):
+            self._attr_pi_control_output = 0.0
+            self._pi_control_integrator_state = 0.0
         # integrator anti-wind-up
         if self._attr_pi_control_output >= 100 or self._attr_pi_control_output <= 0:
             anti_wind_up = 0
@@ -577,7 +606,7 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
             _LOGGER.info("Temperature set point greater than 255, clipping value.")
         elif setPoint < 0:
             setPoint = 0
-            if not self._attr_hvac_mode == HVACMode.OFF:
+            if self._attr_hvac_mode != HVACMode.OFF:
                 _LOGGER.info("Temperature set point less than 0, clipping value.")
 
         ### calculate temperature in protocol format: 0...+40°C -> 255...0

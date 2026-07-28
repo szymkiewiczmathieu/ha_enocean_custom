@@ -1,15 +1,16 @@
 """Representation of an EnOcean device."""
-from .enocean_library.protocol.packet import Packet
-from .enocean_library.utils import combine_hex
-
 from homeassistant.helpers.dispatcher import async_dispatcher_connect, dispatcher_send
 from homeassistant.helpers.entity import Entity
 
 from .const import SIGNAL_RECEIVE_MESSAGE, SIGNAL_SEND_MESSAGE
+from .enocean_library.protocol.packet import Packet
+from .enocean_library.utils import combine_hex
 
 
 class EnOceanEntity(Entity):
     """Parent class for all entities associated with the EnOcean component."""
+
+    _attr_should_poll = False
 
     def __init__(self, dev_id, dev_name="EnOcean device"):
         """Initialize the device."""
