@@ -90,6 +90,50 @@ library, plus fixes and features maintained in this fork. To use it, specify
 `- platform: enocean_custom` instead of `- platform: enocean` when defining an
 EnOcean entity in `configuration.yaml`.
 
+### Adding devices from the UI (teach-in)
+
+Since `v1.3.0`, `binary_sensor`, `switch`, and `light` devices can also be
+added and removed entirely from **Settings > Devices & services > EnOcean
+Custom > Configure**, without editing `configuration.yaml`. YAML configuration
+keeps working unchanged and cohabits with UI-managed devices on the same
+platform; there is no automatic YAML-to-UI migration.
+
+1. Open **Configure > Add a device**.
+2. Put the physical device into learning mode and press its button. The
+   integration listens for up to 60 seconds (configurable 15-300 seconds via
+   the `enocean_custom.learn` service's `timeout` field) and captures the
+   first EnOcean sender it does not already know about, from either YAML or
+   the UI.
+3. Fill in the short form: platform (`binary_sensor`, `switch`, or `light`),
+   name, and platform-specific fields — `device_class` (optional) for
+   `binary_sensor`, `channel` (default `0`) and `switch_type` (`default` or
+   `RPS`, with RPS restricted to channels 0/1) for `switch`, or `sender_id`
+   (required for `light`, typed as four hex bytes like `05:9F:89:34` — the
+   virtual ID used for outbound commands) for `light`.
+4. The entity is created immediately with the same `unique_id` a matching
+   YAML definition would produce.
+
+Use **Configure > Manage UI devices** to remove a device you added from the
+UI; this deletes both its config-entry option entry and its exact entity
+registry row.
+
+Two things worth knowing:
+
+- Only one teach-in window can be open at a time, whoever started it (the UI
+  flow or the `enocean_custom.learn` service): a second start is refused until
+  the first window closes. Deleting a UI device makes its EnOcean ID teachable
+  again immediately, without restarting Home Assistant.
+- "Unknown" means the captured ID is absent from every configured device
+  (YAML or UI), not just the platform you're currently adding. Once any
+  entity exists for a given EnOcean ID, teach-in will not offer that ID again
+  — a second entity for an already-known multi-profile device still needs
+  YAML. If the device's identity already exists in the entity registry, the
+  form is refused with an explicit error: teach-in never merges or overwrites
+  an existing device.
+
+`climate` and `sensor` devices remain YAML-only and are not part of this
+feature; see [PATCH_NOTES.md](PATCH_NOTES.md) for the full scope.
+
 ### Binary sensors
 
 Binary sensors do not only trigger events but also have a state variable which may be `On` or `Off`. The state attributes `Onoff` and `Which` have been added to identify which pushbutton is being pressed. The state attribute `Repeated telegram` indicates if the received telegram was received by an EnOcean repeater.
@@ -200,6 +244,12 @@ The climate teach-in services documented above remain available. The old
 `enocean_custom.send_packet` service was removed in `v1.2.4`: it allowed
 arbitrary sender spoofing and malformed calls could terminate the serial
 worker. Normal entities do not use that public service.
+
+`enocean_custom.learn` (added in `v1.3.0`) starts the same listening window
+used by **Configure > Add a device** and fires
+`enocean_custom_device_learned` with `{"id": [...], "hex": "AA:BB:CC:DD"}`
+once an unknown sender is captured. It accepts an optional `timeout` field
+(seconds, 15-300, default 60).
 
 ### Bug fixes
 

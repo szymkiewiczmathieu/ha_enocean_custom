@@ -30,6 +30,63 @@
       "single_instance_allowed": "[%key:common::config_flow::abort::single_instance_allowed%]"
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "menu_options": {
+          "learn": "Add a device",
+          "manage": "Manage UI devices"
+        }
+      },
+      "device_form": {
+        "title": "Name the captured device",
+        "description": "Captured EnOcean ID: {captured_id}",
+        "data": {
+          "platform": "Type",
+          "name": "Name"
+        }
+      },
+      "device_details": {
+        "title": "Device details",
+        "description": "Captured EnOcean ID: {captured_id}, name: {name}",
+        "data": {
+          "device_class": "Device class",
+          "channel": "Channel",
+          "switch_type": "Switch type",
+          "sender_id": "Sender ID"
+        }
+      },
+      "manage": {
+        "title": "Manage UI devices",
+        "data": {
+          "device": "Device to remove"
+        }
+      },
+      "delete_confirm": {
+        "title": "Remove device?",
+        "description": "Remove {name} ({platform}, {captured_id})? This also deletes its entity registry entry.",
+        "data": {
+          "confirm": "Confirm removal"
+        }
+      }
+    },
+    "progress": {
+      "waiting_for_device": "Press the button on the device now. Waiting up to 60 seconds for an unknown EnOcean sender."
+    },
+    "error": {
+      "unique_id_exists": "A device with this identity already exists. Teach-in never merges or overwrites an existing device.",
+      "invalid_channel_rps": "RPS switches only support channel 0 or 1.",
+      "invalid_channel": "Channel must be an exact integer between 0 and 255.",
+      "invalid_sender_id": "Sender ID must be 4 hex bytes, e.g. 05:9F:89:34."
+    },
+    "abort": {
+      "learn_timeout": "No unknown EnOcean sender was heard before the timeout.",
+      "no_ui_devices": "No UI-managed devices to remove.",
+      "delete_cancelled": "Removal cancelled.",
+      "learn_in_progress": "A teach-in window is already in progress.",
+      "device_form_missing": "The device form session expired; start again."
+    }
+  },
   "services": {
     "climate_teach_in_actor": {
       "name": "Send teach-in telegram to climate actor",
@@ -38,6 +95,14 @@
     "climate_teach_in_actor_switch": {
       "name": "Send teach-in telegram for switch to climate actor",
       "description": "Send teach-in telegram for switch to climate actor"
+    },
+    "learn": {
+      "name": "Start EnOcean teach-in",
+      "description": "Listen for the next unknown EnOcean sender and fire enocean_custom_device_learned once one is captured."
+    },
+    "reload": {
+      "name": "Reload EnOcean YAML platforms",
+      "description": "Reload YAML-configured EnOcean platforms from the current configuration."
     }
   },
   "issues": {

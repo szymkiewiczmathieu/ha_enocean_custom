@@ -10,13 +10,14 @@ from datetime import timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Event, Lock, Thread
-from types import SimpleNamespace
+from types import MappingProxyType, SimpleNamespace
 from typing import Any
 from unittest.mock import Mock
 
 import voluptuous as vol
 import yaml
 from homeassistant.components.climate.const import HVACMode
+from homeassistant.config_entries import ConfigEntries, ConfigEntry
 from homeassistant.const import (
     CONF_DEVICE_CLASS,
     CONF_ID,
@@ -24,9 +25,12 @@ from homeassistant.const import (
     CONF_PLATFORM,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
@@ -35,14 +39,20 @@ from custom_components.enocean_custom import (
     binary_sensor,
     climate,
     dongle,
+    learn,
     light,
+    options_flow,
     sensor,
     switch,
 )
 from custom_components.enocean_custom.const import (
     DATA_ENOCEAN,
+    DOMAIN,
     ENOCEAN_DONGLE,
+    EVENT_DEVICE_LEARNED,
+    SERVICE_LEARN,
     SIGNAL_DONGLE_STATUS,
+    SIGNAL_RECEIVE_MESSAGE,
 )
 from custom_components.enocean_custom.device import EnOceanEntity
 from custom_components.enocean_custom.diagnostics import (
@@ -64,6 +74,7 @@ from custom_components.enocean_custom.enocean_library.protocol.packet import (
     Packet,
     ResponsePacket,
 )
+from custom_components.enocean_custom.schema import CONF_UI_DEVICES
 
 
 async def _assert_off_without_sensor_sends_switch_off() -> None:
@@ -633,6 +644,403 @@ def _assert_base_id_retry_paths() -> None:
         raise AssertionError("Base-ID retry after timeout was not queued")
 
 
+def _new_test_config_entry() -> ConfigEntry:
+    """Build a minimal real ConfigEntry for teach-in harness tests."""
+    return ConfigEntry(
+        data={"device": "/dev/test-teachin"},
+        discovery_keys=MappingProxyType({}),
+        domain=DOMAIN,
+        minor_version=1,
+        options={},
+        source="user",
+        subentries_data=None,
+        title="EnOcean",
+        unique_id=None,
+        version=1,
+    )
+
+
+def _bind_options_flow(hass: HomeAssistant, entry: ConfigEntry) -> Any:
+    """Bind a real OptionsFlow instance to hass/entry without the flow manager."""
+    flow = options_flow.EnOceanOptionsFlow()
+    flow.hass = hass
+    flow.handler = entry.entry_id
+    return flow
+
+
+async def _assert_ui_devices_create_entities_with_yaml_compatible_unique_ids() -> None:
+    """options["ui_devices"] must create entities cohabiting with YAML ones."""
+    with TemporaryDirectory() as config_dir:
+        hass = HomeAssistant(config_dir)
+        try:
+            ui_devices = [
+                {
+                    "id": [0x10, 0x20, 0x30, 0x40],
+                    "platform": "binary_sensor",
+                    "name": "UI door",
+                    "device_class": "door",
+                    "channel": 0,
+                    "sender_id": None,
+                },
+                {
+                    "id": [0x10, 0x20, 0x30, 0x40],
+                    "platform": "switch",
+                    "name": "UI relay",
+                    "device_class": None,
+                    "channel": 3,
+                    "sender_id": None,
+                },
+                {
+                    "id": [0x50, 0x60, 0x70, 0x80],
+                    "platform": "light",
+                    "name": "UI lamp",
+                    "device_class": None,
+                    "channel": 0,
+                    "sender_id": [0x01, 0x02, 0x03, 0x04],
+                },
+            ]
+            entry_stub = SimpleNamespace(options={CONF_UI_DEVICES: ui_devices})
+
+            binary_sensor_entities: list[Any] = []
+            await binary_sensor.async_setup_entry(
+                hass, entry_stub, binary_sensor_entities.extend
+            )
+            switch_entities: list[Any] = []
+            await switch.async_setup_entry(hass, entry_stub, switch_entities.extend)
+            light_entities: list[Any] = []
+            await light.async_setup_entry(hass, entry_stub, light_entities.extend)
+
+            door_id = (0x10 << 24) | (0x20 << 16) | (0x30 << 8) | 0x40
+            lamp_id = (0x50 << 24) | (0x60 << 16) | (0x70 << 8) | 0x80
+            if binary_sensor_entities[0].unique_id != f"{door_id}-door":
+                raise AssertionError(
+                    "UI binary_sensor unique_id diverged from YAML formula"
+                )
+            if switch_entities[0].unique_id != f"{door_id}-3":
+                raise AssertionError("UI switch unique_id diverged from YAML formula")
+            if light_entities[0].unique_id != f"{lamp_id}":
+                raise AssertionError("UI light unique_id diverged from YAML formula")
+
+            known_ids = learn.get_known_ids(hass)
+            if door_id not in known_ids or lamp_id not in known_ids:
+                raise AssertionError("UI devices were not registered as known ids")
+
+            # A YAML-configured binary_sensor on the very same platform must
+            # keep working (cohabitation, not replacement).
+            yaml_entities: list[Any] = []
+            binary_sensor.setup_platform(
+                hass,
+                {
+                    CONF_ID: [0x90, 0xA0, 0xB0, 0xC0],
+                    CONF_NAME: "YAML window",
+                    CONF_DEVICE_CLASS: "window",
+                },
+                yaml_entities.extend,
+            )
+            if len(yaml_entities) != 1 or len(binary_sensor_entities) != 1:
+                raise AssertionError(
+                    "YAML and UI binary_sensor entities did not cohabit"
+                )
+            yaml_id = (0x90 << 24) | (0xA0 << 16) | (0xB0 << 8) | 0xC0
+            if yaml_id not in learn.get_known_ids(hass):
+                raise AssertionError("YAML setup_platform did not register a known id")
+        finally:
+            await hass.async_stop(force=True)
+
+
+async def _assert_options_flow_add_and_delete_device() -> None:
+    """Drive the real options flow: learn, collision refusal, and deletion."""
+    with TemporaryDirectory() as config_dir:
+        hass = HomeAssistant(config_dir)
+        try:
+            await ar.async_load(hass, load_empty=True)
+            dr.async_setup(hass)
+            await dr.async_load(hass, load_empty=True)
+            await er.async_load(hass, load_empty=True)
+            registry = er.async_get(hass)
+
+            entry = _new_test_config_entry()
+            # A bare temp config dir has no custom_components tree for the
+            # loader to discover, so ConfigEntries.async_add (which calls
+            # async_setup) is not usable here. The options flow only needs
+            # the entry to be resolvable via async_get_known_entry.
+            hass.config_entries = ConfigEntries(hass, {})
+            hass.config_entries._entries[entry.entry_id] = entry
+
+            # -- learn step times out without a capture -> the flow aborts.
+            timeout_flow = _bind_options_flow(hass, entry)
+            first = await timeout_flow.async_step_learn(None)
+            if first["type"] != FlowResultType.SHOW_PROGRESS:
+                raise AssertionError("learn step did not show progress on first entry")
+            learn.get_learn_manager(hass).stop()
+            first["progress_task"].cancel()
+            timed_out = await timeout_flow.async_step_learn(None)
+            if (
+                timed_out["type"] != FlowResultType.SHOW_PROGRESS_DONE
+                or timed_out["step_id"] != "learn_timeout"
+            ):
+                raise AssertionError(
+                    f"learn step did not report a timeout: {timed_out}"
+                )
+            timeout_result = await timeout_flow.async_step_learn_timeout(None)
+            if (
+                timeout_result["type"] != FlowResultType.ABORT
+                or timeout_result["reason"] != "learn_timeout"
+            ):
+                raise AssertionError("learn timeout did not abort the flow")
+
+            # -- learn step captures an unknown sender -> device_form -> device_details.
+            add_flow = _bind_options_flow(hass, entry)
+            captured_id = [0x11, 0x22, 0x33, 0x44]
+            await add_flow.async_step_learn(None)
+            manager = learn.get_learn_manager(hass)
+            # A real dispatcher packet, exactly as the serial thread would send.
+            async_dispatcher_send(
+                hass,
+                SIGNAL_RECEIVE_MESSAGE,
+                SimpleNamespace(sender_int=0x11223344),
+            )
+            await hass.async_block_till_done()
+            if manager.captured != captured_id:
+                raise AssertionError(
+                    "dispatcher packet was not captured by the learn window"
+                )
+            done = await add_flow.async_step_learn(None)
+            if (
+                done["type"] != FlowResultType.SHOW_PROGRESS_DONE
+                or done["step_id"] != "device_form"
+            ):
+                raise AssertionError(
+                    f"captured sender did not advance to device_form: {done}"
+                )
+
+            form = await add_flow.async_step_device_form(None)
+            if form["type"] != FlowResultType.FORM or form["step_id"] != "device_form":
+                raise AssertionError("device_form did not render a form")
+
+            details_step = await add_flow.async_step_device_form(
+                {"platform": "binary_sensor", "name": "UI teach-in door"}
+            )
+            if (
+                details_step["type"] != FlowResultType.FORM
+                or details_step["step_id"] != "device_details"
+            ):
+                raise AssertionError("device_form did not advance to device_details")
+
+            created = await add_flow.async_step_device_details({"device_class": "door"})
+            if created["type"] != FlowResultType.CREATE_ENTRY:
+                raise AssertionError(
+                    f"device_details did not create an entry: {created}"
+                )
+            hass.config_entries.async_update_entry(entry, options=created["data"])
+
+            devices = entry.options[CONF_UI_DEVICES]
+            if len(devices) != 1 or devices[0]["id"] != captured_id:
+                raise AssertionError("added UI device was not persisted to options")
+            expected_unique_id = options_flow._unique_id_for(devices[0])
+
+            # -- Simulate the reload that would create the real entity, then
+            # confirm a second add attempt for the same identity is refused
+            # without merging or overwriting anything.
+            registry.async_get_or_create("binary_sensor", DOMAIN, expected_unique_id)
+            collide_flow = _bind_options_flow(hass, entry)
+            collide_flow._captured_id = captured_id
+            collide_flow._pending_platform = "binary_sensor"
+            collide_flow._pending_name = "duplicate"
+            collided = await collide_flow.async_step_device_details(
+                {"device_class": "door"}
+            )
+            if collided["type"] != FlowResultType.FORM or collided.get("errors") != {
+                "base": "unique_id_exists"
+            }:
+                raise AssertionError(f"colliding device was not refused: {collided}")
+            if len(entry.options[CONF_UI_DEVICES]) != 1:
+                raise AssertionError("a colliding submission mutated persisted options")
+
+            # -- A registry row belonging to a different platform must never
+            # be touched by deleting our UI device.
+            foreign_entity = registry.async_get_or_create(
+                "sensor", "other_integration", "foreign-unique-id"
+            )
+
+            manage_flow = _bind_options_flow(hass, entry)
+            manage = await manage_flow.async_step_manage(None)
+            if manage["type"] != FlowResultType.FORM or manage["step_id"] != "manage":
+                raise AssertionError("manage step did not list the UI device")
+            confirm = await manage_flow.async_step_manage({"device": "0"})
+            if (
+                confirm["type"] != FlowResultType.FORM
+                or confirm["step_id"] != "delete_confirm"
+            ):
+                raise AssertionError(
+                    "manage selection did not advance to delete_confirm"
+                )
+
+            deleted = await manage_flow.async_step_delete_confirm({"confirm": True})
+            if deleted["type"] != FlowResultType.CREATE_ENTRY:
+                raise AssertionError(
+                    f"delete_confirm did not persist removal: {deleted}"
+                )
+            hass.config_entries.async_update_entry(entry, options=deleted["data"])
+
+            if entry.options[CONF_UI_DEVICES]:
+                raise AssertionError("deleted UI device is still present in options")
+            if (
+                registry.async_get_entity_id(
+                    "binary_sensor", DOMAIN, expected_unique_id
+                )
+                is not None
+            ):
+                raise AssertionError(
+                    "deleted UI device's entity registry row was not removed"
+                )
+            if (
+                registry.async_get_entity_id(
+                    "sensor", "other_integration", "foreign-unique-id"
+                )
+                != foreign_entity.entity_id
+            ):
+                raise AssertionError(
+                    "deletion touched a registry row from a different platform"
+                )
+
+            # -- Switch details: RPS requires channel 0/1, valid RPS persists.
+            rps_flow = _bind_options_flow(hass, entry)
+            rps_flow._captured_id = [0x21, 0x22, 0x23, 0x24]
+            rps_flow._pending_platform = "switch"
+            rps_flow._pending_name = "UI RPS switch"
+            bad = await rps_flow.async_step_device_details(
+                {"channel": 2, "switch_type": "RPS"}
+            )
+            if bad["type"] != FlowResultType.FORM or bad.get("errors") != {
+                "channel": "invalid_channel_rps"
+            }:
+                raise AssertionError(f"invalid RPS channel was accepted: {bad}")
+            good = await rps_flow.async_step_device_details(
+                {"channel": 1, "switch_type": "RPS"}
+            )
+            if good["type"] != FlowResultType.CREATE_ENTRY:
+                raise AssertionError(f"valid RPS switch was refused: {good}")
+            rps_device = good["data"][CONF_UI_DEVICES][-1]
+            if rps_device["switch_type"] != "RPS" or rps_device["channel"] != 1:
+                raise AssertionError("RPS switch_type was not persisted")
+
+            # -- Light details: sender_id text must parse as 4 hex bytes.
+            light_flow = _bind_options_flow(hass, entry)
+            light_flow._captured_id = [0x31, 0x32, 0x33, 0x34]
+            light_flow._pending_platform = "light"
+            light_flow._pending_name = "UI light"
+            bad_sender = await light_flow.async_step_device_details(
+                {"sender_id": "not-an-id"}
+            )
+            if bad_sender["type"] != FlowResultType.FORM or bad_sender.get(
+                "errors"
+            ) != {"sender_id": "invalid_sender_id"}:
+                raise AssertionError(f"invalid sender_id was accepted: {bad_sender}")
+            good_sender = await light_flow.async_step_device_details(
+                {"sender_id": "05:9F:89:34"}
+            )
+            if good_sender["type"] != FlowResultType.CREATE_ENTRY:
+                raise AssertionError(f"valid sender_id was refused: {good_sender}")
+            light_device = good_sender["data"][CONF_UI_DEVICES][-1]
+            if light_device["sender_id"] != [0x05, 0x9F, 0x89, 0x34]:
+                raise AssertionError("sender_id text was not parsed to 4 bytes")
+
+            # -- The deleted device's id is teachable again immediately (K1).
+            manager = learn.get_learn_manager(hass)
+            if not manager.start(60, owner="service"):
+                raise AssertionError("learn window did not reopen after deletion")
+            async_dispatcher_send(
+                hass,
+                SIGNAL_RECEIVE_MESSAGE,
+                SimpleNamespace(sender_int=0x11223344),
+            )
+            await hass.async_block_till_done()
+            if manager.captured != captured_id:
+                raise AssertionError("deleted UI device id was not teachable again")
+        finally:
+            await hass.async_stop(force=True)
+
+
+async def _assert_learn_service_starts_window_and_registers_once() -> None:
+    """The learn service must start a window and survive reload without a duplicate."""
+    with TemporaryDirectory() as config_dir:
+        hass = HomeAssistant(config_dir)
+        try:
+            learn.async_register_learn_service(hass)
+            learn.async_register_learn_service(hass)  # simulate a second reload
+            if not hass.services.has_service(DOMAIN, SERVICE_LEARN):
+                raise AssertionError("learn service was not registered")
+
+            events: list[dict[str, Any]] = []
+            hass.bus.async_listen(
+                EVENT_DEVICE_LEARNED, lambda event: events.append(event.data)
+            )
+            await hass.services.async_call(
+                DOMAIN, SERVICE_LEARN, {"timeout": 20}, blocking=True
+            )
+            manager = learn.get_learn_manager(hass)
+            if not manager.is_active:
+                raise AssertionError("learn service did not open a learn window")
+
+            # A second window while one is active is refused loudly.
+            refused = False
+            try:
+                await hass.services.async_call(
+                    DOMAIN, SERVICE_LEARN, {"timeout": 20}, blocking=True
+                )
+            except HomeAssistantError:
+                refused = True
+            if not refused:
+                raise AssertionError("concurrent learn service call was not refused")
+
+            packet = SimpleNamespace(sender_int=0xAABBCCDD)
+            async_dispatcher_send(hass, SIGNAL_RECEIVE_MESSAGE, packet)
+            await hass.async_block_till_done()
+
+            if events != [{"id": [0xAA, 0xBB, 0xCC, 0xDD], "hex": "AA:BB:CC:DD"}]:
+                raise AssertionError(f"unexpected teach-in event payload: {events}")
+        finally:
+            await hass.async_stop(force=True)
+
+
+async def _assert_learn_windows_are_owned_and_serialized() -> None:
+    """Concurrent windows are refused and foreign owners cannot close a window."""
+    with TemporaryDirectory() as config_dir:
+        hass = HomeAssistant(config_dir)
+        try:
+            manager = learn.get_learn_manager(hass)
+            if not manager.start(60, owner="service"):
+                raise AssertionError("first learn window did not start")
+            if manager.start(60, owner="options_flow"):
+                raise AssertionError("a concurrent learn window was allowed")
+            manager.stop(owner="options_flow")
+            if not manager.is_active:
+                raise AssertionError("a foreign owner closed the service window")
+            manager.stop(owner="service")
+            if manager.is_active:
+                raise AssertionError("owner stop did not close the window")
+            manager.stop()  # unconditional close (unload path)
+        finally:
+            await hass.async_stop(force=True)
+
+
+def _assert_device_details_schemas_are_ws_serializable() -> None:
+    """The P0 regression: every device_details schema must survive the WS handler."""
+    import homeassistant.helpers.config_validation as cv
+    import voluptuous_serialize
+
+    flow = options_flow.EnOceanOptionsFlow()
+    for platform in ("binary_sensor", "switch", "light"):
+        schema = flow._device_details_schema(platform)
+        try:
+            voluptuous_serialize.convert(schema, custom_serializer=cv.custom_serializer)
+        except ValueError as err:
+            raise AssertionError(
+                f"device_details schema for {platform} is not WS-serializable: {err}"
+            ) from err
+
+
 def main() -> None:
     """Import the integration and verify dangerous climate inputs are rejected."""
     base = {
@@ -1067,6 +1475,11 @@ def main() -> None:
     asyncio.run(_assert_real_climate_send_chain())
     asyncio.run(_assert_legacy_send_only_light_identity_is_preserved())
     asyncio.run(_assert_dongle_status_signal_writes_state_from_worker_thread())
+    asyncio.run(_assert_ui_devices_create_entities_with_yaml_compatible_unique_ids())
+    asyncio.run(_assert_options_flow_add_and_delete_device())
+    asyncio.run(_assert_learn_service_starts_window_and_registers_once())
+    asyncio.run(_assert_learn_windows_are_owned_and_serialized())
+    _assert_device_details_schemas_are_ws_serializable()
     print(
         "HA_2026_7_3_SMOKE_OK "
         f"invalid_cases_rejected={len(invalid_cases)} "
@@ -1075,7 +1488,11 @@ def main() -> None:
         "brightness_mapping=exact rejected_commands=no_state_change "
         "esp3_optional=valid esp3_rejections=correlated actuator_initial=unknown "
         "ute_resync=valid diagnostics=redacted off_without_sensor=sent "
-        "climate_responses=transactional climate_send_chain=real base_id_retry=valid"
+        "climate_responses=transactional climate_send_chain=real base_id_retry=valid "
+        "teach_in=captured options_flow=add_collide_delete "
+        "learn_service=idempotent_registration "
+        "learn_windows=owned_serialized details_schemas=ws_serializable "
+        "deleted_id=teachable_again"
     )
 
 

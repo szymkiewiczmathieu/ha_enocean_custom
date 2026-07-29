@@ -1,0 +1,114 @@
+{
+  "title": "EnOcean Custom",
+  "config": {
+    "step": {
+      "detect": {
+        "title": "Sélectionnez le chemin de votre dongle EnOcean",
+        "data": {
+          "device": "Chemin du dongle USB"
+        }
+      },
+      "manual": {
+        "title": "Entrez le chemin de votre dongle EnOcean",
+        "data": {
+          "device": "Chemin du dongle USB"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigurer le dongle EnOcean",
+        "description": "Changez le périphérique série. Home Assistant ne recharge l'intégration qu'après validation du nouveau chemin.",
+        "data": {
+          "device": "Chemin du dongle USB"
+        }
+      }
+    },
+    "error": {
+      "invalid_dongle_path": "Aucun dongle valide trouvé pour ce chemin"
+    },
+    "abort": {
+      "invalid_dongle_path": "Chemin de dongle invalide",
+      "single_instance_allowed": "[%key:common::config_flow::abort::single_instance_allowed%]"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "menu_options": {
+          "learn": "Ajouter un équipement",
+          "manage": "Gérer les équipements de l'interface"
+        }
+      },
+      "device_form": {
+        "title": "Nommer l'équipement capturé",
+        "description": "ID EnOcean capturé : {captured_id}",
+        "data": {
+          "platform": "Type",
+          "name": "Nom"
+        }
+      },
+      "device_details": {
+        "title": "Détails de l'équipement",
+        "description": "ID EnOcean capturé : {captured_id}, nom : {name}",
+        "data": {
+          "device_class": "Classe d'appareil",
+          "channel": "Canal",
+          "switch_type": "Type d'interrupteur",
+          "sender_id": "ID d'émission"
+        }
+      },
+      "manage": {
+        "title": "Gérer les équipements de l'interface",
+        "data": {
+          "device": "Équipement à supprimer"
+        }
+      },
+      "delete_confirm": {
+        "title": "Supprimer l'équipement ?",
+        "description": "Supprimer {name} ({platform}, {captured_id}) ? Cela supprime aussi son entrée dans le registre des entités.",
+        "data": {
+          "confirm": "Confirmer la suppression"
+        }
+      }
+    },
+    "progress": {
+      "waiting_for_device": "Appuyez maintenant sur le bouton de l'équipement. Attente jusqu'à 60 secondes d'un expéditeur EnOcean inconnu."
+    },
+    "error": {
+      "unique_id_exists": "Un équipement avec cette identité existe déjà. Le mode apprentissage ne fusionne ni n'écrase jamais un équipement existant.",
+      "invalid_channel_rps": "Un interrupteur RPS n'accepte que le canal 0 ou 1.",
+      "invalid_channel": "Le canal doit être un entier exact entre 0 et 255.",
+      "invalid_sender_id": "L'ID émetteur doit être 4 octets hex, ex. 05:9F:89:34."
+    },
+    "abort": {
+      "learn_timeout": "Aucun expéditeur EnOcean inconnu n'a été entendu avant expiration du délai.",
+      "no_ui_devices": "Aucun équipement géré depuis l'interface à supprimer.",
+      "delete_cancelled": "Suppression annulée.",
+      "learn_in_progress": "Une fenêtre d'apprentissage est déjà en cours.",
+      "device_form_missing": "La session du formulaire a expiré ; recommencez."
+    }
+  },
+  "services": {
+    "climate_teach_in_actor": {
+      "name": "Envoyer un télégramme d'apprentissage à l'actionneur climatique",
+      "description": "Envoyer un télégramme d'apprentissage à l'actionneur climatique"
+    },
+    "climate_teach_in_actor_switch": {
+      "name": "Envoyer un télégramme d'apprentissage d'interrupteur à l'actionneur climatique",
+      "description": "Envoyer un télégramme d'apprentissage d'interrupteur à l'actionneur climatique"
+    },
+    "learn": {
+      "name": "Démarrer le mode apprentissage EnOcean",
+      "description": "Écoute le prochain expéditeur EnOcean inconnu et déclenche enocean_custom_device_learned une fois capturé."
+    },
+    "reload": {
+      "name": "Recharger les plateformes YAML EnOcean",
+      "description": "Recharge les plateformes EnOcean configurées en YAML depuis la configuration actuelle."
+    }
+  },
+  "issues": {
+    "serial_communicator_stopped": {
+      "title": "Le worker série EnOcean s'est arrêté",
+      "description": "Le worker série pour {device} ne fonctionne plus : {reason}. Les entités EnOcean sont indisponibles et les commandes sortantes sont rejetées afin d'éviter qu'un second processus n'entre en concurrence pour le port. Vérifiez la connexion USB et les journaux, puis rechargez l'intégration ou redémarrez Home Assistant une fois."
+    }
+  }
+}

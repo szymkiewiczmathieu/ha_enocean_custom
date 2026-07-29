@@ -1,5 +1,46 @@
 # Changelog
 
+## 1.3.0 - 2026-07-29
+
+- Add a config-entry options flow to add and remove `binary_sensor`, `switch`,
+  and `light` EnOcean devices entirely from the UI, without editing
+  `configuration.yaml`. YAML-configured devices keep working unchanged and
+  cohabit with UI-managed ones on the same platform.
+- Add a teach-in ("learn") mode: start a bounded listening window (default 60
+  seconds, configurable 15-300), press the physical device's button, and the
+  first EnOcean sender not already known (from YAML or the UI) is captured and
+  offered in a device form (platform, name, and platform-specific fields,
+  including `switch_type` `default`/`RPS` with the RPS channel 0/1 rule).
+- Add the `enocean_custom.learn` service, which starts the same listening
+  window and fires `enocean_custom_device_learned` with the captured ID once
+  an unknown sender is heard.
+- Compute UI device `unique_id`s with the exact same formula as the matching
+  YAML platform, so a future YAML-to-UI migration preserves `entity_id` and
+  automations. Adding a device whose identity already exists in the entity
+  registry is refused with an explicit error; teach-in never merges or
+  overwrites an existing device.
+- Add a "Manage UI devices" screen to remove a UI-managed device, which
+  deletes both its config-entry option entry and its exact entity registry
+  row (matched by domain, platform, and unique_id), never a row belonging to
+  another platform.
+- Forward `binary_sensor`, `switch`, and `light` config-entry platform setup
+  (`climate` and `sensor` remain YAML-only) and reload the entry automatically
+  when UI devices are added or removed. If platform forwarding fails, the
+  serial dongle is unloaded again instead of leaving a live reader behind.
+- Harden teach-in after adversarial review: device forms use only
+  websocket-serializable selectors (number/select/text); learn windows are
+  serialized and owned (a concurrent `learn` service call is refused loudly,
+  and a discarded UI flow can no longer kill a service-owned window); captures
+  are timestamped so a stale capture is never adopted by a later flow;
+  deleting a UI device frees its EnOcean ID immediately (known ids are
+  re-seeded from the entry options on every learn window); YAML `sensor` and
+  `climate` devices now also register their sender ids so teach-in never
+  offers them; malformed hand-edited `ui_devices` options rows are skipped
+  instead of crashing platform setup.
+- Add a French translation (`translations/fr.json`) alongside the existing
+  English one, kept in sync with `strings.json` by an automated key-structure
+  check.
+
 ## 1.2.4 - 2026-07-28
 
 - Stop and join the serial communicator outside Home Assistant's event loop.

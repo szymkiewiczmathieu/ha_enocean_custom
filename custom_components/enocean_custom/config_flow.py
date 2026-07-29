@@ -3,9 +3,11 @@
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_DEVICE
+from homeassistant.core import callback
 
 from . import dongle
 from .const import DOMAIN, ERROR_INVALID_DONGLE_PATH, LOGGER
+from .options_flow import EnOceanOptionsFlow
 
 
 class EnOceanFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
@@ -118,3 +120,11 @@ class EnOceanFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     def create_enocean_entry(self, user_input):
         """Create an entry for the provided configuration."""
         return self.async_create_entry(title="EnOcean", data=user_input)
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> EnOceanOptionsFlow:
+        """Return the options flow for adding and removing UI devices."""
+        return EnOceanOptionsFlow()

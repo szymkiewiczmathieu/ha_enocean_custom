@@ -11,8 +11,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.typing import ConfigType
 
-from .const import DATA_ENOCEAN, DOMAIN, ENOCEAN_DONGLE
+from .const import DATA_ENOCEAN, DOMAIN, ENOCEAN_DONGLE, UI_DEVICE_PLATFORMS
 from .dongle import EnOceanDongle
+from .learn import async_register_learn_service
 
 CONFIG_SCHEMA = vol.Schema(
     {DOMAIN: vol.Schema({vol.Required(CONF_DEVICE): cv.string})}, extra=vol.ALLOW_EXTRA
@@ -56,7 +57,28 @@ async def async_setup_entry(
     config_entry.runtime_data = usb_dongle
     await usb_dongle.async_setup()
 
+    async_register_learn_service(hass)
+    try:
+        await hass.config_entries.async_forward_entry_setups(
+            config_entry, UI_DEVICE_PLATFORMS
+        )
+    except Exception:
+        # Never leave a live serial reader behind when platform setup fails:
+        # a retry must find the port free, not busy on a zombie owner.
+        await usb_dongle.async_unload()
+        raise
+    config_entry.async_on_unload(
+        config_entry.add_update_listener(_async_reload_on_options_update)
+    )
+
     return True
+
+
+async def _async_reload_on_options_update(
+    hass: HomeAssistant, config_entry: ConfigEntry
+) -> None:
+    """Reload the entry so added/removed UI devices take effect immediately."""
+    await hass.config_entries.async_reload(config_entry.entry_id)
 
 
 async def async_unload_entry(
@@ -64,12 +86,25 @@ async def async_unload_entry(
 ) -> bool:
     """Unload ENOcean config entry."""
 
+    if not await hass.config_entries.async_unload_platforms(
+        config_entry, UI_DEVICE_PLATFORMS
+    ):
+        return False
+
+    # Deliberately do NOT stop an open teach-in window here: the dispatcher
+    # registry lives in hass (not in the entry), so a learn window survives
+    # an options-save reload — killing it would abort the waiting UI flow
+    # with a misleading timeout. An orphan window self-closes on its own
+    # bounded timeout (<= 300 s) even if the entry is removed for good.
     enocean_dongle = config_entry.runtime_data
     if not await enocean_dongle.async_unload():
         # Do not allow Home Assistant to create a second serial reader while
         # the old one is still alive.
         return False
 
-    hass.data.pop(DATA_ENOCEAN, None)
+    # Only the dongle is entry-scoped. known_ids/learn_manager stay in
+    # hass.data across reloads: YAML setup_platform runs once at startup and
+    # would not re-seed known_ids on a later entry reload.
+    hass.data.get(DATA_ENOCEAN, {}).pop(ENOCEAN_DONGLE, None)
 
     return True
