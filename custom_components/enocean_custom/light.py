@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 from typing import Any, ClassVar, override
 
 import voluptuous as vol
@@ -160,7 +159,9 @@ class EnOceanLight(EnOceanEntity, LightEntity):
     def turn_on(self, **kwargs: Any) -> None:
         """Send an A5-38-08 ON/dim command."""
         requested = kwargs.get(ATTR_BRIGHTNESS, self._attr_brightness)
-        percentage = max(1, math.floor(requested / 255 * 100))
+        # Keep the v1.5.0 byte-exact formula (review finding P2-01):
+        # round, not floor — brightness=254 must stay 100 %, not 99 %.
+        percentage = max(1, min(100, round(requested / 255 * 100)))
         self._send_dimmer_command(percentage, True, requested)
 
     @override

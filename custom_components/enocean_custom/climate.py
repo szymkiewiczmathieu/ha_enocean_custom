@@ -113,10 +113,24 @@ _SENSOR_ATTR_SLIDESWITCH = "SlideSwitch"
 
 def _finite_float(value: object) -> float:
     """Coerce a finite floating-point configuration value."""
+    # Review finding P1-H1: YAML `yes`/`true` coerce to 1.0 through
+    # float(True) — a boolean is never a temperature or a gain.
+    if isinstance(value, bool):
+        raise vol.Invalid("value must be a number, not a boolean")
     result = float(value)
     if not math.isfinite(result):
         raise vol.Invalid("value must be finite")
     return result
+
+
+def _finite_time_period(value: object) -> timedelta:
+    """Coerce a positive time period, rejecting booleans and `.inf` YAML."""
+    if isinstance(value, bool):
+        raise vol.Invalid("value must be a time period, not a boolean")
+    try:
+        return cv.positive_time_period(value)
+    except (OverflowError, ValueError, TypeError) as err:
+        raise vol.Invalid("value must be a valid time period") from err
 
 
 FINITE_FLOAT = vol.All(_finite_float)
@@ -150,7 +164,7 @@ PLATFORM_SCHEMA = CLIMATE_PLATFORM_SCHEMA.extend(
             vol.Range(min=0, max=20),
         ),
         vol.Optional(CONF_COMMAND_FREQUENCY, default="00:17:00"): vol.All(
-            cv.positive_time_period,
+            _finite_time_period,
             vol.Range(min=timedelta(seconds=1)),
         ),
         vol.Optional(CONF_PI_CONTROL_KP, default=5.0): vol.All(
@@ -844,16 +858,18 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
     @staticmethod
     def _wake_up_cycle_code(interval: timedelta) -> int:
         """Map a refresh interval to the nearest A5-20-04 wake-up code."""
+        # EEP 2.6.8 A5-20-04, WUC table: code 0 = 10 s, 1 = 60 s,
+        # 2..49 = 90..1500 s in 30 s steps, 50..63 = 3..42 h in 3 h steps.
+        # Review finding P1-01: pick the globally nearest legal duration —
+        # branchy shortcuts made codes 1 and 49 unreachable at boundaries
+        # (26 minutes must not become a 3-hour wake-up).
         seconds = interval.total_seconds()
-        if seconds <= 10:
-            return 0
-        if seconds <= 60:
-            return 1
-        if seconds <= 1500:
-            return min(49, max(2, round(seconds / 30) - 1))
-        hour_codes = tuple((hours, 49 + hours // 3) for hours in range(3, 43, 3))
-        hours = seconds / 3600
-        return min(hour_codes, key=lambda item: abs(item[0] - hours))[1]
+        durations = (
+            [10.0, 60.0]
+            + [30.0 * (code + 1) for code in range(2, 50)]
+            + [3600.0 * hours for hours in range(3, 43, 3)]
+        )
+        return min(range(64), key=lambda code: abs(durations[code] - seconds))
 
     def teach_in_actor(self):
         """Teach the configured thermostat/valve actor."""
