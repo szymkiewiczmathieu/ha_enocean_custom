@@ -9,7 +9,7 @@ from collections import deque
 from datetime import timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from threading import Event, Lock, Thread
+from threading import Event, Lock, Thread, get_ident
 from types import MappingProxyType, SimpleNamespace
 from typing import Any
 from unittest.mock import Mock
@@ -69,6 +69,7 @@ from custom_components.enocean_custom.enocean_library.protocol.constants import 
     PACKET,
     PARSE_RESULT,
     RETURN_CODE,
+    RORG,
 )
 from custom_components.enocean_custom.enocean_library.protocol.packet import (
     Packet,
@@ -389,6 +390,106 @@ async def _assert_dongle_status_signal_writes_state_from_worker_thread() -> None
             await hass.async_stop(force=True)
 
 
+async def _assert_d2_status_parse_dispatch_and_entities() -> None:
+    """Exercise D2 status via real ESP3 parse, dispatcher, switch, and light."""
+    with TemporaryDirectory() as config_dir:
+        hass = HomeAssistant(config_dir)
+        try:
+            sender = [0x01, 0x02, 0x03, 0x04]
+            writes: list[int] = []
+            entities = [
+                switch.EnOceanSwitch(sender, "D2 channel 0", 0, "default"),
+                switch.EnOceanSwitch(sender, "D2 channel 1", 1, "default"),
+                switch.EnOceanSwitch(sender, "RPS regression", 0, "RPS"),
+                light.EnOceanLight([0x05, 0x06, 0x07, 0x08], sender, "D2 light"),
+            ]
+            for entity in entities:
+                entity.hass = hass
+                entity.async_write_ha_state = (  # type: ignore[method-assign]
+                    lambda: writes.append(get_ident())
+                )
+                await entity.async_added_to_hass()
+
+            def parsed_status(packet_sender: list[int], channel: int, output: int):
+                wire = Packet(
+                    PACKET.RADIO_ERP1,
+                    data=[
+                        RORG.VLD,
+                        0xC4,
+                        channel,
+                        output,
+                        *packet_sender,
+                        0x00,
+                    ],
+                    optional=[0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0x40, 0x00],
+                ).build()
+                status, remaining, packet = Packet.parse_msg(bytearray(wire))
+                if (
+                    status != PARSE_RESULT.OK
+                    or remaining
+                    or packet is None
+                    or len(packet.data) != 9
+                ):
+                    raise AssertionError("D2 VLD variable-length frame was not parsed")
+                return packet
+
+            async_dispatcher_send(
+                hass, SIGNAL_RECEIVE_MESSAGE, parsed_status(sender, 0, 50)
+            )
+            await hass.async_block_till_done()
+            channel_0, channel_1, rps, d2_light = entities
+            if (
+                channel_0.is_on is not True
+                or channel_1.is_on is not None
+                # RPS entities now consume D2 status on their own channel.
+                or rps.is_on is not True
+                or d2_light.is_on is not True
+                or d2_light.brightness != 128
+            ):
+                raise AssertionError("D2 channel 0 feedback did not update entities")
+            if channel_0.extra_state_attributes.get("d2_output_value") != 50:
+                raise AssertionError("D2 state attributes did not expose output value")
+
+            async_dispatcher_send(
+                hass, SIGNAL_RECEIVE_MESSAGE, parsed_status(sender, 1, 0)
+            )
+            async_dispatcher_send(
+                hass,
+                SIGNAL_RECEIVE_MESSAGE,
+                parsed_status([0x10, 0x20, 0x30, 0x40], 0, 100),
+            )
+            malformed_wire = Packet(
+                PACKET.RADIO_ERP1,
+                data=[RORG.VLD, 0x04, 0x00, *sender, 0x00],
+                optional=[0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0x40, 0x00],
+            ).build()
+            status, _, malformed = Packet.parse_msg(bytearray(malformed_wire))
+            if status != PARSE_RESULT.OK or malformed is None:
+                raise AssertionError(
+                    "Malformed D2 radio envelope could not be exercised"
+                )
+            async_dispatcher_send(hass, SIGNAL_RECEIVE_MESSAGE, malformed)
+            await hass.async_block_till_done()
+
+            if (
+                channel_0.is_on is not True
+                or channel_1.is_on is not False
+                # The RPS entity ignores the channel-1 packet (no leak).
+                or rps.is_on is not True
+                # Regression (review finding): the channel-1 packet must NOT
+                # touch the channel-0 light — it keeps the channel-0 state.
+                or d2_light.is_on is not True
+                or d2_light.brightness != 128
+            ):
+                raise AssertionError(
+                    "D2 channel 1, unknown sender, malformed, or RPS isolation failed"
+                )
+            if not writes or any(thread_id != get_ident() for thread_id in writes):
+                raise AssertionError("D2 state feedback wrote outside HA's event loop")
+        finally:
+            await hass.async_stop(force=True)
+
+
 def _assert_ute_does_not_corrupt_following_frame() -> None:
     """Ensure UTE handling consumes neither the next sync byte nor its frame."""
     received = []
@@ -673,6 +774,10 @@ async def _assert_ui_devices_create_entities_with_yaml_compatible_unique_ids() -
     with TemporaryDirectory() as config_dir:
         hass = HomeAssistant(config_dir)
         try:
+            await ar.async_load(hass, load_empty=True)
+            dr.async_setup(hass)
+            await dr.async_load(hass, load_empty=True)
+            await er.async_load(hass, load_empty=True)
             ui_devices = [
                 {
                     "id": [0x10, 0x20, 0x30, 0x40],
@@ -698,6 +803,24 @@ async def _assert_ui_devices_create_entities_with_yaml_compatible_unique_ids() -
                     "channel": 0,
                     "sender_id": [0x01, 0x02, 0x03, 0x04],
                 },
+                {
+                    "id": [0x60, 0x61, 0x62, 0x63],
+                    "platform": "sensor",
+                    "name": "UI temperature",
+                    "device_class": "temperature",
+                    "min_temp": -20,
+                    "max_temp": 60,
+                    "range_from": 255,
+                    "range_to": 0,
+                },
+                {
+                    "id": [0x70, 0x71, 0x72, 0x73],
+                    "platform": "climate",
+                    "name": "UI heating",
+                    "id_switch": [0x74, 0x75, 0x76, 0x77],
+                    "device_type": "SRC-D08",
+                    "sensor_entity_id": "sensor.room_temperature",
+                },
             ]
             entry_stub = SimpleNamespace(options={CONF_UI_DEVICES: ui_devices})
 
@@ -709,6 +832,10 @@ async def _assert_ui_devices_create_entities_with_yaml_compatible_unique_ids() -
             await switch.async_setup_entry(hass, entry_stub, switch_entities.extend)
             light_entities: list[Any] = []
             await light.async_setup_entry(hass, entry_stub, light_entities.extend)
+            sensor_entities: list[Any] = []
+            await sensor.async_setup_entry(hass, entry_stub, sensor_entities.extend)
+            climate_entities: list[Any] = []
+            await climate.async_setup_entry(hass, entry_stub, climate_entities.extend)
 
             door_id = (0x10 << 24) | (0x20 << 16) | (0x30 << 8) | 0x40
             lamp_id = (0x50 << 24) | (0x60 << 16) | (0x70 << 8) | 0x80
@@ -720,10 +847,15 @@ async def _assert_ui_devices_create_entities_with_yaml_compatible_unique_ids() -
                 raise AssertionError("UI switch unique_id diverged from YAML formula")
             if light_entities[0].unique_id != f"{lamp_id}":
                 raise AssertionError("UI light unique_id diverged from YAML formula")
+            sensor_id = (0x60 << 24) | (0x61 << 16) | (0x62 << 8) | 0x63
+            climate_id = (0x70 << 24) | (0x71 << 16) | (0x72 << 8) | 0x73
+            if sensor_entities[0].unique_id != f"{sensor_id}-temperature":
+                raise AssertionError("UI sensor unique_id diverged from YAML formula")
+            if climate_entities[0].unique_id != f"{climate_id}-0":
+                raise AssertionError("UI climate unique_id diverged from YAML formula")
 
-            known_ids = learn.get_known_ids(hass)
-            if door_id not in known_ids or lamp_id not in known_ids:
-                raise AssertionError("UI devices were not registered as known ids")
+            if learn.get_known_ids(hass):
+                raise AssertionError("UI setup polluted the YAML-managed ID registry")
 
             # A YAML-configured binary_sensor on the very same platform must
             # keep working (cohabitation, not replacement).
@@ -818,6 +950,26 @@ async def _assert_options_flow_add_and_delete_device() -> None:
             if form["type"] != FlowResultType.FORM or form["step_id"] != "device_form":
                 raise AssertionError("device_form did not render a form")
 
+            # -- QR commissioning rejects malformed input and pre-fills the
+            # existing device form only after a valid 32-bit EURID is parsed.
+            qr_flow = _bind_options_flow(hass, entry)
+            invalid_qr = await qr_flow.async_step_qr_code({"qr_code": "not-a-code"})
+            if invalid_qr["type"] != FlowResultType.FORM or invalid_qr.get(
+                "errors"
+            ) != {"qr_code": "invalid_qr_code"}:
+                raise AssertionError(f"invalid QR was accepted: {invalid_qr}")
+            valid_qr = await qr_flow.async_step_qr_code(
+                {"qr_code": "30S0000A1B2C3D4+1P001B0000789A"}
+            )
+            if (
+                valid_qr["type"] != FlowResultType.FORM
+                or valid_qr["step_id"] != "device_form"
+                or qr_flow._captured_id != [0xA1, 0xB2, 0xC3, 0xD4]
+            ):
+                raise AssertionError(
+                    f"valid QR did not pre-fill device form: {valid_qr}"
+                )
+
             details_step = await add_flow.async_step_device_form(
                 {"platform": "binary_sensor", "name": "UI teach-in door"}
             )
@@ -876,6 +1028,25 @@ async def _assert_options_flow_add_and_delete_device() -> None:
                     "manage selection did not advance to delete_confirm"
                 )
 
+            learn.register_known_id(hass, captured_id)
+            refused_delete = await manage_flow.async_step_delete_confirm(
+                {"confirm": True}
+            )
+            if (
+                refused_delete["type"] != FlowResultType.ABORT
+                or refused_delete["reason"] != "yaml_managed"
+                or len(entry.options[CONF_UI_DEVICES]) != 1
+                or registry.async_get_entity_id(
+                    "binary_sensor", DOMAIN, expected_unique_id
+                )
+                is None
+            ):
+                raise AssertionError(
+                    f"YAML-managed UI deletion was not refused: {refused_delete}"
+                )
+            learn.get_known_ids(hass).remove(
+                (0x11 << 24) | (0x22 << 16) | (0x33 << 8) | 0x44
+            )
             deleted = await manage_flow.async_step_delete_confirm({"confirm": True})
             if deleted["type"] != FlowResultType.CREATE_ENTRY:
                 raise AssertionError(
@@ -945,6 +1116,53 @@ async def _assert_options_flow_add_and_delete_device() -> None:
             light_device = good_sender["data"][CONF_UI_DEVICES][-1]
             if light_device["sender_id"] != [0x05, 0x9F, 0x89, 0x34]:
                 raise AssertionError("sender_id text was not parsed to 4 bytes")
+
+            # -- Sensor details preserve the YAML field names/defaults.
+            sensor_flow = _bind_options_flow(hass, entry)
+            sensor_flow._captured_id = [0x41, 0x42, 0x43, 0x44]
+            sensor_flow._pending_platform = "sensor"
+            sensor_flow._pending_name = "UI temperature"
+            sensor_input = sensor_flow._device_details_schema("sensor")(
+                {"device_class": "temperature"}
+            )
+            good_sensor = await sensor_flow.async_step_device_details(sensor_input)
+            sensor_device = good_sensor["data"][CONF_UI_DEVICES][-1]
+            if (
+                good_sensor["type"] != FlowResultType.CREATE_ENTRY
+                or sensor_device["device_class"] != "temperature"
+                or sensor_device["min_temp"] != 0
+                or sensor_device["max_temp"] != 40
+                or sensor_device["range_from"] != 255
+                or sensor_device["range_to"] != 0
+            ):
+                raise AssertionError(
+                    f"sensor YAML-compatible defaults were not persisted: {good_sensor}"
+                )
+
+            # -- Climate details preserve all YAML fields and parse id_switch.
+            climate_flow = _bind_options_flow(hass, entry)
+            climate_flow._captured_id = [0x51, 0x52, 0x53, 0x54]
+            climate_flow._pending_platform = "climate"
+            climate_flow._pending_name = "UI heating"
+            climate_input = climate_flow._device_details_schema("climate")(
+                {
+                    "id_switch": "55:56:57:58",
+                    "device_type": "SRC-D08",
+                    "sensor_entity_id": "sensor.room_temperature",
+                }
+            )
+            good_climate = await climate_flow.async_step_device_details(climate_input)
+            climate_device = good_climate["data"][CONF_UI_DEVICES][-1]
+            if (
+                good_climate["type"] != FlowResultType.CREATE_ENTRY
+                or climate_device["id_switch"] != [0x55, 0x56, 0x57, 0x58]
+                or climate_device["command_frequency"] != "00:17:00"
+                or climate_device["pi_control_Kp"] != 5.0
+                or climate_device["pi_control_Tn"] != 240.0
+            ):
+                raise AssertionError(
+                    f"climate YAML-compatible defaults were not persisted: {good_climate}"
+                )
 
             # -- The deleted device's id is teachable again immediately (K1).
             manager = learn.get_learn_manager(hass)
@@ -1031,13 +1249,17 @@ def _assert_device_details_schemas_are_ws_serializable() -> None:
     import voluptuous_serialize
 
     flow = options_flow.EnOceanOptionsFlow()
-    for platform in ("binary_sensor", "switch", "light"):
-        schema = flow._device_details_schema(platform)
+    schemas = [options_flow._qr_code_schema()]
+    schemas.extend(
+        flow._device_details_schema(platform)
+        for platform in ("binary_sensor", "switch", "light", "climate", "sensor")
+    )
+    for schema in schemas:
         try:
             voluptuous_serialize.convert(schema, custom_serializer=cv.custom_serializer)
         except ValueError as err:
             raise AssertionError(
-                f"device_details schema for {platform} is not WS-serializable: {err}"
+                f"new options schema is not WS-serializable: {err}"
             ) from err
 
 
@@ -1475,6 +1697,7 @@ def main() -> None:
     asyncio.run(_assert_real_climate_send_chain())
     asyncio.run(_assert_legacy_send_only_light_identity_is_preserved())
     asyncio.run(_assert_dongle_status_signal_writes_state_from_worker_thread())
+    asyncio.run(_assert_d2_status_parse_dispatch_and_entities())
     asyncio.run(_assert_ui_devices_create_entities_with_yaml_compatible_unique_ids())
     asyncio.run(_assert_options_flow_add_and_delete_device())
     asyncio.run(_assert_learn_service_starts_window_and_registers_once())
@@ -1492,7 +1715,10 @@ def main() -> None:
         "teach_in=captured options_flow=add_collide_delete "
         "learn_service=idempotent_registration "
         "learn_windows=owned_serialized details_schemas=ws_serializable "
-        "deleted_id=teachable_again"
+        "deleted_id=teachable_again "
+        "d2_status=parse_dispatch_switch_light d2_channels=0_1 "
+        "d2_unknown_sender=ignored d2_malformed=ignored d2_rps=synced_no_leak "
+        "d2_loop_write=safe"
     )
 
 

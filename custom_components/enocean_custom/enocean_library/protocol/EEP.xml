@@ -1621,6 +1621,57 @@
           </enum>
         </data>
       </profile>
+      <!-- EEP 2.6.7, D2-01-12, pages 145-147: the two-channel TYPE 0x12
+           supports the common CMD 0x4 Actuator Status Response. Keep its
+           profile explicit so packet.parse_eep(0x01, 0x12, command=4) works;
+           protocol/d2.py owns the reusable runtime decoder. -->
+      <profile type="0x12" description="Slot-in module with 2 channels, no metering capabilities">
+        <command description="Command identifier" shortcut="CMD" offset="4" size="4">
+          <item description="Actuator Status Response" value="4" />
+        </command>
+        <data command="4" bits="3">
+          <!-- EEP 2.6.7, D2-01 CMD 0x4, page 136, offsets 0 and 1. -->
+          <enum description="Power Failure" shortcut="PF" offset="0" size="1">
+            <item description="Power Failure Detection disabled/not supported" value="0" />
+            <item description="Power Failure Detection enabled" value="1" />
+          </enum>
+          <enum description="Power Failure Detection" shortcut="PFD" offset="1" size="1">
+            <item description="Power Failure Detection not detected/not supported/disabled" value="0" />
+            <item description="Power Failure Detection Detected" value="1" />
+          </enum>
+          <!-- EEP 2.6.7, D2-01 CMD 0x4, page 136, offsets 4..7. -->
+          <enum description="Command identifier" shortcut="CMD" offset="4" size="4">
+            <rangeitem description="Command ID {value}" start="0" end="13" />
+          </enum>
+          <!-- EEP 2.6.7, D2-01 CMD 0x4, page 136, offsets 8..15. -->
+          <enum description="Over current switch off" shortcut="OC" offset="8" size="1">
+            <item description="Over current switch off: ready / not supported" value="0" />
+            <item description="Over current switch off: executed" value="1" />
+          </enum>
+          <enum description="Error level" shortcut="EL" offset="9" size="2">
+            <item description="Error level 0: hardware OK" value="0" />
+            <item description="Error level 1: hardware warning" value="1" />
+            <item description="Error level 2: hardware failure" value="2" />
+            <item description="Error level not supported" value="3" />
+          </enum>
+          <enum description="I/O channel" shortcut="IO" offset="11" size="5">
+            <rangeitem description="Output channel {value} (to load)" start="0" end="29" />
+            <item description="Not applicable, do not use" value="30" />
+            <item description="Input channel (from mains supply)" value="31" />
+          </enum>
+          <!-- EEP 2.6.7, D2-01 CMD 0x4, page 136, offsets 16..23. -->
+          <enum description="Local control" shortcut="LC" offset="16" size="1">
+            <item description="Local control disabled / not supported" value="0" />
+            <item description="Local control enabled" value="1" />
+          </enum>
+          <enum description="Output value" shortcut="OV" offset="17" size="7">
+            <item description="Output value 0% or OFF" value="0" />
+            <rangeitem description="Output value {value}% or ON" start="1" end="100" />
+            <rangeitem description="Not used" start="101" end="126" />
+            <item description="Output value not valid / not set" value="127" />
+          </enum>
+        </data>
+      </profile>
     </profiles>
     <profiles func="0x05" description="Blinds Control for Position and Angle">
       <profile type="0x00" description="Type 0x00">

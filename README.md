@@ -92,7 +92,7 @@ EnOcean entity in `configuration.yaml`.
 
 ### Adding devices from the UI (teach-in)
 
-Since `v1.3.0`, `binary_sensor`, `switch`, and `light` devices can also be
+Since `v1.3.0`, devices can also be
 added and removed entirely from **Settings > Devices & services > EnOcean
 Custom > Configure**, without editing `configuration.yaml`. YAML configuration
 keeps working unchanged and cohabits with UI-managed devices on the same
@@ -104,18 +104,30 @@ platform; there is no automatic YAML-to-UI migration.
    the `enocean_custom.learn` service's `timeout` field) and captures the
    first EnOcean sender it does not already know about, from either YAML or
    the UI.
-3. Fill in the short form: platform (`binary_sensor`, `switch`, or `light`),
+3. Fill in the form: platform (`binary_sensor`, `switch`, `light`, `sensor`, or
+   `climate`),
    name, and platform-specific fields — `device_class` (optional) for
    `binary_sensor`, `channel` (default `0`) and `switch_type` (`default` or
    `RPS`, with RPS restricted to channels 0/1) for `switch`, or `sender_id`
    (required for `light`, typed as four hex bytes like `05:9F:89:34` — the
-   virtual ID used for outbound commands) for `light`.
+   virtual ID used for outbound commands) for `light`. The `sensor` and
+   `climate` detail forms expose the same fields, bounds, and defaults as their
+   YAML platform schemas.
 4. The entity is created immediately with the same `unique_id` a matching
    YAML definition would produce.
 
+Alternatively, choose **Configure > Add via QR code** and paste the decoded
+text from an [EnOcean Alliance standardized product label](https://www.enocean-alliance.org/wp-content/uploads/2021/05/ProductIDandStandardizedLabelingSpecification-V1.8.pdf). The integration
+requires the mandatory `30S` EURID and `1P` Product ID containers and supports
+32-bit EURIDs encoded as `30S0000AABBCCDD`. Native 48-bit EURIDs are rejected
+because this integration only supports four-byte radio IDs. You can also enter
+the fallback form `AA:BB:CC:DD`. A valid value opens the same device form with
+the extracted ID pre-filled; invalid input never creates an options row.
+
 Use **Configure > Manage UI devices** to remove a device you added from the
 UI; this deletes both its config-entry option entry and its exact entity
-registry row.
+registry row. If the same radio ID is also configured in YAML, removal is
+refused until the YAML configuration is removed.
 
 Two things worth knowing:
 
@@ -130,9 +142,6 @@ Two things worth knowing:
   YAML. If the device's identity already exists in the entity registry, the
   form is refused with an explicit error: teach-in never merges or overwrites
   an existing device.
-
-`climate` and `sensor` devices remain YAML-only and are not part of this
-feature; see [PATCH_NOTES.md](PATCH_NOTES.md) for the full scope.
 
 ### Binary sensors
 
@@ -157,6 +166,20 @@ switch:
 ```
 
 To teach-in the switch to your EnOcean device, put the device in learning mode and toggle the state of the switch entity in Home Assistant.
+
+### D2-01-12 actuator feedback
+
+Ubiwizz UBID1507C two-channel actuators report their actual output state with
+EEP D2-01-12 VLD telegrams. A default (non-RPS) switch whose `id` matches the
+actuator sender follows feedback for its configured `channel`. A receive-capable
+light whose `id` matches the actuator maps the reported 0–100% output value to
+Home Assistant brightness 0–255. This includes changes initiated by a wall
+switch paired directly with the actuator.
+
+After the first valid status, the entity exposes `d2_channel`,
+`d2_output_value`, the power-failure capability/state flags, and `last_status`.
+Malformed feedback and telegrams from other sender IDs are ignored. RPS switch
+behavior is unchanged.
 
 ### Climate device
 
@@ -250,6 +273,17 @@ used by **Configure > Add a device** and fires
 `enocean_custom_device_learned` with `{"id": [...], "hex": "AA:BB:CC:DD"}`
 once an unknown sender is captured. It accepts an optional `timeout` field
 (seconds, 15-300, default 60).
+
+To pair a 4BS Eltako dimmer controlled by an EnOcean light entity:
+
+1. Put the dimmer into learn mode.
+2. Call `enocean_custom.send_teach_in` and target the corresponding `light`
+   entity.
+
+The service broadcasts the
+[EEP 2.6.7 A5-38-08](https://www.enocean-alliance.org/wp-content/uploads/2017/05/EnOcean_Equipment_Profiles_EEP_v2.6.7_public.pdf)
+teach-in telegram with that entity's configured `sender_id`; subsequent
+brightness commands use the same identity.
 
 ### Bug fixes
 

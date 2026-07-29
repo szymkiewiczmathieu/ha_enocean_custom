@@ -35,7 +35,15 @@
       "init": {
         "menu_options": {
           "learn": "Add a device",
+          "qr_code": "Add via QR code",
           "manage": "Manage UI devices"
+        }
+      },
+      "qr_code": {
+        "title": "Add via QR code",
+        "description": "Paste an EnOcean Alliance commissioning QR payload or enter a four-byte ID such as AA:BB:CC:DD.",
+        "data": {
+          "qr_code": "Commissioning code or EnOcean ID"
         }
       },
       "device_form": {
@@ -53,7 +61,22 @@
           "device_class": "Device class",
           "channel": "Channel",
           "switch_type": "Switch type",
-          "sender_id": "Sender ID"
+          "sender_id": "Sender ID",
+          "id_switch": "Switch sender ID",
+          "device_type": "Device type",
+          "sensor_entity_id": "Temperature sensor entity",
+          "temperature_frost_protection": "Frost-protection temperature",
+          "sensor_target_temperature_range": "Sensor target-temperature range",
+          "sensor_target_temperature_update_tolerance": "Sensor target-temperature update tolerance",
+          "target_temperature_base_value": "Base target temperature",
+          "target_temperature_reduction_night": "Night target-temperature reduction",
+          "command_frequency": "Command frequency",
+          "pi_control_Kp": "PI proportional gain (Kp)",
+          "pi_control_Tn": "PI integral time (Tn)",
+          "max_temp": "Maximum temperature",
+          "min_temp": "Minimum temperature",
+          "range_from": "Raw range start",
+          "range_to": "Raw range end"
         }
       },
       "manage": {
@@ -77,14 +100,22 @@
       "unique_id_exists": "A device with this identity already exists. Teach-in never merges or overwrites an existing device.",
       "invalid_channel_rps": "RPS switches only support channel 0 or 1.",
       "invalid_channel": "Channel must be an exact integer between 0 and 255.",
-      "invalid_sender_id": "Sender ID must be 4 hex bytes, e.g. 05:9F:89:34."
+      "invalid_sender_id": "Sender ID must be 4 hex bytes, e.g. 05:9F:89:34.",
+      "invalid_qr_code": "The value is neither a supported EnOcean Alliance commissioning QR payload nor an ID formatted as AA:BB:CC:DD.",
+      "invalid_exact_integer": "Value must be an exact integer within the displayed bounds.",
+      "invalid_number": "Value must be a finite number within the displayed bounds.",
+      "invalid_temperature_range": "Minimum temperature must be lower than maximum temperature.",
+      "invalid_raw_range": "Raw range start and end must differ.",
+      "invalid_command_frequency": "Command frequency must be a valid positive duration of at least one second.",
+      "invalid_device_details": "The device details are invalid."
     },
     "abort": {
       "learn_timeout": "No unknown EnOcean sender was heard before the timeout.",
       "no_ui_devices": "No UI-managed devices to remove.",
       "delete_cancelled": "Removal cancelled.",
       "learn_in_progress": "A teach-in window is already in progress.",
-      "device_form_missing": "The device form session expired; start again."
+      "device_form_missing": "The device form session expired; start again.",
+      "yaml_managed": "This EnOcean ID is also configured in YAML. Remove the YAML configuration before deleting its UI device."
     }
   },
   "services": {
@@ -99,6 +130,10 @@
     "learn": {
       "name": "Start EnOcean teach-in",
       "description": "Listen for the next unknown EnOcean sender and fire enocean_custom_device_learned once one is captured."
+    },
+    "send_teach_in": {
+      "name": "Send dimmer teach-in",
+      "description": "Send an A5-38-08 4BS teach-in telegram using the selected light entity's sender ID."
     },
     "reload": {
       "name": "Reload EnOcean YAML platforms",

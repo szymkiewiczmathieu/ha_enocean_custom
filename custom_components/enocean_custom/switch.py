@@ -16,6 +16,7 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .const import DOMAIN, LOGGER
 from .device import EnOceanEntity, build_radio_optional
+from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
 from .enocean_library.utils import combine_hex
 from .learn import register_known_id
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devices
@@ -102,7 +103,6 @@ async def async_setup_entry(
         if device["platform"] != "switch":
             continue
         dev_id = device["id"]
-        register_known_id(hass, dev_id)
         entities.append(
             EnOceanSwitch(
                 dev_id,
@@ -138,6 +138,11 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
     def name(self):
         """Return the device name."""
         return self.dev_name
+
+    @property
+    def extra_state_attributes(self):
+        """Return D2-01 feedback metadata after the first status."""
+        return self.d2_status_attributes
 
     def turn_on(self, **kwargs: Any) -> None:
         """Turn on the switch."""
@@ -227,13 +232,16 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
                     self._on_state = watts > 1
                     self.schedule_update_ha_state()
             elif packet.data[0] == 0xD2:
-                # Actuator status telegram.
-                packet.parse_eep(0x01, 0x01)
-                if packet.parsed["CMD"]["raw_value"] == 4:
-                    channel = packet.parsed["IO"]["raw_value"]
-                    output = packet.parsed["OV"]["raw_value"]
-                    if channel == self.channel:
-                        self._on_state = output > 0
-                        self.schedule_update_ha_state()
+                # EEP 2.6.7, §D2-01 CMD 0x4, pp. 135-136 and TYPE 0x12,
+                # pp. 145-147: TYPE 0x12 has two channels; OV 0 is OFF and
+                # OV 1..100 is ON. RPS entities consume it too: their module
+                # reports the real state after a physical wall-switch toggle
+                # (the exact sync the feedback exists for). Modules without
+                # D2 simply never send it, leaving RPS behavior unchanged.
+                status = parse_d2_01_actuator_status(packet.data)
+                if status is not None and status.channel == self.channel:
+                    self.record_d2_status(status)
+                    self._on_state = status.output_value > 0
+                    self.async_write_ha_state()
         except (IndexError, KeyError, TypeError, ValueError, ZeroDivisionError):
             LOGGER.debug("Ignoring malformed EnOcean switch packet", exc_info=True)

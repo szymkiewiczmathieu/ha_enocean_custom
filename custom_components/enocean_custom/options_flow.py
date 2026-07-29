@@ -3,26 +3,58 @@
 from __future__ import annotations
 
 import re
+from datetime import timedelta
+from math import isfinite
 from typing import Any
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-from homeassistant.components.binary_sensor import DEVICE_CLASSES_SCHEMA
+from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.config_entries import OptionsFlow
 from homeassistant.const import CONF_DEVICE_CLASS, CONF_NAME, CONF_PLATFORM
 from homeassistant.core import callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector
 
+from .climate import (
+    CONF_COMMAND_FREQUENCY,
+    CONF_DEVICE_TYPE,
+    CONF_PI_CONTROL_KP,
+    CONF_PI_CONTROL_TN,
+    CONF_SENDER_ID_SWITCH,
+    CONF_SENSOR_ENTITY_ID,
+    CONF_SENSOR_TARGET_TEMP_FROST_PROTECTION,
+    CONF_SENSOR_TARGET_TEMP_RANGE,
+    CONF_SENSOR_TARGET_TEMP_TOLERANCE,
+    CONF_TARGET_TEMP_BASE,
+    CONF_TARGET_TEMP_NIGHT_REDUCTION,
+    DEVICE_SUPPORTED_LIST,
+)
 from .const import DOMAIN, LEARN_TIMEOUT_DEFAULT, UI_DEVICE_PLATFORMS
 from .enocean_library.utils import combine_hex, to_hex_string
-from .learn import get_learn_manager
+from .learn import get_known_ids, get_learn_manager
 from .light import CONF_SENDER_ID
-from .schema import CONF_UI_DEVICES, valid_ui_devices
+from .schema import (
+    CONF_UI_DEVICES,
+    UI_DEVICE_SCHEMA,
+    exact_finite_int,
+    valid_ui_devices,
+)
+from .sensor import (
+    CONF_MAX_TEMP,
+    CONF_MIN_TEMP,
+    CONF_RANGE_FROM,
+    CONF_RANGE_TO,
+    SENSOR_TYPES,
+)
 from .switch import CONF_CHANNEL, CONF_SWITCH_TYPE, SWITCH_TYPES
 
 _FLOW_OWNER = "options_flow"
 _HEX_BYTE = re.compile(r"^[0-9A-Fa-f]{2}$")
+_HEX_12 = re.compile(r"^[0-9A-Fa-f]{12}$")
+_STRICT_TYPED_ID = re.compile(r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){3}$")
+_LABEL_CHARSET = re.compile(r"^[0-9A-Za-z+]+$")
+_CONF_QR_CODE = "qr_code"
 
 
 def _unique_id_for(device: dict[str, Any]) -> str:
@@ -32,6 +64,10 @@ def _unique_id_for(device: dict[str, Any]) -> str:
         return f"{identifier}-{device['device_class']}"
     if device["platform"] == "switch":
         return f"{identifier}-{device['channel']}"
+    if device["platform"] == "climate":
+        return f"{identifier}-0"
+    if device["platform"] == "sensor":
+        return f"{identifier}-{device['device_class']}"
     return f"{identifier}"
 
 
@@ -54,6 +90,68 @@ def _exact_int(value: Any) -> int | None:
     if isinstance(value, float) and value.is_integer():
         return int(value)
     return None
+
+
+def _finite_float(value: Any) -> float | None:
+    """Return a finite float, or None when conversion is unsafe."""
+    if isinstance(value, bool):
+        return None
+    try:
+        result = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return result if isfinite(result) else None
+
+
+def _parse_commissioning_code(value: Any) -> list[int] | None:
+    """Extract a 32-bit EURID from an Alliance product label or typed ID.
+
+    Product ID and Standardized Labeling Specification 1.8, sections 4.1 and
+    4.3, defines an ANSI MH10.8.2 label with mandatory 30S (12-hex EURID) and
+    1P (12-hex Product ID) containers. This integration supports 32-bit radio
+    IDs only, so a genuine 48-bit EURID is rejected instead of truncated.
+    """
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    # Strict typed fallback: exactly four colon-separated hex bytes. The
+    # tolerant sender-id parser stays reserved for the sender_id form field;
+    # a commissioning path must never guess from a malformed string.
+    if _STRICT_TYPED_ID.fullmatch(value):
+        return [int(value[offset : offset + 2], 16) for offset in range(0, 12, 3)]
+    # Label payloads are '+'-separated alphanumeric MH10.8.2 containers:
+    # anything else (spaces, NULs, unicode) is not a product label.
+    if not _LABEL_CHARSET.fullmatch(value):
+        return None
+    containers = value.split("+")
+    eurids = [item[3:] for item in containers if item.startswith("30S")]
+    product_ids = [item[2:] for item in containers if item.startswith("1P")]
+    if (
+        len(eurids) != 1
+        or len(product_ids) != 1
+        or not _HEX_12.fullmatch(eurids[0])
+        or not _HEX_12.fullmatch(product_ids[0])
+        or eurids[0][:4] != "0000"
+    ):
+        return None
+    try:
+        return [
+            exact_finite_int(int(eurids[0][offset : offset + 2], 16))
+            for offset in range(4, 12, 2)
+        ]
+    except vol.Invalid:
+        return None
+
+
+def _qr_code_schema() -> vol.Schema:
+    """Return the websocket-serializable commissioning-code form schema."""
+    return vol.Schema(
+        {
+            vol.Required(_CONF_QR_CODE): selector.TextSelector(
+                selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+            )
+        }
+    )
 
 
 class EnOceanOptionsFlow(OptionsFlow):
@@ -79,7 +177,23 @@ class EnOceanOptionsFlow(OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         """Offer to add a new device or manage existing UI devices."""
-        return self.async_show_menu(step_id="init", menu_options=["learn", "manage"])
+        return self.async_show_menu(
+            step_id="init", menu_options=["learn", "qr_code", "manage"]
+        )
+
+    async def async_step_qr_code(self, user_input=None):
+        """Capture an EnOcean ID from a commissioning QR payload or typed ID."""
+        errors = {}
+        if user_input is not None:
+            if parsed := _parse_commissioning_code(user_input.get(_CONF_QR_CODE)):
+                self._captured_id = parsed
+                return await self.async_step_device_form()
+            errors[_CONF_QR_CODE] = "invalid_qr_code"
+        return self.async_show_form(
+            step_id="qr_code",
+            data_schema=_qr_code_schema(),
+            errors=errors,
+        )
 
     async def async_step_learn(self, user_input=None):
         """Wait for the next unknown EnOcean sender."""
@@ -112,15 +226,25 @@ class EnOceanOptionsFlow(OptionsFlow):
         """Render the platform/name form, pre-filled after a rejected submit."""
         if self._pending_platform is not None:
             schema = {
-                vol.Required(CONF_PLATFORM, default=self._pending_platform): vol.In(
-                    UI_DEVICE_PLATFORMS
+                vol.Required(
+                    CONF_PLATFORM, default=self._pending_platform
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=list(UI_DEVICE_PLATFORMS))
                 ),
-                vol.Required(CONF_NAME, default=self._pending_name): cv.string,
+                vol.Required(
+                    CONF_NAME, default=self._pending_name
+                ): selector.TextSelector(
+                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                ),
             }
         else:
             schema = {
-                vol.Required(CONF_PLATFORM): vol.In(UI_DEVICE_PLATFORMS),
-                vol.Required(CONF_NAME): cv.string,
+                vol.Required(CONF_PLATFORM): selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=list(UI_DEVICE_PLATFORMS))
+                ),
+                vol.Required(CONF_NAME): selector.TextSelector(
+                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                ),
             }
         return self.async_show_form(
             step_id="device_form",
@@ -145,7 +269,11 @@ class EnOceanOptionsFlow(OptionsFlow):
         """
         schema_dict: dict[Any, Any] = {}
         if platform == "binary_sensor":
-            schema_dict[vol.Optional(CONF_DEVICE_CLASS)] = DEVICE_CLASSES_SCHEMA
+            schema_dict[vol.Optional(CONF_DEVICE_CLASS)] = selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[item.value for item in BinarySensorDeviceClass]
+                )
+            )
         elif platform == "switch":
             schema_dict[vol.Optional(CONF_CHANNEL, default=0)] = (
                 selector.NumberSelector(
@@ -154,12 +282,80 @@ class EnOceanOptionsFlow(OptionsFlow):
                     )
                 )
             )
-            schema_dict[vol.Required(CONF_SWITCH_TYPE, default="default")] = vol.In(
-                SWITCH_TYPES
+            schema_dict[vol.Required(CONF_SWITCH_TYPE, default="default")] = (
+                selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=list(SWITCH_TYPES))
+                )
             )
-        else:
+        elif platform == "light":
             schema_dict[vol.Required(CONF_SENDER_ID)] = selector.TextSelector(
                 selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+            )
+            # D2-01-12 multi-gang actuators report every channel; pick which
+            # one drives this light (I/O channel is 5 bits wide).
+            schema_dict[vol.Optional("channel", default=0)] = selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0,
+                    max=31,
+                    step=1,
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            )
+        elif platform == "sensor":
+            schema_dict[vol.Optional(CONF_DEVICE_CLASS, default="powersensor")] = (
+                selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=list(SENSOR_TYPES))
+                )
+            )
+            for field, default, minimum, maximum in (
+                (CONF_MAX_TEMP, 40, -100, 100),
+                (CONF_MIN_TEMP, 0, -100, 100),
+                (CONF_RANGE_FROM, 255, 0, 255),
+                (CONF_RANGE_TO, 0, 0, 255),
+            ):
+                schema_dict[vol.Optional(field, default=default)] = (
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=minimum,
+                            max=maximum,
+                            step=1,
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    )
+                )
+        elif platform == "climate":
+            schema_dict[vol.Required(CONF_SENDER_ID_SWITCH)] = selector.TextSelector(
+                selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+            )
+            schema_dict[vol.Required(CONF_DEVICE_TYPE)] = selector.SelectSelector(
+                selector.SelectSelectorConfig(options=DEVICE_SUPPORTED_LIST)
+            )
+            schema_dict[vol.Required(CONF_SENSOR_ENTITY_ID)] = selector.TextSelector(
+                selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+            )
+            for field, default, minimum, maximum, step in (
+                (CONF_SENSOR_TARGET_TEMP_FROST_PROTECTION, 8.0, 0, 20, 0.1),
+                (CONF_SENSOR_TARGET_TEMP_RANGE, 5, 0, 20, 1),
+                (CONF_SENSOR_TARGET_TEMP_TOLERANCE, 0.5, 0, 10, 0.1),
+                (CONF_TARGET_TEMP_BASE, 21.0, 5, 35, 0.1),
+                (CONF_TARGET_TEMP_NIGHT_REDUCTION, 4.0, 0, 20, 0.1),
+                (CONF_PI_CONTROL_KP, 5.0, 0.001, 100, 0.001),
+                (CONF_PI_CONTROL_TN, 240.0, 0.001, 1440, 0.001),
+            ):
+                schema_dict[vol.Optional(field, default=default)] = (
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=minimum,
+                            max=maximum,
+                            step=step,
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    )
+                )
+            schema_dict[vol.Optional(CONF_COMMAND_FREQUENCY, default="00:17:00")] = (
+                selector.TextSelector(
+                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                )
             )
         return vol.Schema(schema_dict)
 
@@ -194,15 +390,91 @@ class EnOceanOptionsFlow(OptionsFlow):
                 return self._show_details_form(
                     platform, errors={CONF_CHANNEL: "invalid_channel_rps"}
                 )
+        elif platform == "light":
+            # D2-01-12 I/O channel is 5 bits wide (0-31).
+            channel = _exact_int(user_input.get(CONF_CHANNEL, 0))
+            if channel is None or not 0 <= channel <= 31:
+                return self._show_details_form(
+                    platform, errors={CONF_CHANNEL: "invalid_channel"}
+                )
         else:
             channel = 0
 
         sender_id: list[int] | None = None
+        id_switch: list[int] | None = None
         if platform == "light":
             sender_id = _parse_sender_id(user_input.get(CONF_SENDER_ID))
             if sender_id is None:
                 return self._show_details_form(
                     platform, errors={CONF_SENDER_ID: "invalid_sender_id"}
+                )
+        elif platform == "climate":
+            id_switch = _parse_sender_id(user_input.get(CONF_SENDER_ID_SWITCH))
+            if id_switch is None:
+                return self._show_details_form(
+                    platform, errors={CONF_SENDER_ID_SWITCH: "invalid_sender_id"}
+                )
+
+        if platform == "sensor":
+            for field, minimum, maximum in (
+                (CONF_MAX_TEMP, -100, 100),
+                (CONF_MIN_TEMP, -100, 100),
+                (CONF_RANGE_FROM, 0, 255),
+                (CONF_RANGE_TO, 0, 255),
+            ):
+                value = _exact_int(user_input.get(field))
+                if value is None or not minimum <= value <= maximum:
+                    return self._show_details_form(
+                        platform, errors={field: "invalid_exact_integer"}
+                    )
+                user_input[field] = value
+            if (
+                user_input.get(CONF_DEVICE_CLASS) == "temperature"
+                and user_input[CONF_MIN_TEMP] >= user_input[CONF_MAX_TEMP]
+            ):
+                return self._show_details_form(
+                    platform, errors={"base": "invalid_temperature_range"}
+                )
+            if (
+                user_input.get(CONF_DEVICE_CLASS) == "temperature"
+                and user_input[CONF_RANGE_FROM] == user_input[CONF_RANGE_TO]
+            ):
+                return self._show_details_form(
+                    platform, errors={"base": "invalid_raw_range"}
+                )
+
+        if platform == "climate":
+            for field, minimum, maximum in (
+                (CONF_SENSOR_TARGET_TEMP_FROST_PROTECTION, 0, 20),
+                (CONF_SENSOR_TARGET_TEMP_TOLERANCE, 0, 10),
+                (CONF_TARGET_TEMP_BASE, 5, 35),
+                (CONF_TARGET_TEMP_NIGHT_REDUCTION, 0, 20),
+                (CONF_PI_CONTROL_KP, 0.001, 100),
+                (CONF_PI_CONTROL_TN, 0.001, 1440),
+            ):
+                value = _finite_float(user_input.get(field))
+                if value is None or not minimum <= value <= maximum:
+                    return self._show_details_form(
+                        platform, errors={field: "invalid_number"}
+                    )
+                user_input[field] = value
+            target_range = _exact_int(user_input.get(CONF_SENSOR_TARGET_TEMP_RANGE))
+            if target_range is None or not 0 <= target_range <= 20:
+                return self._show_details_form(
+                    platform,
+                    errors={CONF_SENSOR_TARGET_TEMP_RANGE: "invalid_exact_integer"},
+                )
+            user_input[CONF_SENSOR_TARGET_TEMP_RANGE] = target_range
+            try:
+                command_frequency = cv.positive_time_period(
+                    user_input.get(CONF_COMMAND_FREQUENCY)
+                )
+            except vol.Invalid:
+                command_frequency = timedelta(0)
+            if command_frequency < timedelta(seconds=1):
+                return self._show_details_form(
+                    platform,
+                    errors={CONF_COMMAND_FREQUENCY: "invalid_command_frequency"},
                 )
 
         device = {
@@ -213,7 +485,38 @@ class EnOceanOptionsFlow(OptionsFlow):
             "channel": channel,
             "switch_type": user_input.get(CONF_SWITCH_TYPE),
             "sender_id": sender_id,
+            "id_switch": id_switch,
+            "device_type": user_input.get(CONF_DEVICE_TYPE),
+            "sensor_entity_id": user_input.get(CONF_SENSOR_ENTITY_ID),
+            "temperature_frost_protection": user_input.get(
+                CONF_SENSOR_TARGET_TEMP_FROST_PROTECTION, 8.0
+            ),
+            "sensor_target_temperature_range": user_input.get(
+                CONF_SENSOR_TARGET_TEMP_RANGE, 5
+            ),
+            "sensor_target_temperature_update_tolerance": user_input.get(
+                CONF_SENSOR_TARGET_TEMP_TOLERANCE, 0.5
+            ),
+            "target_temperature_base_value": user_input.get(
+                CONF_TARGET_TEMP_BASE, 21.0
+            ),
+            "target_temperature_reduction_night": user_input.get(
+                CONF_TARGET_TEMP_NIGHT_REDUCTION, 4.0
+            ),
+            "command_frequency": user_input.get(CONF_COMMAND_FREQUENCY, "00:17:00"),
+            "pi_control_Kp": user_input.get(CONF_PI_CONTROL_KP, 5.0),
+            "pi_control_Tn": user_input.get(CONF_PI_CONTROL_TN, 240.0),
+            "max_temp": user_input.get(CONF_MAX_TEMP, 40),
+            "min_temp": user_input.get(CONF_MIN_TEMP, 0),
+            "range_from": user_input.get(CONF_RANGE_FROM, 255),
+            "range_to": user_input.get(CONF_RANGE_TO, 0),
         }
+        try:
+            device = UI_DEVICE_SCHEMA(device)
+        except vol.Invalid:
+            return self._show_details_form(
+                platform, errors={"base": "invalid_device_details"}
+            )
         unique_id = _unique_id_for(device)
         registry = er.async_get(self.hass)
         existing_devices = valid_ui_devices(
@@ -287,6 +590,8 @@ class EnOceanOptionsFlow(OptionsFlow):
             )
         if not user_input["confirm"]:
             return self.async_abort(reason="delete_cancelled")
+        if combine_hex(device["id"]) in get_known_ids(self.hass):
+            return self.async_abort(reason="yaml_managed")
 
         unique_id = _unique_id_for(device)
         registry = er.async_get(self.hass)

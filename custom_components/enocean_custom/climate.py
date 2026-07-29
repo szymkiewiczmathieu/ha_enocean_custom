@@ -30,6 +30,7 @@ from homeassistant.components.climate import (
 from homeassistant.components.climate import (
     DOMAIN as CLIMATE_DOMAIN,
 )
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_ID,
     CONF_NAME,
@@ -59,7 +60,7 @@ from .const import DOMAIN, LOGGER
 from .device import EnOceanEntity, build_radio_optional
 from .enocean_library.utils import combine_hex
 from .learn import register_known_id
-from .schema import ENOCEAN_ID, exact_finite_int
+from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devices
 
 DEVICE_SUPPORTED_LIST = ["SRC-D08"]
 """
@@ -234,6 +235,60 @@ async def async_setup_platform(
     platform.async_register_entity_service(
         "climate_teach_in_actor_switch", {}, "teach_in_actor_switch"
     )
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up EnOcean climate devices configured entirely from the UI."""
+    entities = []
+    for device in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, [])):
+        if device["platform"] != "climate":
+            continue
+        config = PLATFORM_SCHEMA(
+            {
+                "platform": DOMAIN,
+                CONF_ID: device["id"],
+                CONF_NAME: device["name"],
+                CONF_SENDER_ID_SWITCH: device["id_switch"],
+                CONF_DEVICE_TYPE: device["device_type"],
+                CONF_SENSOR_ENTITY_ID: device["sensor_entity_id"],
+                CONF_SENSOR_TARGET_TEMP_FROST_PROTECTION: device[
+                    CONF_SENSOR_TARGET_TEMP_FROST_PROTECTION
+                ],
+                CONF_SENSOR_TARGET_TEMP_RANGE: device[CONF_SENSOR_TARGET_TEMP_RANGE],
+                CONF_SENSOR_TARGET_TEMP_TOLERANCE: device[
+                    CONF_SENSOR_TARGET_TEMP_TOLERANCE
+                ],
+                CONF_TARGET_TEMP_BASE: device[CONF_TARGET_TEMP_BASE],
+                CONF_TARGET_TEMP_NIGHT_REDUCTION: device[
+                    CONF_TARGET_TEMP_NIGHT_REDUCTION
+                ],
+                CONF_COMMAND_FREQUENCY: device[CONF_COMMAND_FREQUENCY],
+                CONF_PI_CONTROL_KP: device[CONF_PI_CONTROL_KP],
+                CONF_PI_CONTROL_TN: device[CONF_PI_CONTROL_TN],
+            }
+        )
+        _migrate_to_new_unique_id(hass, config[CONF_ID], 0)
+        entities.append(
+            EnOceanClimate(
+                config[CONF_ID],
+                config[CONF_NAME],
+                config[CONF_SENDER_ID_SWITCH],
+                config[CONF_SENSOR_ENTITY_ID],
+                config[CONF_SENSOR_TARGET_TEMP_FROST_PROTECTION],
+                config[CONF_SENSOR_TARGET_TEMP_RANGE],
+                config[CONF_SENSOR_TARGET_TEMP_TOLERANCE],
+                config[CONF_TARGET_TEMP_BASE],
+                config[CONF_TARGET_TEMP_NIGHT_REDUCTION],
+                config[CONF_COMMAND_FREQUENCY],
+                config[CONF_PI_CONTROL_KP],
+                config[CONF_PI_CONTROL_TN],
+            )
+        )
+    async_add_entities(entities)
 
 
 class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):

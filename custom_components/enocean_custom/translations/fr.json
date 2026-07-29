@@ -35,7 +35,15 @@
       "init": {
         "menu_options": {
           "learn": "Ajouter un équipement",
+          "qr_code": "Ajouter par code QR",
           "manage": "Gérer les équipements de l'interface"
+        }
+      },
+      "qr_code": {
+        "title": "Ajouter par code QR",
+        "description": "Collez le contenu d'un QR de commissioning EnOcean Alliance ou saisissez un ID de quatre octets tel que AA:BB:CC:DD.",
+        "data": {
+          "qr_code": "Code de commissioning ou ID EnOcean"
         }
       },
       "device_form": {
@@ -53,7 +61,22 @@
           "device_class": "Classe d'appareil",
           "channel": "Canal",
           "switch_type": "Type d'interrupteur",
-          "sender_id": "ID d'émission"
+          "sender_id": "ID d'émission",
+          "id_switch": "ID d'émission de l'interrupteur",
+          "device_type": "Type d'équipement",
+          "sensor_entity_id": "Entité du capteur de température",
+          "temperature_frost_protection": "Température de protection antigel",
+          "sensor_target_temperature_range": "Plage de température cible du capteur",
+          "sensor_target_temperature_update_tolerance": "Tolérance de mise à jour de la température cible",
+          "target_temperature_base_value": "Température cible de base",
+          "target_temperature_reduction_night": "Réduction nocturne de la température cible",
+          "command_frequency": "Fréquence des commandes",
+          "pi_control_Kp": "Gain proportionnel PI (Kp)",
+          "pi_control_Tn": "Temps intégral PI (Tn)",
+          "max_temp": "Température maximale",
+          "min_temp": "Température minimale",
+          "range_from": "Début de la plage brute",
+          "range_to": "Fin de la plage brute"
         }
       },
       "manage": {
@@ -77,14 +100,22 @@
       "unique_id_exists": "Un équipement avec cette identité existe déjà. Le mode apprentissage ne fusionne ni n'écrase jamais un équipement existant.",
       "invalid_channel_rps": "Un interrupteur RPS n'accepte que le canal 0 ou 1.",
       "invalid_channel": "Le canal doit être un entier exact entre 0 et 255.",
-      "invalid_sender_id": "L'ID émetteur doit être 4 octets hex, ex. 05:9F:89:34."
+      "invalid_sender_id": "L'ID émetteur doit être 4 octets hex, ex. 05:9F:89:34.",
+      "invalid_qr_code": "La valeur n'est ni un QR de commissioning EnOcean Alliance pris en charge, ni un ID au format AA:BB:CC:DD.",
+      "invalid_exact_integer": "La valeur doit être un entier exact dans les limites affichées.",
+      "invalid_number": "La valeur doit être un nombre fini dans les limites affichées.",
+      "invalid_temperature_range": "La température minimale doit être inférieure à la température maximale.",
+      "invalid_raw_range": "Le début et la fin de la plage brute doivent être différents.",
+      "invalid_command_frequency": "La fréquence des commandes doit être une durée positive valide d'au moins une seconde.",
+      "invalid_device_details": "Les détails de l'équipement sont invalides."
     },
     "abort": {
       "learn_timeout": "Aucun expéditeur EnOcean inconnu n'a été entendu avant expiration du délai.",
       "no_ui_devices": "Aucun équipement géré depuis l'interface à supprimer.",
       "delete_cancelled": "Suppression annulée.",
       "learn_in_progress": "Une fenêtre d'apprentissage est déjà en cours.",
-      "device_form_missing": "La session du formulaire a expiré ; recommencez."
+      "device_form_missing": "La session du formulaire a expiré ; recommencez.",
+      "yaml_managed": "Cet ID EnOcean est aussi configuré en YAML. Supprimez la configuration YAML avant de supprimer son équipement de l'interface."
     }
   },
   "services": {
@@ -99,6 +130,10 @@
     "learn": {
       "name": "Démarrer le mode apprentissage EnOcean",
       "description": "Écoute le prochain expéditeur EnOcean inconnu et déclenche enocean_custom_device_learned une fois capturé."
+    },
+    "send_teach_in": {
+      "name": "Envoyer l'apprentissage du variateur",
+      "description": "Envoie un télégramme d'apprentissage 4BS A5-38-08 avec l'ID émetteur de l'entité light sélectionnée."
     },
     "reload": {
       "name": "Recharger les plateformes YAML EnOcean",

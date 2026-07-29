@@ -63,7 +63,6 @@ async def async_setup_entry(
         if device["platform"] != "binary_sensor":
             continue
         dev_id = device["id"]
-        register_known_id(hass, dev_id)
         entities.append(
             EnOceanBinarySensor(dev_id, device["name"], device["device_class"])
         )

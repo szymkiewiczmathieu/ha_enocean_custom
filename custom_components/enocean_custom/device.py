@@ -1,5 +1,7 @@
 """Representation of an EnOcean device."""
 
+from datetime import UTC, datetime
+
 from homeassistant.core import callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity
@@ -29,7 +31,29 @@ class EnOceanEntity(Entity):
         """Initialize the device."""
         self.dev_id = dev_id
         self.dev_name = dev_name
+        self._d2_status = None
+        self._last_status = None
         self._attr_available = False
+
+    @property
+    def d2_status_attributes(self) -> dict:
+        """Return common D2-01 feedback attributes after the first status."""
+        if self._d2_status is None:
+            return {}
+        return {
+            "d2_channel": self._d2_status.channel,
+            "d2_output_value": self._d2_status.output_value,
+            "d2_power_failure_detection_enabled": (
+                self._d2_status.power_failure_detection_enabled
+            ),
+            "d2_power_failure_detected": self._d2_status.power_failure_detected,
+            "last_status": self._last_status,
+        }
+
+    def record_d2_status(self, status) -> None:
+        """Store status metadata while already executing on HA's event loop."""
+        self._d2_status = status
+        self._last_status = datetime.now(UTC).isoformat()
 
     async def async_added_to_hass(self):
         """Register packet and serial-health callbacks."""
