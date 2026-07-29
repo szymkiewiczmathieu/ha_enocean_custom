@@ -7,6 +7,7 @@ import sys
 import unittest
 from datetime import timedelta
 from pathlib import Path
+from typing import ClassVar
 
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
@@ -65,7 +66,7 @@ class WakeUpCycleCodeTests(unittest.TestCase):
 class ClimateYamlValidationTests(unittest.TestCase):
     """Review P1-H1: booleans and non-finite YAML values must be rejected."""
 
-    _BASE = {
+    _BASE: ClassVar[dict] = {
         "platform": "enocean_custom",
         "id": [1, 2, 3, 4],
         "id_switch": [5, 6, 7, 8],
@@ -74,9 +75,11 @@ class ClimateYamlValidationTests(unittest.TestCase):
     }
 
     def _assert_rejected(self, field: str, value):
-        with self.subTest(field=field, value=value):
-            with self.assertRaises(vol.Invalid):
-                CLIMATE_PLATFORM_SCHEMA({**self._BASE, field: value})
+        with (
+            self.subTest(field=field, value=value),
+            self.assertRaises(vol.Invalid),
+        ):
+            CLIMATE_PLATFORM_SCHEMA({**self._BASE, field: value})
 
     def test_booleans_rejected_on_numeric_fields(self):
         for field in (
