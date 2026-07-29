@@ -36,7 +36,50 @@
         "menu_options": {
           "learn": "Add a device",
           "qr_code": "Add via QR code",
+          "pair_actuator": "Pair an actuator (guided)",
           "manage": "Manage UI devices"
+        }
+      },
+      "pair_actuator": {
+        "title": "Identify the actuator",
+        "description": "Scan or paste the EnOcean Alliance commissioning QR label, or enter the actuator ID exactly as AA:BB:CC:DD.",
+        "data": {
+          "qr_code": "Commissioning code or actuator ID"
+        }
+      },
+      "pair_actuator_type": {
+        "title": "Choose the actuator type",
+        "description": "Actuator ID: {captured_id}",
+        "data": {
+          "name": "Name",
+          "actuator_type": "Actuator type"
+        }
+      },
+      "pair_actuator_details": {
+        "title": "Configure the actuator",
+        "description": "Actuator: {name} ({captured_id})",
+        "data": {
+          "channel": "Channel",
+          "sender_id": "Sender ID"
+        }
+      },
+      "pair_actuator_instructions": {
+        "title": "Put the module into pairing mode",
+        "description": "Put the module into pairing mode now (for example, on a Ubiwizz press PRESS briefly three times; its LED flashes). Then continue to start the {timeout}-second pairing window."
+      },
+      "pair_relay_success": {
+        "title": "Actuator paired",
+        "description": "Module paired and reporting its state ✓"
+      },
+      "pair_dimmer_success": {
+        "title": "Teach-in sent",
+        "description": "Teach-in was sent {attempts} times. No radio confirmation is available for A5-38-08; physically verify that the dimmer responds."
+      },
+      "pair_actuator_failure": {
+        "title": "Pairing timed out",
+        "description": "No confirmation was received before the 120-second window ended. The device is already saved.",
+        "data": {
+          "failure_action": "Next action"
         }
       },
       "qr_code": {
@@ -94,7 +137,8 @@
       }
     },
     "progress": {
-      "waiting_for_device": "Press the button on the device now. Waiting up to 60 seconds for an unknown EnOcean sender."
+      "waiting_for_device": "Press the button on the device now. Waiting up to 60 seconds for an unknown EnOcean sender.",
+      "pairing_actuator": "Pairing in progress for up to {timeout} seconds. Commands are sent repeatedly; keep the module in pairing mode."
     },
     "error": {
       "unique_id_exists": "A device with this identity already exists. Teach-in never merges or overwrites an existing device.",
@@ -116,6 +160,21 @@
       "learn_in_progress": "A teach-in window is already in progress.",
       "device_form_missing": "The device form session expired; start again.",
       "yaml_managed": "This EnOcean ID is also configured in YAML. Remove the YAML configuration before deleting its UI device."
+    }
+  },
+  "selector": {
+    "actuator_type": {
+      "options": {
+        "relay_rps": "Relay (RPS, e.g. Ubiwizz)",
+        "dimmer_4bs": "4BS dimmer (e.g. Eltako)"
+      }
+    },
+    "pairing_failure_action": {
+      "options": {
+        "retry": "Try again",
+        "keep": "Keep the device without pairing",
+        "delete": "Remove the device"
+      }
     }
   },
   "services": {

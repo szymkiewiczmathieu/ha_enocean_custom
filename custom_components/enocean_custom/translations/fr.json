@@ -36,7 +36,50 @@
         "menu_options": {
           "learn": "Ajouter un équipement",
           "qr_code": "Ajouter par code QR",
+          "pair_actuator": "Appairer un actionneur (guidé)",
           "manage": "Gérer les équipements de l'interface"
+        }
+      },
+      "pair_actuator": {
+        "title": "Identifier l'actionneur",
+        "description": "Scannez ou collez le QR de commissioning EnOcean Alliance, ou saisissez exactement l'ID de l'actionneur au format AA:BB:CC:DD.",
+        "data": {
+          "qr_code": "Code de commissioning ou ID de l'actionneur"
+        }
+      },
+      "pair_actuator_type": {
+        "title": "Choisir le type d'actionneur",
+        "description": "ID de l'actionneur : {captured_id}",
+        "data": {
+          "name": "Nom",
+          "actuator_type": "Type d'actionneur"
+        }
+      },
+      "pair_actuator_details": {
+        "title": "Configurer l'actionneur",
+        "description": "Actionneur : {name} ({captured_id})",
+        "data": {
+          "channel": "Canal",
+          "sender_id": "ID d'émission"
+        }
+      },
+      "pair_actuator_instructions": {
+        "title": "Mettre le module en mode appairage",
+        "description": "Mets le module en mode appairage maintenant (ex. Ubiwizz : 3 appuis courts sur PRESS ; la LED clignote). Continue ensuite pour démarrer la fenêtre d'appairage de {timeout} secondes."
+      },
+      "pair_relay_success": {
+        "title": "Actionneur appairé",
+        "description": "Module appairé et remontant son état ✓"
+      },
+      "pair_dimmer_success": {
+        "title": "Teach-in envoyé",
+        "description": "Le teach-in a été envoyé {attempts} fois. Aucune confirmation radio n'est disponible en A5-38-08 ; vérifie physiquement que le variateur répond."
+      },
+      "pair_actuator_failure": {
+        "title": "Délai d'appairage expiré",
+        "description": "Aucune confirmation n'a été reçue avant la fin de la fenêtre de 120 secondes. L'appareil est déjà enregistré.",
+        "data": {
+          "failure_action": "Action suivante"
         }
       },
       "qr_code": {
@@ -94,7 +137,8 @@
       }
     },
     "progress": {
-      "waiting_for_device": "Appuyez maintenant sur le bouton de l'équipement. Attente jusqu'à 60 secondes d'un expéditeur EnOcean inconnu."
+      "waiting_for_device": "Appuyez maintenant sur le bouton de l'équipement. Attente jusqu'à 60 secondes d'un expéditeur EnOcean inconnu.",
+      "pairing_actuator": "Appairage en cours pendant au plus {timeout} secondes. Les commandes sont répétées ; garde le module en mode appairage."
     },
     "error": {
       "unique_id_exists": "Un équipement avec cette identité existe déjà. Le mode apprentissage ne fusionne ni n'écrase jamais un équipement existant.",
@@ -116,6 +160,21 @@
       "learn_in_progress": "Une fenêtre d'apprentissage est déjà en cours.",
       "device_form_missing": "La session du formulaire a expiré ; recommencez.",
       "yaml_managed": "Cet ID EnOcean est aussi configuré en YAML. Supprimez la configuration YAML avant de supprimer son équipement de l'interface."
+    }
+  },
+  "selector": {
+    "actuator_type": {
+      "options": {
+        "relay_rps": "Relais (RPS, ex. Ubiwizz)",
+        "dimmer_4bs": "Variateur 4BS (ex. Eltako)"
+      }
+    },
+    "pairing_failure_action": {
+      "options": {
+        "retry": "Réessayer",
+        "keep": "Garder l'appareil sans appairage",
+        "delete": "Supprimer l'appareil"
+      }
     }
   },
   "services": {

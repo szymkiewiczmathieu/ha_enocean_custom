@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 from datetime import timedelta
 from math import isfinite
@@ -10,11 +11,20 @@ from typing import Any
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
+from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
 from homeassistant.config_entries import OptionsFlow
-from homeassistant.const import CONF_DEVICE_CLASS, CONF_NAME, CONF_PLATFORM
+from homeassistant.const import (
+    CONF_DEVICE_CLASS,
+    CONF_ENTITY_ID,
+    CONF_NAME,
+    CONF_PLATFORM,
+    SERVICE_TOGGLE,
+)
 from homeassistant.core import callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from .climate import (
     CONF_COMMAND_FREQUENCY,
@@ -30,7 +40,14 @@ from .climate import (
     CONF_TARGET_TEMP_NIGHT_REDUCTION,
     DEVICE_SUPPORTED_LIST,
 )
-from .const import DOMAIN, LEARN_TIMEOUT_DEFAULT, UI_DEVICE_PLATFORMS
+from .const import (
+    DOMAIN,
+    LEARN_TIMEOUT_DEFAULT,
+    SERVICE_SEND_TEACH_IN,
+    SIGNAL_RECEIVE_MESSAGE,
+    UI_DEVICE_PLATFORMS,
+)
+from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
 from .enocean_library.utils import combine_hex, to_hex_string
 from .learn import get_known_ids, get_learn_manager
 from .light import CONF_SENDER_ID
@@ -55,6 +72,18 @@ _HEX_12 = re.compile(r"^[0-9A-Fa-f]{12}$")
 _STRICT_TYPED_ID = re.compile(r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){3}$")
 _LABEL_CHARSET = re.compile(r"^[0-9A-Za-z+]+$")
 _CONF_QR_CODE = "qr_code"
+_CONF_ACTUATOR_TYPE = "actuator_type"
+_CONF_FAILURE_ACTION = "failure_action"
+_ACTUATOR_RELAY = "relay_rps"
+_ACTUATOR_DIMMER = "dimmer_4bs"
+_FAILURE_RETRY = "retry"
+_FAILURE_KEEP = "keep"
+_FAILURE_DELETE = "delete"
+
+PAIRING_TIMEOUT = 120.0
+PAIRING_RELAY_INTERVAL = 4.0
+PAIRING_DIMMER_INTERVAL = 5.0
+PAIRING_DIMMER_ATTEMPTS = 3
 
 
 def _unique_id_for(device: dict[str, Any]) -> str:
@@ -154,6 +183,41 @@ def _qr_code_schema() -> vol.Schema:
     )
 
 
+def _pair_actuator_type_schema() -> vol.Schema:
+    """Return the websocket-serializable actuator name/type schema."""
+    return vol.Schema(
+        {
+            vol.Required(CONF_NAME): selector.TextSelector(
+                selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+            ),
+            vol.Required(_CONF_ACTUATOR_TYPE): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[_ACTUATOR_RELAY, _ACTUATOR_DIMMER],
+                    translation_key="actuator_type",
+                )
+            ),
+        }
+    )
+
+
+def _pairing_failure_schema() -> vol.Schema:
+    """Return the websocket-serializable timeout action schema."""
+    return vol.Schema(
+        {
+            vol.Required(_CONF_FAILURE_ACTION): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        _FAILURE_RETRY,
+                        _FAILURE_KEEP,
+                        _FAILURE_DELETE,
+                    ],
+                    translation_key="pairing_failure_action",
+                )
+            )
+        }
+    )
+
+
 class EnOceanOptionsFlow(OptionsFlow):
     """Add or remove EnOcean devices entirely from the UI."""
 
@@ -164,22 +228,371 @@ class EnOceanOptionsFlow(OptionsFlow):
         self._pending_platform: str | None = None
         self._pending_name: str | None = None
         self._manage_index: int | None = None
+        self._pairing_actuator_type: str | None = None
+        self._pairing_device: dict[str, Any] | None = None
+        self._pairing_task: asyncio.Task[None] | None = None
+        self._pairing_outcome: str | None = None
+        self._pairing_status_event: asyncio.Event | None = None
+        self._pairing_unsubscribe = None
 
     @callback
     def async_remove(self) -> None:
-        """Stop this flow's learn window when the flow is discarded.
+        """Stop this flow's learn window and pairing loop when discarded.
 
         Ownership-scoped: a window started by the learn *service* is left
         running, so discarding the UI flow can never silently eat the next
         physical press meant for a service consumer.
         """
         get_learn_manager(self.hass).stop(owner=_FLOW_OWNER)
+        self._stop_pairing_loop()
 
     async def async_step_init(self, user_input=None):
         """Offer to add a new device or manage existing UI devices."""
         return self.async_show_menu(
-            step_id="init", menu_options=["learn", "qr_code", "manage"]
+            step_id="init",
+            menu_options=["learn", "qr_code", "pair_actuator", "manage"],
         )
+
+    async def async_step_pair_actuator(self, user_input=None):
+        """Identify an actuator from its QR label or strict typed radio ID."""
+        errors = {}
+        if user_input is not None:
+            if parsed := _parse_commissioning_code(user_input.get(_CONF_QR_CODE)):
+                self._captured_id = parsed
+                return await self.async_step_pair_actuator_type()
+            errors[_CONF_QR_CODE] = "invalid_qr_code"
+        return self.async_show_form(
+            step_id="pair_actuator",
+            data_schema=_qr_code_schema(),
+            errors=errors,
+        )
+
+    async def async_step_pair_actuator_type(self, user_input=None):
+        """Collect the friendly name and supported actuator family."""
+        if self._captured_id is None:
+            return self.async_abort(reason="device_form_missing")
+        if user_input is not None:
+            self._pending_name = user_input[CONF_NAME]
+            self._pairing_actuator_type = user_input[_CONF_ACTUATOR_TYPE]
+            return await self.async_step_pair_actuator_details()
+        return self.async_show_form(
+            step_id="pair_actuator_type",
+            data_schema=_pair_actuator_type_schema(),
+            description_placeholders={"captured_id": to_hex_string(self._captured_id)},
+        )
+
+    def _pair_actuator_details_schema(self) -> vol.Schema:
+        """Build the serializable details schema for the chosen actuator."""
+        if self._pairing_actuator_type == _ACTUATOR_RELAY:
+            return vol.Schema(
+                {
+                    vol.Required(CONF_CHANNEL, default=0): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=0,
+                            max=1,
+                            step=1,
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    )
+                }
+            )
+        return vol.Schema(
+            {
+                vol.Required(CONF_SENDER_ID): selector.TextSelector(
+                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                ),
+                vol.Optional(CONF_CHANNEL, default=0): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0,
+                        max=31,
+                        step=1,
+                        mode=selector.NumberSelectorMode.BOX,
+                    )
+                ),
+            }
+        )
+
+    def _show_pair_actuator_details(self, errors: dict[str, str] | None = None):
+        """Render the pairing details form."""
+        return self.async_show_form(
+            step_id="pair_actuator_details",
+            data_schema=self._pair_actuator_details_schema(),
+            description_placeholders={
+                "captured_id": to_hex_string(self._captured_id),
+                "name": self._pending_name or "",
+            },
+            errors=errors or {},
+        )
+
+    async def async_step_pair_actuator_details(self, user_input=None):
+        """Validate, persist, and reload the entity used during pairing."""
+        if (
+            self._captured_id is None
+            or self._pending_name is None
+            or self._pairing_actuator_type not in (_ACTUATOR_RELAY, _ACTUATOR_DIMMER)
+        ):
+            return self.async_abort(reason="device_form_missing")
+        if user_input is None:
+            return self._show_pair_actuator_details()
+
+        maximum = 1 if self._pairing_actuator_type == _ACTUATOR_RELAY else 31
+        channel = _exact_int(user_input.get(CONF_CHANNEL, 0))
+        if channel is None or not 0 <= channel <= maximum:
+            return self._show_pair_actuator_details(
+                errors={CONF_CHANNEL: "invalid_channel"}
+            )
+
+        sender_id = None
+        platform = "switch"
+        switch_type = "RPS"
+        if self._pairing_actuator_type == _ACTUATOR_DIMMER:
+            platform = "light"
+            switch_type = None
+            sender_id = _parse_sender_id(user_input.get(CONF_SENDER_ID))
+            if sender_id is None:
+                return self._show_pair_actuator_details(
+                    errors={CONF_SENDER_ID: "invalid_sender_id"}
+                )
+
+        try:
+            device = UI_DEVICE_SCHEMA(
+                {
+                    "id": self._captured_id,
+                    "platform": platform,
+                    "name": self._pending_name,
+                    "channel": channel,
+                    "switch_type": switch_type,
+                    "sender_id": sender_id,
+                }
+            )
+        except vol.Invalid:
+            return self._show_pair_actuator_details(
+                errors={"base": "invalid_device_details"}
+            )
+
+        updated_options = self._options_with_added_device(device)
+        if updated_options is None:
+            return self._show_pair_actuator_details(errors={"base": "unique_id_exists"})
+        self._pairing_device = device
+        self.hass.config_entries.async_update_entry(
+            self.config_entry, options=updated_options
+        )
+        return await self.async_step_pair_actuator_instructions()
+
+    async def async_step_pair_actuator_instructions(self, user_input=None):
+        """Tell the user how to put the actuator into pairing mode."""
+        if self._pairing_device is None:
+            return self.async_abort(reason="device_form_missing")
+        if user_input is not None:
+            return await self.async_step_pair_actuator_progress()
+        return self.async_show_form(
+            step_id="pair_actuator_instructions",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "timeout": str(round(PAIRING_TIMEOUT)),
+            },
+        )
+
+    async def async_step_pair_actuator_progress(self, user_input=None):
+        """Drive the bounded pairing loop and advance when it completes."""
+        if self._pairing_device is None:
+            return self.async_abort(reason="device_form_missing")
+        if self._pairing_task is None:
+            self._pairing_outcome = None
+            self._pairing_task = self.hass.async_create_task(
+                self._run_pairing_loop(),
+                "EnOcean guided actuator pairing",
+            )
+            return self.async_show_progress(
+                step_id="pair_actuator_progress",
+                progress_action="pairing_actuator",
+                progress_task=self._pairing_task,
+                description_placeholders={
+                    "timeout": str(round(PAIRING_TIMEOUT)),
+                },
+            )
+        if not self._pairing_task.done():
+            return self.async_show_progress(
+                step_id="pair_actuator_progress",
+                progress_action="pairing_actuator",
+                progress_task=self._pairing_task,
+                description_placeholders={
+                    "timeout": str(round(PAIRING_TIMEOUT)),
+                },
+            )
+        if self._pairing_outcome == "success":
+            next_step = (
+                "pair_relay_success"
+                if self._pairing_actuator_type == _ACTUATOR_RELAY
+                else "pair_dimmer_success"
+            )
+        else:
+            next_step = "pair_actuator_failure"
+        return self.async_show_progress_done(next_step_id=next_step)
+
+    async def _run_pairing_loop(self) -> None:
+        """Toggle/send teach-in until confirmed, completed, or timed out."""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + PAIRING_TIMEOUT
+        try:
+            if self._pairing_actuator_type == _ACTUATOR_RELAY:
+                self._pairing_status_event = asyncio.Event()
+
+                @callback
+                def _status_received(packet) -> None:
+                    if self._is_matching_pairing_status(packet):
+                        self._pairing_status_event.set()
+
+                self._pairing_unsubscribe = async_dispatcher_connect(
+                    self.hass, SIGNAL_RECEIVE_MESSAGE, _status_received
+                )
+                await self._run_relay_pairing(deadline)
+            else:
+                await self._run_dimmer_pairing(deadline)
+        finally:
+            if self._pairing_unsubscribe is not None:
+                self._pairing_unsubscribe()
+                self._pairing_unsubscribe = None
+            self._pairing_status_event = None
+
+    async def _run_relay_pairing(self, deadline: float) -> None:
+        """Toggle the persisted RPS entity until a D2-01 status arrives."""
+        while self._pairing_status_event is not None:
+            remaining = deadline - asyncio.get_running_loop().time()
+            if remaining <= 0:
+                self._pairing_outcome = "timeout"
+                return
+            if self._pairing_status_event.is_set():
+                self._pairing_outcome = "success"
+                return
+            await self._async_call_pairing_service(SWITCH_DOMAIN, SERVICE_TOGGLE)
+            try:
+                await asyncio.wait_for(
+                    self._pairing_status_event.wait(),
+                    timeout=min(PAIRING_RELAY_INTERVAL, remaining),
+                )
+            except TimeoutError:
+                continue
+            self._pairing_outcome = "success"
+            return
+
+    @callback
+    def _is_matching_pairing_status(self, packet) -> bool:
+        """Return whether a packet confirms this relay, ignoring malformed data."""
+        if (
+            self._pairing_status_event is None
+            or self._pairing_device is None
+            or getattr(packet, "sender_int", None)
+            != combine_hex(self._pairing_device["id"])
+        ):
+            return False
+        try:
+            return parse_d2_01_actuator_status(getattr(packet, "data", [])) is not None
+        except (IndexError, TypeError, ValueError):
+            return False
+
+    async def _run_dimmer_pairing(self, deadline: float) -> None:
+        """Send the existing A5-38-08 entity service a bounded number of times."""
+        sent = 0
+        while sent < PAIRING_DIMMER_ATTEMPTS:
+            remaining = deadline - asyncio.get_running_loop().time()
+            if remaining <= 0:
+                self._pairing_outcome = "timeout"
+                return
+            if await self._async_call_pairing_service(DOMAIN, SERVICE_SEND_TEACH_IN):
+                sent += 1
+                if sent >= PAIRING_DIMMER_ATTEMPTS:
+                    self._pairing_outcome = "success"
+                    return
+            await asyncio.sleep(min(PAIRING_DIMMER_INTERVAL, remaining))
+        self._pairing_outcome = "success"
+
+    async def _async_call_pairing_service(self, domain: str, service: str) -> bool:
+        """Call an existing entity command after resolving its registry row."""
+        device = self._pairing_device
+        if device is None:
+            return False
+        entity_id = er.async_get(self.hass).async_get_entity_id(
+            device["platform"], DOMAIN, _unique_id_for(device)
+        )
+        if entity_id is None:
+            return False
+        try:
+            await self.hass.services.async_call(
+                domain,
+                service,
+                {CONF_ENTITY_ID: entity_id},
+                blocking=True,
+            )
+        except HomeAssistantError:
+            return False
+        return True
+
+    def _finish_pairing(self):
+        """Finish an options flow whose device was already persisted."""
+        return self.async_create_entry(title="", data=dict(self.config_entry.options))
+
+    async def async_step_pair_relay_success(self, user_input=None):
+        """Report confirmed D2-01 relay feedback."""
+        if user_input is not None:
+            return self._finish_pairing()
+        return self.async_show_form(
+            step_id="pair_relay_success", data_schema=vol.Schema({})
+        )
+
+    async def async_step_pair_dimmer_success(self, user_input=None):
+        """Report sent teach-in telegrams without claiming radio confirmation."""
+        if user_input is not None:
+            return self._finish_pairing()
+        return self.async_show_form(
+            step_id="pair_dimmer_success",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "attempts": str(PAIRING_DIMMER_ATTEMPTS),
+            },
+        )
+
+    async def async_step_pair_actuator_failure(self, user_input=None):
+        """Offer retry, keep, or deletion after the pairing timeout."""
+        if self._pairing_device is None:
+            return self.async_abort(reason="device_form_missing")
+        if user_input is None:
+            return self.async_show_form(
+                step_id="pair_actuator_failure",
+                data_schema=_pairing_failure_schema(),
+            )
+
+        action = user_input[_CONF_FAILURE_ACTION]
+        if action == _FAILURE_RETRY:
+            self._reset_pairing_run()
+            return await self.async_step_pair_actuator_instructions()
+        if action == _FAILURE_KEEP:
+            return self._finish_pairing()
+
+        updated_options, error = self._options_without_pairing_device()
+        if error is not None:
+            return self.async_abort(reason=error)
+        self.hass.config_entries.async_update_entry(
+            self.config_entry, options=updated_options
+        )
+        self._pairing_device = None
+        return self.async_create_entry(title="", data=updated_options)
+
+    @callback
+    def _stop_pairing_loop(self) -> None:
+        """Cancel the pairing task and remove its dispatcher listener."""
+        if self._pairing_task is not None and not self._pairing_task.done():
+            self._pairing_task.cancel()
+        if self._pairing_unsubscribe is not None:
+            self._pairing_unsubscribe()
+            self._pairing_unsubscribe = None
+        self._pairing_status_event = None
+
+    def _reset_pairing_run(self) -> None:
+        """Reset completed run state before a retry."""
+        self._stop_pairing_loop()
+        self._pairing_task = None
+        self._pairing_outcome = None
 
     async def async_step_qr_code(self, user_input=None):
         """Capture an EnOcean ID from a commissioning QR payload or typed ID."""
@@ -517,25 +930,81 @@ class EnOceanOptionsFlow(OptionsFlow):
             return self._show_details_form(
                 platform, errors={"base": "invalid_device_details"}
             )
+        updated_options = self._options_with_added_device(device)
+        if updated_options is None:
+            return self._show_device_form(errors={"base": "unique_id_exists"})
+
+        return self.async_create_entry(title="", data=updated_options)
+
+    def _options_with_added_device(
+        self, device: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """Return options containing a device, or None on identity collision."""
         unique_id = _unique_id_for(device)
         registry = er.async_get(self.hass)
         existing_devices = valid_ui_devices(
             self.config_entry.options.get(CONF_UI_DEVICES, [])
         )
-        collides = registry.async_get_entity_id(
-            platform, DOMAIN, unique_id
+        if registry.async_get_entity_id(
+            device["platform"], DOMAIN, unique_id
         ) is not None or any(
             _unique_id_for(existing) == unique_id for existing in existing_devices
-        )
-        if collides:
-            return self._show_device_form(errors={"base": "unique_id_exists"})
-
+        ):
+            return None
         updated_options = dict(self.config_entry.options)
         updated_options[CONF_UI_DEVICES] = [
             *self.config_entry.options.get(CONF_UI_DEVICES, []),
             device,
         ]
-        return self.async_create_entry(title="", data=updated_options)
+        return updated_options
+
+    def _options_without_pairing_device(
+        self,
+    ) -> tuple[dict[str, Any], str | None]:
+        """Find this flow's persisted pairing device and use the manage path."""
+        device = self._pairing_device
+        raw_devices = list(self.config_entry.options.get(CONF_UI_DEVICES, []))
+        if device is None:
+            return dict(self.config_entry.options), "no_ui_devices"
+        unique_id = _unique_id_for(device)
+        index = next(
+            (
+                index
+                for index, raw in enumerate(raw_devices)
+                if (valid := valid_ui_devices([raw]))
+                and valid[0]["platform"] == device["platform"]
+                and _unique_id_for(valid[0]) == unique_id
+            ),
+            None,
+        )
+        if index is None:
+            return dict(self.config_entry.options), "no_ui_devices"
+        return self._options_without_ui_device_at(index)
+
+    def _options_without_ui_device_at(
+        self, index: int
+    ) -> tuple[dict[str, Any], str | None]:
+        """Remove one valid UI device using the protected shared delete path."""
+        raw_devices = list(self.config_entry.options.get(CONF_UI_DEVICES, []))
+        if index < 0 or index >= len(raw_devices):
+            return dict(self.config_entry.options), "no_ui_devices"
+        valid = valid_ui_devices([raw_devices[index]])
+        if not valid:
+            return dict(self.config_entry.options), "no_ui_devices"
+        device = valid[0]
+        if combine_hex(device["id"]) in get_known_ids(self.hass):
+            return dict(self.config_entry.options), "yaml_managed"
+
+        unique_id = _unique_id_for(device)
+        registry = er.async_get(self.hass)
+        entity_id = registry.async_get_entity_id(device["platform"], DOMAIN, unique_id)
+        if entity_id is not None:
+            registry.async_remove(entity_id)
+
+        raw_devices.pop(index)
+        updated_options = dict(self.config_entry.options)
+        updated_options[CONF_UI_DEVICES] = raw_devices
+        return updated_options, None
 
     async def async_step_manage(self, user_input=None):
         """List UI devices and let the user pick one to remove."""
@@ -590,16 +1059,7 @@ class EnOceanOptionsFlow(OptionsFlow):
             )
         if not user_input["confirm"]:
             return self.async_abort(reason="delete_cancelled")
-        if combine_hex(device["id"]) in get_known_ids(self.hass):
-            return self.async_abort(reason="yaml_managed")
-
-        unique_id = _unique_id_for(device)
-        registry = er.async_get(self.hass)
-        entity_id = registry.async_get_entity_id(device["platform"], DOMAIN, unique_id)
-        if entity_id is not None:
-            registry.async_remove(entity_id)
-
-        raw_devices.pop(index)
-        updated_options = dict(self.config_entry.options)
-        updated_options[CONF_UI_DEVICES] = raw_devices
+        updated_options, error = self._options_without_ui_device_at(index)
+        if error is not None:
+            return self.async_abort(reason=error)
         return self.async_create_entry(title="", data=updated_options)

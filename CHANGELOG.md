@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- Add a guided actuator-pairing wizard to the config-entry options UI. It
+  creates supported receivers through the existing `ui_devices` persistence
+  and reload path, then drives their existing entity services during a bounded
+  120-second pairing window.
+- Pair Ubiwizz-style RPS relays by toggling the created switch about every four
+  seconds and confirm success only after a valid D2-01 status telegram from
+  the actuator. Timeout handling offers retry, keep, or protected removal.
+- Send the existing A5-38-08 teach-in service three times for Eltako-style 4BS
+  dimmers. Because that profile provides no confirmation response, the wizard
+  explicitly requires physical verification instead of claiming radio
+  success.
+- Cancel pairing tasks and dispatcher listeners when the options flow is
+  abandoned, and stop further commands immediately after success or timeout.
+
 ## 1.4.0 - 2026-07-29
 
 - Add bidirectional EEP D2-01-12 status feedback for Ubiwizz UBID1507C
