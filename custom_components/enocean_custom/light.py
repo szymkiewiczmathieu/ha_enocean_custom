@@ -24,6 +24,7 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .const import DOMAIN
 from .device import EnOceanEntity, build_radio_optional
+from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
 from .enocean_library.utils import combine_hex
 from .learn import register_known_id
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, optional_enocean_id, valid_ui_devices
@@ -120,6 +121,11 @@ class EnOceanLight(EnOceanEntity, LightEntity):
         """If light is on."""
         return self._on_state
 
+    @property
+    def extra_state_attributes(self):
+        """Return D2-01 feedback metadata after the first status."""
+        return self.d2_status_attributes
+
     def turn_on(self, **kwargs: Any) -> None:
         """Turn the light source on or sets a specific dimmer value."""
         brightness = kwargs.get(ATTR_BRIGHTNESS, self._brightness)
@@ -165,11 +171,20 @@ class EnOceanLight(EnOceanEntity, LightEntity):
     def value_changed(self, packet):
         """Update the internal state of this device.
 
-        Dimmer devices like Eltako FUD61 send telegram in different RORGs.
-        We only care about the 4BS (0xA5).
+        Dimmer devices like Eltako FUD61 send 4BS telegrams. D2-01-12
+        actuators additionally send their actual local-control state as VLD.
         """
         if packet.rorg == 0xA5 and len(packet.data) >= 3 and packet.data[1] == 0x02:
             val = packet.data[2]
             self._brightness = round(min(val, 100) / 100.0 * 255.0)
             self._on_state = bool(val != 0)
             self.schedule_update_ha_state()
+        elif packet.rorg == 0xD2:
+            # EEP 2.6.7, §D2-01 CMD 0x4, p. 136, offsets 17..23: OV is an
+            # absolute 0..100 %, mapped to HA's 0..255 brightness.
+            status = parse_d2_01_actuator_status(packet.data)
+            if status is not None:
+                self.record_d2_status(status)
+                self._brightness = round(status.output_value / 100.0 * 255.0)
+                self._on_state = status.output_value > 0
+                self.async_write_ha_state()

@@ -158,6 +158,20 @@ switch:
 
 To teach-in the switch to your EnOcean device, put the device in learning mode and toggle the state of the switch entity in Home Assistant.
 
+### D2-01-12 actuator feedback
+
+Ubiwizz UBID1507C two-channel actuators report their actual output state with
+EEP D2-01-12 VLD telegrams. A default (non-RPS) switch whose `id` matches the
+actuator sender follows feedback for its configured `channel`. A receive-capable
+light whose `id` matches the actuator maps the reported 0–100% output value to
+Home Assistant brightness 0–255. This includes changes initiated by a wall
+switch paired directly with the actuator.
+
+After the first valid status, the entity exposes `d2_channel`,
+`d2_output_value`, the power-failure capability/state flags, and `last_status`.
+Malformed feedback and telegrams from other sender IDs are ignored. RPS switch
+behavior is unchanged.
+
 ### Climate device
 
 The custom integration adds support for heating controller Thermokon SRC-D08. The climate entity takes temperature readings from a sensor entity and sends target temperature commands to the heating controller.
