@@ -1,0 +1,10 @@
+EnOcean Custom
+Copyright 2026 Mathieu Szymkiewicz
+
+Base integration: Home Assistant Core EnOcean, Apache-2.0,
+© Open Home Foundation.
+
+Vendored library: python-enocean, MIT, © Kimmo Huoman. Its license is retained
+at custom_components/enocean_custom/enocean_library/LICENSE.
+
+Modifications and additional integration code: © Mathieu Szymkiewicz.
