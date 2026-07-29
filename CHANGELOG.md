@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.1 - 2026-07-29
+
+- Ship the official EnOcean brand images (`brand/` directory, HA 2026.3+
+  mechanism) replacing the placeholder icon.
+- No functional change.
+
 ## 2.0.0 - 2026-07-29
 
 - Rebuild the integration on the Apache-2.0 Home Assistant Core 2026.7.3
