@@ -6,10 +6,6 @@ import asyncio
 import unittest
 from tempfile import TemporaryDirectory
 
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.dispatcher import async_dispatcher_send
-
-from custom_components.enocean_custom.const import SIGNAL_RECEIVE_MESSAGE
 from custom_components.enocean_custom.enocean_library.protocol.constants import (
     PACKET,
     PARSE_RESULT,
@@ -19,8 +15,18 @@ from custom_components.enocean_custom.enocean_library.protocol.d2 import (
     parse_d2_01_actuator_status,
 )
 from custom_components.enocean_custom.enocean_library.protocol.packet import Packet
-from custom_components.enocean_custom.light import EnOceanLight
-from custom_components.enocean_custom.switch import EnOceanSwitch
+
+try:  # The bare CI lifecycle environment has no Home Assistant installed.
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.dispatcher import async_dispatcher_send
+
+    from custom_components.enocean_custom.const import SIGNAL_RECEIVE_MESSAGE
+    from custom_components.enocean_custom.light import EnOceanLight
+    from custom_components.enocean_custom.switch import EnOceanSwitch
+
+    HA_AVAILABLE = True
+except ModuleNotFoundError:  # pragma: no cover - exercised by bare CI env
+    HA_AVAILABLE = False
 
 
 def _parse_radio(data: list[int]):
@@ -116,6 +122,7 @@ class D201PacketTests(unittest.TestCase):
         self.assertIsNone(parse_d2_01_actuator_status(wrong_command.data))
 
 
+@unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
 class D201DispatcherTests(unittest.IsolatedAsyncioTestCase):
     """Pass parsed packets through HA's dispatcher to real entities."""
 
