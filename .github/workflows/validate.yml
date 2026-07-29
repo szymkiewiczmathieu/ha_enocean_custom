@@ -82,6 +82,10 @@ jobs:
         with:
           category: integration
           comment: false
+          # TEMPORAIRE v2.0.0 : le check license interroge l'API GitHub sur la
+          # branche par défaut ; LICENSE n'y arrivera qu'avec le merge v2.0.0.
+          # À RETIRER juste après le merge (LICENSE sera détectée sur main).
+          ignore: license
 
   hassfest:
     name: Hassfest 2026.7.3
