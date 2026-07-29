@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.4.0 - 2026-07-29
 
 - Add bidirectional EEP D2-01-12 status feedback for Ubiwizz UBID1507C
   actuators. Parsed VLD Actuator Status Response telegrams now synchronize
