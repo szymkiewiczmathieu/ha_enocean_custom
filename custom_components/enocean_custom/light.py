@@ -18,11 +18,12 @@ from homeassistant.components.light import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ID, CONF_NAME
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_platform
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
-from .const import DOMAIN
+from .const import DOMAIN, SERVICE_SEND_TEACH_IN
 from .device import EnOceanEntity, build_radio_optional
 from .enocean_library.utils import combine_hex
 from .learn import register_known_id
@@ -31,6 +32,7 @@ from .schema import CONF_UI_DEVICES, ENOCEAN_ID, optional_enocean_id, valid_ui_d
 CONF_SENDER_ID = "sender_id"
 
 DEFAULT_NAME = "EnOcean Light"
+_A5_38_08_ELTAKO_TEACH_IN = [0xE0, 0x40, 0x0D, 0x80]
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
@@ -68,6 +70,7 @@ async def async_setup_platform(
             )
     register_known_id(hass, dev_id)
     async_add_entities([entity])
+    _async_register_send_teach_in_service()
 
 
 async def async_setup_entry(
@@ -81,9 +84,23 @@ async def async_setup_entry(
         if device["platform"] != "light":
             continue
         dev_id = device["id"]
-        register_known_id(hass, dev_id)
         entities.append(EnOceanLight(device["sender_id"], dev_id, device["name"]))
     async_add_entities(entities)
+    _async_register_send_teach_in_service()
+
+
+def _async_register_send_teach_in_service() -> None:
+    """Register the light-targeted teach-in entity service."""
+    try:
+        platform = entity_platform.async_get_current_platform()
+    except RuntimeError:
+        # Direct platform unit tests do not install an entity-platform context.
+        return
+    platform.async_register_entity_service(
+        SERVICE_SEND_TEACH_IN,
+        {},
+        "send_teach_in",
+    )
 
 
 class EnOceanLight(EnOceanEntity, LightEntity):
@@ -151,6 +168,21 @@ class EnOceanLight(EnOceanEntity, LightEntity):
                 accepted, False, self._brightness
             ),
         )
+
+    def send_teach_in(self) -> None:
+        """Teach an Eltako 4BS dimmer the entity's outbound sender ID.
+
+        EEP 2.6.7 A5-38-08 and Appendix 3.3 define the Gateway profile and
+        4BS teach-in variation 2 bit layout. Eltako ManID 0x00D encodes the
+        resulting DB3..DB0 bytes as E0 40 0D 80.
+        """
+        command = [
+            0xA5,
+            *_A5_38_08_ELTAKO_TEACH_IN,
+            *self._sender_id,
+            0x00,
+        ]
+        self.send_command(command, build_radio_optional(), 0x01)
 
     def _command_response(
         self, accepted: bool, on_state: bool, brightness: int

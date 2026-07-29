@@ -28,6 +28,14 @@ learn:
           unit_of_measurement: seconds
           mode: box
 
+send_teach_in:
+  name: Send dimmer teach-in
+  description: Send an A5-38-08 4BS teach-in telegram using the selected light entity's sender ID.
+  target:
+    entity:
+      domain: light
+      integration: enocean_custom
+
 reload:
   name: Reload EnOcean YAML platforms
   description: Reload YAML-configured EnOcean platforms from the current configuration.

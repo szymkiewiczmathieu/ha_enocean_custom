@@ -19,6 +19,7 @@ ISSUE_SERIAL_STOPPED = "serial_communicator_stopped"
 
 EVENT_DEVICE_LEARNED = "enocean_custom_device_learned"
 SERVICE_LEARN = "learn"
+SERVICE_SEND_TEACH_IN = "send_teach_in"
 
 LEARN_TIMEOUT_DEFAULT = 60
 LEARN_TIMEOUT_MIN = 15
@@ -35,6 +36,5 @@ PLATFORMS = [
 ]
 
 # Platforms that can be fully managed (added/removed) from the config entry
-# options UI. climate and sensor stay YAML-only: teach-in scope is limited to
-# the three platforms simple enough to describe with a short device form.
-UI_DEVICE_PLATFORMS = ("binary_sensor", "switch", "light")
+# options UI.
+UI_DEVICE_PLATFORMS = ("binary_sensor", "switch", "light", "climate", "sensor")

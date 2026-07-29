@@ -14,6 +14,7 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_DEVICE_CLASS,
     CONF_ID,
@@ -29,10 +30,11 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
+from .const import DOMAIN
 from .device import EnOceanEntity
 from .enocean_library.utils import combine_hex
 from .learn import register_known_id
-from .schema import ENOCEAN_ID, exact_finite_int
+from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devices
 
 CONF_MAX_TEMP = "max_temp"
 CONF_MIN_TEMP = "min_temp"
@@ -162,41 +164,64 @@ def setup_platform(
     discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
     """Set up an EnOcean sensor device."""
+    register_known_id(hass, config[CONF_ID])
+    _create_sensor_entities(config, add_entities)
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up EnOcean sensors configured entirely from the UI."""
+    for device in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, [])):
+        if device["platform"] != "sensor":
+            continue
+        config = PLATFORM_SCHEMA(
+            {
+                "platform": DOMAIN,
+                CONF_ID: device["id"],
+                CONF_NAME: device["name"],
+                CONF_DEVICE_CLASS: device[CONF_DEVICE_CLASS],
+                CONF_MAX_TEMP: device[CONF_MAX_TEMP],
+                CONF_MIN_TEMP: device[CONF_MIN_TEMP],
+                CONF_RANGE_FROM: device[CONF_RANGE_FROM],
+                CONF_RANGE_TO: device[CONF_RANGE_TO],
+            }
+        )
+        entities: list[EnOceanSensor] = []
+        _create_sensor_entities(config, entities.extend)
+        async_add_entities(entities)
+
+
+def _create_sensor_entities(
+    config: ConfigType, add_entities: AddEntitiesCallback
+) -> None:
+    """Create sensor entities from already validated config."""
     dev_id = config[CONF_ID]
     dev_name = config[CONF_NAME]
     sensor_type = config[CONF_DEVICE_CLASS]
-
     entities: list[EnOceanSensor] = []
     if sensor_type == SENSOR_TYPE_TEMPERATURE:
-        temp_min = config[CONF_MIN_TEMP]
-        temp_max = config[CONF_MAX_TEMP]
-        range_from = config[CONF_RANGE_FROM]
-        range_to = config[CONF_RANGE_TO]
         entities = [
             EnOceanTemperatureSensor(
                 dev_id,
                 dev_name,
                 SENSOR_DESC_TEMPERATURE,
-                scale_min=temp_min,
-                scale_max=temp_max,
-                range_from=range_from,
-                range_to=range_to,
+                scale_min=config[CONF_MIN_TEMP],
+                scale_max=config[CONF_MAX_TEMP],
+                range_from=config[CONF_RANGE_FROM],
+                range_to=config[CONF_RANGE_TO],
             )
         ]
-
     elif sensor_type == SENSOR_TYPE_HUMIDITY:
         entities = [EnOceanHumiditySensor(dev_id, dev_name, SENSOR_DESC_HUMIDITY)]
-
     elif sensor_type == SENSOR_TYPE_POWER:
         entities = [EnOceanPowerSensor(dev_id, dev_name, SENSOR_DESC_POWER)]
-
     elif sensor_type == SENSOR_TYPE_WINDOWHANDLE:
         entities = [EnOceanWindowHandle(dev_id, dev_name, SENSOR_DESC_WINDOWHANDLE)]
-
     elif sensor_type == SENSOR_TYPE_SHUTTERCONTACT:
         entities = [EnOceanShutterContact(dev_id, dev_name, SENSOR_DESC_SHUTTERCONTACT)]
-
-    register_known_id(hass, dev_id)
     add_entities(entities)
 
 
