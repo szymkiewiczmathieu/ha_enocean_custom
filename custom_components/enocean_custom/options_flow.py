@@ -38,7 +38,6 @@ from .climate import (
     CONF_SENSOR_TARGET_TEMP_TOLERANCE,
     CONF_TARGET_TEMP_BASE,
     CONF_TARGET_TEMP_NIGHT_REDUCTION,
-    DEVICE_SUPPORTED_LIST,
 )
 from .const import (
     DOMAIN,
