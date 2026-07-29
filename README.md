@@ -1,23 +1,20 @@
 # EnOcean Custom
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
-[![Validate](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml/badge.svg?branch=review%2Fv1.2.4)](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml)
+[![Validate](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.7.3-18BCF2.svg)](https://www.home-assistant.io/)
 [![Python](https://img.shields.io/badge/Python-3.14-3776AB.svg)](https://www.python.org/)
 
-> Maintained Home Assistant custom integration derived from
-> `kridgo/ha_enocean_custom` and its legacy EnOcean lineage.
+Apache-2.0 Home Assistant custom integration for EnOcean devices, rebuilt on
+the official Home Assistant Core 2026.7.3 EnOcean component. The integration
+keeps the established `enocean_custom` domain and configuration formats while
+using its hardened, entry-owned serial transport.
 
-This maintained fork targets Home Assistant 2026.7.3 and adds safe serial-port
-lifecycle handling. It stops and joins the USB reader thread before a config-entry
-reload and closes probe descriptors deterministically. Compatibility is confirmed
-only after the live test procedure described in [PATCH_NOTES.md](PATCH_NOTES.md).
+Version 2.0.0 stops and joins the USB reader thread before a config-entry reload
+and closes probe descriptors deterministically. Compatibility is confirmed only
+after the live test procedure described in [PATCH_NOTES.md](PATCH_NOTES.md).
 
-> **Publication status:** suitable for local/fork testing. The immediate upstream
-> repository has no declared license; default-catalogue publication should wait
-> for licensing clarification. See [NOTICE.md](NOTICE.md).
-
-## Why this fork is different
+## Why this integration is different
 
 `v1.2.4` treats the USB dongle as a single-owner runtime resource rather than
 just another background thread:
@@ -49,11 +46,13 @@ live dongle validation checklist in [PATCH_NOTES.md](PATCH_NOTES.md).
 
 ## Background
 
-This fork preserves devices and features from `kridgo/ha_enocean_custom` while
-hardening serial lifecycle handling for current Home Assistant releases. The
-official Home Assistant EnOcean integration remains active and now follows a
-different protocol-library path; this repository is an independent custom
-integration, not its replacement or an official Home Assistant project.
+Version 2.0.0 replaces the former implementation with an Apache-2.0 codebase
+using Home Assistant Core 2026.7.3 as its authorized base. Project-specific
+features were ported or independently reimplemented against the EnOcean EEP
+specification. The official Home Assistant EnOcean integration remains active
+and follows a different protocol-library path; this repository is an
+independent custom integration, not its replacement or an official Home
+Assistant project.
 
 ## Installation
 
@@ -84,11 +83,15 @@ fails instead of opening the port a second time.
 
 ## Description
 
-This custom integration contains legacy Home Assistant-derived platform code and
-a vendored snapshot of the [`kipe/enocean`](https://github.com/kipe/enocean)
-library, plus fixes and features maintained in this fork. To use it, specify
+This custom integration contains Apache-2.0 Home Assistant-derived platform code
+and a vendored MIT-licensed snapshot of the
+[`kipe/enocean`](https://github.com/kipe/enocean) library. To use it, specify
 `- platform: enocean_custom` instead of `- platform: enocean` when defining an
 EnOcean entity in `configuration.yaml`.
+
+The repository is licensed under Apache-2.0; third-party attributions are in
+[NOTICE](NOTICE), and the vendored library retains its own
+[MIT license](custom_components/enocean_custom/enocean_library/LICENSE).
 
 ### Adding devices from the UI (teach-in)
 
@@ -182,6 +185,14 @@ Binary sensors do not only trigger events but also have a state variable which m
 
 Add support for shutter contacts with EnOcean Equipment Profile EEP: D5-00-01. The sensor state can be `Open` or `Closed`.
 
+### Power and energy sensors
+
+`device_class: powersensor` exposes separate power and energy entities. It
+continues to decode A5-12-01 meters and also accepts D2-01-0B measurement
+responses (`W`/`kW` for power and `Ws`/`Wh`/`kWh` normalized to `Wh` for
+energy). The configured device-class key remains part of the power entity's
+unique ID; the companion energy entity uses an `-energy` suffix.
+
 ### Switches
 
 Switches can be used to emulate physical pushbuttons to control actors for light etc. This way you can send commands from Home Assistant to your EnOcean devices. Each switch needs its own unique EnOcean identifier (ID). The IDs can not be set randomly but depend on the base ID of your EnOcean dongle, see [this community thread](https://community.home-assistant.io/t/enocean-switch/1958/36) for more information.
@@ -214,17 +225,25 @@ behavior is unchanged.
 
 ### Climate device
 
-The custom integration adds support for heating controller Thermokon SRC-D08. The climate entity takes temperature readings from a sensor entity and sends target temperature commands to the heating controller.
+The climate platform supports the historical Thermokon `SRC-D08` controller
+and the bidirectional `A5-20-04` radiator-valve profile. Both use the bounded PI
+controller and transactional ESP3 acknowledgements. `A5-20-04` additionally
+reports valve position, room temperature, local setpoint, and failure code.
 Currently supported HVAC modes are `off` and `heat` with preset modes `comfort`,
 `sleep`, `away` and `boost`.
 
 Configuration variables:
 
-- `device_type`: Device type of the heating controller. Currently only `"SRC-D08"` is supported.
+- `device_type`: `"SRC-D08"` or `"A5-20-04"`. The A5-20-04 profile is
+  currently configured through YAML; its `id` is the addressed valve and
+  `id_switch` is the controller sender identity.
 - `name`: entity name
 - `id`: EnOcean ID to send temperature set point commands to the heating controller. Must fit to your [dongle's base ID](https://community.home-assistant.io/t/enocean-switch/1958/36). Commands replicate EnOcean room operating panel telegrams and use EEP A5-10-06 format.
 - `id_switch`: EnOcean ID to send digital switch commands to the heating controller. Must fit to your [dongle's base ID](https://community.home-assistant.io/t/enocean-switch/1958/36).
-- `sensor_entity_id`: Entity ID of the temperature sensor. Expects an [EnOcean temperature sensor](https://www.home-assistant.io/integrations/enocean/#temperature-sensor), but you may use any entity that provides the measured temperature as state and the state attributes `SlideSwitch` and `SetPoint`. Explanation:
+- `sensor_entity_id`: Entity ID of the temperature sensor. `SRC-D08` expects an
+  [EnOcean temperature sensor](https://www.home-assistant.io/integrations/enocean/#temperature-sensor),
+  or another entity providing `SlideSwitch` and `SetPoint`. `A5-20-04` only
+  requires a finite temperature state. For `SRC-D08`:
   - `SlideSwitch`: Set to preset mode comfort if equals `1` and preset mode sleep if equals `0`
   - `SetPoint`: Value in the range of `0...255` that represents the target temperature set by the room operating panel. Set to a constant value if not needed.
 - `target_temperature_base_value`: Base value for comfort temperature, default: `21`. Make sure to program the heating controller accordingly.
