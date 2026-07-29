@@ -1,0 +1,122 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests, Ruff and Home Assistant smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.14"
+      - name: Run lifecycle tests
+        run: python -m unittest discover -s tests -v
+      - name: Compile Python and validate JSON
+        run: |
+          python -m compileall -q custom_components tests
+          python -m json.tool custom_components/enocean_custom/manifest.json >/dev/null
+          python -m json.tool custom_components/enocean_custom/strings.json >/dev/null
+          python -m json.tool custom_components/enocean_custom/translations/en.json >/dev/null
+          python -m json.tool hacs.json >/dev/null
+      - name: Lint maintained integration code
+        run: |
+          python -m pip install --disable-pip-version-check ruff==0.16.0
+          targets=(
+            custom_components/enocean_custom/__init__.py
+            custom_components/enocean_custom/binary_sensor.py
+            custom_components/enocean_custom/climate.py
+            custom_components/enocean_custom/config_flow.py
+            custom_components/enocean_custom/const.py
+            custom_components/enocean_custom/device.py
+            custom_components/enocean_custom/diagnostics.py
+            custom_components/enocean_custom/dongle.py
+            custom_components/enocean_custom/light.py
+            custom_components/enocean_custom/schema.py
+            custom_components/enocean_custom/sensor.py
+            custom_components/enocean_custom/switch.py
+            custom_components/enocean_custom/enocean_library/communicators/communicator.py
+            custom_components/enocean_custom/enocean_library/communicators/serialcommunicator.py
+            tests
+          )
+          ruff check "${targets[@]}"
+          ruff format --check "${targets[@]}"
+      - name: Install Home Assistant 2026.7.3 and runtime dependencies
+        run: |
+          python -m pip install --disable-pip-version-check \
+            homeassistant==2026.7.3 \
+            beautifulsoup4==4.13.3 \
+            lxml==6.1.1 \
+            pyserial==3.5
+          python -m pip check
+      - name: Import and validate against Home Assistant 2026.7.3
+        run: python tests/ha_smoke.py
+
+  hacs:
+    name: HACS validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/hacs
+        with:
+          # Upstream has no repository-wide license; see NOTICE.md and issue #6.
+          # Keep every technical HACS check enabled while reporting that legal gap.
+          ignore: license
+          category: integration
+          comment: false
+
+  hassfest:
+    name: Hassfest 2026.7.3
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+      - name: Run Hassfest 2026.7.3 from an immutable image
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/github/workspace" \
+            ghcr.io/home-assistant/hassfest@sha256:03c1642d3a057a9e20759a41278d4427f3cb8bd90b0d2eb4ac5248a1064e6da1
+
+  dependency-audit:
+    name: Runtime dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.14"
+      - name: Audit declared runtime dependencies
+        run: |
+          python -m pip install --disable-pip-version-check pip-audit==2.10.1
+          python - <<'PY' > /tmp/enocean-runtime-requirements.txt
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path("custom_components/enocean_custom/manifest.json").read_text()
+          )
+          print("\n".join(manifest["requirements"]))
+          PY
+          python -m pip_audit --strict -r /tmp/enocean-runtime-requirements.txt

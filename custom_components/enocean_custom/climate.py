@@ -1,62 +1,67 @@
 """Support for EnOcean climate devices."""
+
 from __future__ import annotations
 
-from typing import Any
-
+import asyncio
+import inspect
 import logging
-import time
 import math
 import random
-from datetime import datetime, timedelta
+from collections.abc import Callable
+from datetime import timedelta
+from time import monotonic
+from typing import Any
 
-from .enocean_library.utils import combine_hex
 import voluptuous as vol
-
 from homeassistant.components.climate import (
-    PLATFORM_SCHEMA,
-    ATTR_CURRENT_TEMPERATURE,
     ATTR_PRESET_MODE,
     ATTR_TEMPERATURE,
-    DOMAIN as CLIMATE_DOMAIN,
+    PLATFORM_SCHEMA,
+    PRESET_AWAY,
     PRESET_BOOST,
     PRESET_COMFORT,
-    PRESET_SLEEP,
-    PRESET_AWAY,
     PRESET_NONE,
+    PRESET_SLEEP,
     ClimateEntity,
     ClimateEntityFeature,
     HVACAction,
     HVACMode,
 )
+from homeassistant.components.climate import (
+    DOMAIN as CLIMATE_DOMAIN,
+)
 from homeassistant.const import (
     CONF_ID,
     CONF_NAME,
     EVENT_HOMEASSISTANT_START,
-    Platform,
-    STATE_ON,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
-    UnitOfTemperature
+    Platform,
+    UnitOfTemperature,
 )
-from homeassistant.core import HomeAssistant, callback, State, CoreState, Event
-from homeassistant.helpers import config_validation as cv, entity_registry as er
+from homeassistant.core import CoreState, Event, HomeAssistant, State
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_platform
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.reload import async_setup_reload_service
-from homeassistant.helpers.restore_state import RestoreEntity
-from homeassistant.helpers import entity_platform, service, entity_component
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.helpers.event import (
     EventStateChangedData,
+    async_track_point_in_time,
     async_track_state_change_event,
     async_track_time_interval,
-    async_track_point_in_time,
 )
+from homeassistant.helpers.reload import async_setup_reload_service
+from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, LOGGER
-from .device import EnOceanEntity
+from .device import EnOceanEntity, build_radio_optional
+from .enocean_library.utils import combine_hex
+from .schema import ENOCEAN_ID, exact_finite_int
 
 DEVICE_SUPPORTED_LIST = ["SRC-D08"]
-'''
+"""
 Thermostat messages EEP A5-10-06
 DB3: not used
 DB2: Set point 0...255
@@ -65,7 +70,7 @@ DB0.7...4 not used (=0)
 DB0.3 LRN bit
 DB0.2...0.1 Not used (=0)
 DB0.0 Slide switch 0=Night, 1=Day
-'''
+"""
 
 DEFAULT_NAME = "EnOcean Climate"
 CONF_DEVICE_TYPE = "device_type"
@@ -84,29 +89,60 @@ ATTR_PI_CONTROL_OUTPUT = "PI_control_output"
 ATTR_PI_CONTROL_UNIT = "PI_control_unit"
 ATTR_TEMPERATURE_COMFORT = "temperature_comfort"
 ATTR_TEMPERATURE_SLEEP = "temperature_sleep"
-ATTR_TEMPERATURE_AWAY =  "temperature_away"
+ATTR_TEMPERATURE_AWAY = "temperature_away"
+
+
+def _ensure_finite(value: float) -> float:
+    """Reject NaN and infinities before they reach climate calculations."""
+    if not math.isfinite(value):
+        raise vol.Invalid("value must be finite")
+    return value
+
+
+FINITE_FLOAT = vol.All(vol.Coerce(float), _ensure_finite)
+
+
+FINITE_INT = exact_finite_int
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
-        vol.Optional(CONF_ID, default=[]): vol.All(cv.ensure_list, [vol.Coerce(int)]),
+        vol.Required(CONF_ID): ENOCEAN_ID,
         vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
-        vol.Required(CONF_SENDER_ID_SWITCH): vol.All(cv.ensure_list, [vol.Coerce(int)]),
-        vol.Required(CONF_DEVICE_TYPE): cv.string,
-        vol.Required(CONF_SENSOR_ENTITY_ID): cv.string,
-        vol.Optional(CONF_SENSOR_TARGET_TEMP_FROST_PROTECTION, default=8.0): cv.positive_float,
-        vol.Optional(CONF_SENSOR_TARGET_TEMP_RANGE, default=5): cv.positive_int,
-        vol.Optional(CONF_SENSOR_TARGET_TEMP_TOLERANCE, default=0.5): cv.positive_float,
-        vol.Optional(CONF_TARGET_TEMP_BASE, default=21.0): cv.positive_float,
-        vol.Optional(CONF_TARGET_TEMP_NIGHT_REDUCTION, default=4.0): cv.positive_float,
-        vol.Optional(CONF_COMMAND_FREQUENCY, default="00:17:00"): cv.positive_time_period,
-        vol.Optional(CONF_PI_CONTROL_KP, default=5.0): cv.positive_float,
-        vol.Optional(CONF_PI_CONTROL_TN, default=240.0): cv.positive_float,
+        vol.Required(CONF_SENDER_ID_SWITCH): ENOCEAN_ID,
+        vol.Required(CONF_DEVICE_TYPE): vol.In(DEVICE_SUPPORTED_LIST),
+        vol.Required(CONF_SENSOR_ENTITY_ID): cv.entity_id,
+        vol.Optional(CONF_SENSOR_TARGET_TEMP_FROST_PROTECTION, default=8.0): vol.All(
+            FINITE_FLOAT, vol.Range(min=0, max=20)
+        ),
+        vol.Optional(CONF_SENSOR_TARGET_TEMP_RANGE, default=5): vol.All(
+            FINITE_INT, vol.Range(min=0, max=20)
+        ),
+        vol.Optional(CONF_SENSOR_TARGET_TEMP_TOLERANCE, default=0.5): vol.All(
+            FINITE_FLOAT, vol.Range(min=0, max=10)
+        ),
+        vol.Optional(CONF_TARGET_TEMP_BASE, default=21.0): vol.All(
+            FINITE_FLOAT, vol.Range(min=5, max=35)
+        ),
+        vol.Optional(CONF_TARGET_TEMP_NIGHT_REDUCTION, default=4.0): vol.All(
+            FINITE_FLOAT, vol.Range(min=0, max=20)
+        ),
+        vol.Optional(CONF_COMMAND_FREQUENCY, default="00:17:00"): vol.All(
+            cv.positive_time_period, vol.Range(min=timedelta(seconds=1))
+        ),
+        vol.Optional(CONF_PI_CONTROL_KP, default=5.0): vol.All(
+            FINITE_FLOAT, vol.Range(min=0.001, max=100)
+        ),
+        vol.Optional(CONF_PI_CONTROL_TN, default=240.0): vol.All(
+            FINITE_FLOAT, vol.Range(min=0.001, max=1440)
+        ),
     }
 )
+
 
 def generate_unique_id(dev_id: list[int], channel: int) -> str:
     """Generate a valid unique id."""
     return f"{combine_hex(dev_id)}-{channel}"
+
 
 def _migrate_to_new_unique_id(hass: HomeAssistant, dev_id, channel) -> None:
     """Migrate old unique ids to new unique ids."""
@@ -114,25 +150,22 @@ def _migrate_to_new_unique_id(hass: HomeAssistant, dev_id, channel) -> None:
 
     ent_reg = er.async_get(hass)
     entity_id = ent_reg.async_get_entity_id(Platform.CLIMATE, DOMAIN, old_unique_id)
-    
+
     if entity_id is not None:
         new_unique_id = generate_unique_id(dev_id, channel)
         try:
             ent_reg.async_update_entity(entity_id, new_unique_id=new_unique_id)
         except ValueError:
             LOGGER.warning(
-                "Skip migration of id [%s] to [%s] because it already exists",
-                old_unique_id,
-                new_unique_id,
+                "Skipped EnOcean climate identity migration because the target "
+                "identity already exists"
             )
         else:
-            LOGGER.debug(
-                "Migrating unique_id from [%s] to [%s]",
-                old_unique_id,
-                new_unique_id,
-            )
+            LOGGER.debug("Migrated EnOcean climate to a channel-aware identity")
+
 
 _LOGGER = logging.getLogger(__name__)
+
 
 async def async_setup_platform(
     hass: HomeAssistant,
@@ -159,11 +192,53 @@ async def async_setup_platform(
     pi_control_Tn = config.get(CONF_PI_CONTROL_TN)
 
     if device_type not in DEVICE_SUPPORTED_LIST:
-        _LOGGER.error(f"Device '{device_type}' not supported for {DOMAIN} climate device. Supported devices are '{DEVICE_SUPPORTED_LIST}'")
+        _LOGGER.error(
+            f"Device '{device_type}' not supported for {DOMAIN} climate device. Supported devices are '{DEVICE_SUPPORTED_LIST}'"
+        )
         return
 
     _migrate_to_new_unique_id(hass, dev_id, 0)
-    add_entities([EnOceanClimate(
+    add_entities(
+        [
+            EnOceanClimate(
+                dev_id,
+                dev_name,
+                sender_id_switch,
+                sensor_entity_id,
+                target_temp_frost_protection,
+                sensor_target_temp_range,
+                sensor_target_temp_tolerance,
+                target_temp_base,
+                target_temp_reduction_night,
+                command_frequency,
+                pi_control_Kp,
+                pi_control_Tn,
+            )
+        ]
+    )
+
+    platform = entity_platform.EntityPlatform(
+        hass=hass,
+        logger=_LOGGER,
+        domain=CLIMATE_DOMAIN,
+        platform_name=DOMAIN,
+        platform=None,
+        scan_interval=timedelta(seconds=60),
+        entity_namespace=CLIMATE_DOMAIN,
+    )
+    platform.async_register_entity_service(
+        "climate_teach_in_actor", {}, "teach_in_actor"
+    )
+    platform.async_register_entity_service(
+        "climate_teach_in_actor_switch", {}, "teach_in_actor_switch"
+    )
+
+
+class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
+    """Representation of an EnOcean climate device."""
+
+    def __init__(
+        self,
         dev_id,
         dev_name,
         sender_id_switch,
@@ -176,38 +251,7 @@ async def async_setup_platform(
         command_frequency,
         pi_control_Kp,
         pi_control_Tn,
-    )])
-
-    platform = entity_platform.EntityPlatform(
-        hass=hass,
-        logger=_LOGGER,
-        domain=CLIMATE_DOMAIN,
-        platform_name=DOMAIN,
-        platform=None,
-        scan_interval=timedelta(seconds=60),
-        entity_namespace=CLIMATE_DOMAIN,
-        )
-    platform.async_register_entity_service('climate_teach_in_actor', {}, "teach_in_actor")
-    platform.async_register_entity_service('climate_teach_in_actor_switch', {}, "teach_in_actor_switch")
-
-class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
-    """Representation of an EnOcean climate device."""
-
-    def __init__(
-            self,
-            dev_id,
-            dev_name,
-            sender_id_switch,
-            sensor_entity_id,
-            target_temp_frost_protection,
-            sensor_target_temp_range,
-            sensor_target_temp_tolerance,
-            target_temp_base,
-            target_temp_reduction_night,
-            command_frequency,
-            pi_control_Kp,
-            pi_control_Tn,
-            ):
+    ):
         """Initialize the EnOcean switch device."""
         super().__init__(dev_id, dev_name)
         self._attr_temperature_unit = UnitOfTemperature.CELSIUS
@@ -225,11 +269,21 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
         self._sensor_target_temp_range = sensor_target_temp_range
         self._sensor_target_temp_tolerance = sensor_target_temp_tolerance
         self._target_temp_reduction_night = target_temp_reduction_night
-        self._attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.PRESET_MODE | ClimateEntityFeature.TURN_OFF | ClimateEntityFeature.TURN_ON
+        self._attr_supported_features = (
+            ClimateEntityFeature.TARGET_TEMPERATURE
+            | ClimateEntityFeature.PRESET_MODE
+            | ClimateEntityFeature.TURN_OFF
+            | ClimateEntityFeature.TURN_ON
+        )
         self._attr_hvac_modes = [HVACMode.HEAT, HVACMode.OFF]
         self._attr_hvac_mode = None
         self._attr_preset_mode = PRESET_NONE
-        self._attr_preset_modes = [PRESET_BOOST, PRESET_COMFORT, PRESET_SLEEP, PRESET_AWAY]
+        self._attr_preset_modes = [
+            PRESET_BOOST,
+            PRESET_COMFORT,
+            PRESET_SLEEP,
+            PRESET_AWAY,
+        ]
         self._attr_unique_id = generate_unique_id(dev_id, 0)
         self._command_frequency = command_frequency
         self._pi_control_Kp = pi_control_Kp
@@ -237,13 +291,16 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
         self._attr_pi_control_output = None
         self._attr_pi_control_unit = "%"
         self._pi_control_error = 0
-        self._pi_control_update_time = datetime.now()
+        self._pi_control_update_time = monotonic()
         self._pi_control_integrator_state = None
-        
-    async def _async_create_timer(self, time=None):
-        async_track_time_interval(
-                self.hass, self._async_control_heating, self._command_frequency
+        self._control_lock = asyncio.Lock()
+
+    async def _async_create_timer(self, _time=None):
+        self.async_on_remove(
+            async_track_time_interval(
+                self.hass, self._async_periodic_control, self._command_frequency
             )
+        )
 
     async def async_added_to_hass(self) -> None:
         """Run when entity about to be added."""
@@ -259,14 +316,20 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
         # Add timer to periodically send commands to heating actor
         # periodic commands are needed, otherwise the actor will switch to contingency operating mode
         # wait for random time before enabling time interval, so that events for different entities will not fire all at once
-        random.seed(self._attr_unique_id)   # initialize random generator with different seed for each entity
+        timer_random = random.Random(self._attr_unique_id)
         self.async_on_remove(
             async_track_point_in_time(
-                    self.hass, self._async_create_timer, datetime.now() + timedelta( seconds = random.uniform(0,self._command_frequency.total_seconds()) )
-                )
+                self.hass,
+                self._async_create_timer,
+                dt_util.now()
+                + timedelta(
+                    seconds=timer_random.uniform(
+                        0, self._command_frequency.total_seconds()
+                    )
+                ),
+            )
         )
 
-        @callback
         async def _async_startup(*_):
             """Init on startup."""
             sensor_state = self.hass.states.get(self.sensor_entity_id)
@@ -274,8 +337,9 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
                 STATE_UNAVAILABLE,
                 STATE_UNKNOWN,
             ):
-                await self._async_get_sensor_update(sensor_state)
-                self.async_write_ha_state()
+                await self._async_commit_control_change(
+                    lambda: self._async_get_sensor_update(sensor_state)
+                )
 
         # Check If we have an old state
         if (old_state := await self.async_get_last_state()) is not None:
@@ -289,7 +353,9 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
                         self._attr_target_temp,
                     )
                 else:
-                    self._attr_target_temp = float(old_state.attributes[ATTR_TEMPERATURE])
+                    self._attr_target_temp = float(
+                        old_state.attributes[ATTR_TEMPERATURE]
+                    )
             if self._attr_target_temp_comfort is None:
                 if old_state.attributes.get(ATTR_TEMPERATURE_COMFORT) is None:
                     self._attr_target_temp_comfort = self._target_temp_base
@@ -298,7 +364,9 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
                         self._attr_target_temp_comfort,
                     )
                 else:
-                    self._attr_target_temp_comfort = float(old_state.attributes[ATTR_TEMPERATURE_COMFORT])
+                    self._attr_target_temp_comfort = float(
+                        old_state.attributes[ATTR_TEMPERATURE_COMFORT]
+                    )
             if self._attr_target_temp_sleep is None:
                 if old_state.attributes.get(ATTR_TEMPERATURE_SLEEP) is None:
                     self._attr_target_temp_sleep = self._target_temp_base - 5
@@ -307,7 +375,9 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
                         self._attr_target_temp_sleep,
                     )
                 else:
-                    self._attr_target_temp_sleep = float(old_state.attributes[ATTR_TEMPERATURE_SLEEP])
+                    self._attr_target_temp_sleep = float(
+                        old_state.attributes[ATTR_TEMPERATURE_SLEEP]
+                    )
             if self._attr_target_temp_away is None:
                 if old_state.attributes.get(ATTR_TEMPERATURE_AWAY) is None:
                     self._attr_target_temp_away = self._target_temp_base - 5
@@ -316,10 +386,13 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
                         self._attr_target_temp_away,
                     )
                 else:
-                    self._attr_target_temp_away = float(old_state.attributes[ATTR_TEMPERATURE_AWAY])
+                    self._attr_target_temp_away = float(
+                        old_state.attributes[ATTR_TEMPERATURE_AWAY]
+                    )
             if (
                 self._attr_preset_modes
-                and old_state.attributes.get(ATTR_PRESET_MODE) in self._attr_preset_modes
+                and old_state.attributes.get(ATTR_PRESET_MODE)
+                in self._attr_preset_modes
             ):
                 self._attr_preset_mode = old_state.attributes.get(ATTR_PRESET_MODE)
             if self._attr_hvac_mode is None and old_state.state:
@@ -332,7 +405,9 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
                         self._attr_pi_control_output,
                     )
                 else:
-                    self._attr_pi_control_output = float(old_state.attributes[ATTR_PI_CONTROL_OUTPUT])
+                    self._attr_pi_control_output = float(
+                        old_state.attributes[ATTR_PI_CONTROL_OUTPUT]
+                    )
                 self._pi_control_integrator_state = self._attr_pi_control_output
         else:
             # No previous state, try and restore defaults
@@ -344,17 +419,20 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
             if self._attr_target_temp_comfort is None:
                 self._attr_target_temp_comfort = self._target_temp_base
             _LOGGER.warning(
-                "No previously saved temperature for preset comfort, setting to %s", self._attr_target_temp_comfort
+                "No previously saved temperature for preset comfort, setting to %s",
+                self._attr_target_temp_comfort,
             )
             if self._attr_target_temp_sleep is None:
                 self._attr_target_temp_sleep = self._target_temp_base - 5
             _LOGGER.warning(
-                "No previously saved temperature for preset sleep, setting to %s", self._attr_target_temp_sleep
+                "No previously saved temperature for preset sleep, setting to %s",
+                self._attr_target_temp_sleep,
             )
             if self._attr_target_temp_away is None:
                 self._attr_target_temp_away = self._target_temp_base - 5
             _LOGGER.warning(
-                "No previously saved temperature for preset away, setting to %s", self._attr_target_temp_away
+                "No previously saved temperature for preset away, setting to %s",
+                self._attr_target_temp_away,
             )
             if self._attr_preset_mode is PRESET_NONE:
                 self._attr_preset_mode = PRESET_COMFORT
@@ -364,12 +442,14 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
             if self._attr_pi_control_output is None:
                 self._attr_pi_control_output = 0.0
             _LOGGER.warning(
-                "No previously saved PI controller output, setting to %s", self._attr_pi_control_output
+                "No previously saved PI controller output, setting to %s",
+                self._attr_pi_control_output,
             )
             if self._pi_control_integrator_state is None:
                 self._pi_control_integrator_state = 0.0
             _LOGGER.warning(
-                "No previously saved PI integrator state, setting to %s", self._pi_control_integrator_state
+                "No previously saved PI integrator state, setting to %s",
+                self._pi_control_integrator_state,
             )
 
         # Set default state to off
@@ -397,7 +477,7 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
             ATTR_TEMPERATURE_AWAY: self._attr_target_temp_away,
         }
         return self._attrs
-        
+
     @property
     def hvac_action(self):
         """Return the current running hvac operation if supported.
@@ -410,7 +490,7 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
         if self._attr_hvac_mode == HVACMode.OFF:
             return HVACAction.OFF
         return HVACAction.HEATING
-    
+
     @property
     def target_temperature(self) -> float | None:
         """Return the temperature we try to reach."""
@@ -435,60 +515,63 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
         return self._target_temp_base + 10.0
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
-        """Set hvac mode."""
-        if hvac_mode == HVACMode.HEAT:
-            self._attr_hvac_mode = HVACMode.HEAT
-        elif hvac_mode == HVACMode.OFF:
-            self._attr_hvac_mode = HVACMode.OFF
-        else:
+        """Set HVAC mode after the dongle accepts all ESP3 commands."""
+        if hvac_mode not in (HVACMode.HEAT, HVACMode.OFF):
             _LOGGER.error("Unrecognized hvac mode: %s", hvac_mode)
             return
-        await self._async_control_heating()
-        # Ensure we update the current operation after changing the mode
-        self.async_write_ha_state()
+        await self._async_commit_control_change(
+            lambda: setattr(self, "_attr_hvac_mode", hvac_mode)
+        )
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
-        """Set new target temperature."""
+        """Set target temperature after the dongle accepts all ESP3 commands."""
         if (temperature := kwargs.get(ATTR_TEMPERATURE)) is None:
             return
-        if not self._attr_hvac_mode == HVACMode.OFF:
-            # only update target_temp from UI when mode other than OFF
-            self._attr_target_temp = temperature
-            await self._async_control_heating()
-            self.async_write_ha_state()
+        if self._attr_hvac_mode != HVACMode.OFF:
+            await self._async_commit_control_change(
+                lambda: setattr(self, "_attr_target_temp", temperature)
+            )
 
-    async def _async_sensor_changed(
-        self, event: Event[EventStateChangedData]
-    ) -> None:
+    async def _async_sensor_changed(self, event: Event[EventStateChangedData]) -> None:
         """Handle temperature changes."""
         new_state = event.data["new_state"]
         if new_state is None or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
             return
 
-        await self._async_get_sensor_update(new_state)
+        await self._async_commit_control_change(
+            lambda: self._async_get_sensor_update(new_state)
+        )
 
-    @callback
-    async def _async_get_sensor_update(self, state: State) -> None:
+    async def _async_get_sensor_update(self, state: State) -> bool:
         """Update thermostat with latest state from sensor."""
         try:
-            _LOGGER.debug(f"Received sensor update for {self.dev_name} with temp {state.state}°C, setPoint {state.attributes['SetPoint']}, SlideSwitch {state.attributes['SlideSwitch']}")
+            _LOGGER.debug(
+                f"Received sensor update for {self.dev_name} with temp {state.state}°C, setPoint {state.attributes['SetPoint']}, SlideSwitch {state.attributes['SlideSwitch']}"
+            )
             # get temperature
             cur_temp = float(state.state)
             if not math.isfinite(cur_temp):
                 raise ValueError(f"Sensor has illegal state {state.state}")
             self._attr_current_temperature = cur_temp
-            
+
             # get target temperature from setPoint
-            target_temp_new = (state.attributes["SetPoint"]*2/255 - 1)*self._sensor_target_temp_range + self._target_temp_base
+            target_temp_new = (
+                state.attributes["SetPoint"] * 2 / 255 - 1
+            ) * self._sensor_target_temp_range + self._target_temp_base
             slideSwitch = state.attributes["SlideSwitch"]
             if not slideSwitch:
                 # slideSwitch set to night mode / temperature reduction
-                target_temp_new = max(target_temp_new - self._target_temp_reduction_night, self.min_temp)
+                target_temp_new = max(
+                    target_temp_new - self._target_temp_reduction_night, self.min_temp
+                )
             if self._sensor_target_temp is None:
                 # first sensor update after restart, save sensor value but do not overwrite target temperature of climate entity
                 self._sensor_target_temp = target_temp_new
-            
-            if abs(self._sensor_target_temp-target_temp_new) > self._sensor_target_temp_tolerance:
+
+            if (
+                abs(self._sensor_target_temp - target_temp_new)
+                > self._sensor_target_temp_tolerance
+            ):
                 # SetPoint deviation in update greater than threshold, update climate entity with new target temperature
                 self._sensor_target_temp = target_temp_new
                 self._attr_hvac_mode = HVACMode.HEAT
@@ -497,55 +580,170 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
                     self._attr_preset_mode = PRESET_COMFORT
                 else:
                     self._attr_preset_mode = PRESET_SLEEP
-            
-            await self._async_control_heating()
-            self.async_write_ha_state()
-        except ValueError as ex:
+            return True
+        except (KeyError, TypeError, ValueError) as ex:
             _LOGGER.error("Unable to update from sensor: %s", ex)
+            return False
+
+    async def _async_periodic_control(self, event_time=None) -> None:
+        """Serialize periodic radio refreshes with user and sensor transactions."""
+        await self._async_commit_control_change(lambda: None, event_time=event_time)
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
-        """Set new preset mode."""
+        """Set preset after the dongle accepts all ESP3 commands."""
         if preset_mode not in (self.preset_modes or []):
             raise ValueError(
                 f"Got unsupported preset_mode {preset_mode}. Must be one of"
                 f" {self.preset_modes}"
             )
-        if self._attr_hvac_mode == HVACMode.HEAT:
-            if preset_mode == self._attr_preset_mode:
-                # I don't think we need to call async_write_ha_state if we didn't change the state
-                return
-            
-            # save target temperature of current preset
+        if self._attr_hvac_mode != HVACMode.HEAT:
+            return
+        if preset_mode == self._attr_preset_mode:
+            return
+
+        def apply_preset() -> None:
             if self._attr_preset_mode == PRESET_COMFORT:
                 self._attr_target_temp_comfort = self._attr_target_temp
-            if self._attr_preset_mode == PRESET_SLEEP:
+            elif self._attr_preset_mode == PRESET_SLEEP:
                 self._attr_target_temp_sleep = self._attr_target_temp
-            if self._attr_preset_mode == PRESET_AWAY:
+            elif self._attr_preset_mode == PRESET_AWAY:
                 self._attr_target_temp_away = self._attr_target_temp
-            
-            # set preset mode
+
+            self._attr_preset_mode = preset_mode
             if preset_mode == PRESET_COMFORT:
                 self._attr_target_temp = self._attr_target_temp_comfort
-                self._attr_preset_mode = PRESET_COMFORT
-            if preset_mode == PRESET_SLEEP:
+            elif preset_mode == PRESET_SLEEP:
                 self._attr_target_temp = self._attr_target_temp_sleep
-                self._attr_preset_mode = PRESET_SLEEP
-            if preset_mode == PRESET_AWAY:
+            elif preset_mode == PRESET_AWAY:
                 self._attr_target_temp = self._attr_target_temp_away
-                self._attr_preset_mode = PRESET_AWAY
-            if preset_mode == PRESET_BOOST:
+            elif preset_mode == PRESET_BOOST:
                 self._attr_target_temp = self.max_temp
-                self._attr_preset_mode = PRESET_BOOST
-            await self._async_control_heating()
-            self.async_write_ha_state()
 
-    async def _async_control_heating(self, time=None):
-        """Calculate controller commands and send to actor"""
+        await self._async_commit_control_change(apply_preset)
+
+    _CONTROL_STATE_ATTRIBUTES = (
+        "_attr_hvac_mode",
+        "_attr_preset_mode",
+        "_attr_target_temp",
+        "_attr_target_temp_comfort",
+        "_attr_target_temp_sleep",
+        "_attr_target_temp_away",
+        "_attr_current_temperature",
+        "_sensor_target_temp",
+        "_attr_pi_control_output",
+        "_pi_control_integrator_state",
+        "_pi_control_error",
+        "_pi_control_update_time",
+    )
+
+    def _control_state(self) -> dict[str, Any]:
+        """Capture user-visible and PI state changed by one control transaction."""
+        return {
+            attribute: getattr(self, attribute)
+            for attribute in self._CONTROL_STATE_ATTRIBUTES
+        }
+
+    def _restore_control_state(self, state: dict[str, Any]) -> None:
+        """Restore a previously captured control state."""
+        for attribute, value in state.items():
+            setattr(self, attribute, value)
+
+    async def _async_commit_control_change(
+        self, apply_change: Callable[[], Any], *, event_time=None
+    ) -> None:
+        """Expose a requested state only after every ESP3 response is OK."""
+        async with self._control_lock:
+            previous_state = self._control_state()
+            apply_result = apply_change()
+            if inspect.isawaitable(apply_result):
+                apply_result = await apply_result
+            if apply_result is False:
+                self._restore_control_state(previous_state)
+                self.async_write_ha_state()
+                return
+            responses: list[bool] = []
+            expected_responses = 0
+            locally_accepted = False
+            ready = False
+            finalized = False
+            candidate_state: dict[str, Any] | None = None
+            completion = asyncio.get_running_loop().create_future()
+
+            def finalize_if_complete() -> None:
+                nonlocal finalized
+                if finalized or not ready or len(responses) < expected_responses:
+                    return
+                finalized = True
+                if (
+                    locally_accepted
+                    and all(responses[:expected_responses])
+                    and candidate_state is not None
+                ):
+                    self._restore_control_state(candidate_state)
+                self.async_write_ha_state()
+                if not completion.done():
+                    completion.set_result(None)
+
+            def response_received(accepted: bool) -> None:
+                if finalized:
+                    return
+                responses.append(accepted)
+                finalize_if_complete()
+
+            send_results = await self._async_control_heating(
+                event_time=event_time,
+                response_callback=response_received,
+            )
+            candidate_state = self._control_state()
+            self._restore_control_state(previous_state)
+            expected_responses = sum(send_results)
+            locally_accepted = bool(send_results) and all(send_results)
+            ready = True
+            if expected_responses == 0 or not locally_accepted:
+                finalized = True
+                self.async_write_ha_state()
+                return
+            finalize_if_complete()
+            if not completion.done():
+                try:
+                    await completion
+                except asyncio.CancelledError:
+                    finalized = True
+                    raise
+
+    async def _async_control_heating(
+        self,
+        event_time=None,
+        response_callback: Callable[[bool], None] | None = None,
+    ) -> list[bool]:
+        """Calculate controller commands and send them to the actor."""
+        if response_callback is None:
+            await self._async_commit_control_change(lambda: None, event_time=event_time)
+            return []
+        send_results: list[bool] = []
         periodic = ""
-        if time is not None:
-            #_LOGGER.debug(f"Update for {self.dev_name} invoked by periodic command")
+        if event_time is not None:
+            # _LOGGER.debug(f"Update for {self.dev_name} invoked by periodic command")
             periodic = " invoked by periodic command"
-        _LOGGER.debug(f"Update for {self.dev_name}{periodic}, hvac_mode: {self._attr_hvac_mode}, preset_mode: {self._attr_preset_mode}, target_temperature: {self._attr_target_temp}.")
+        _LOGGER.debug(
+            f"Update for {self.dev_name}{periodic}, hvac_mode: {self._attr_hvac_mode}, preset_mode: {self._attr_preset_mode}, target_temperature: {self._attr_target_temp}."
+        )
+
+        if self._attr_current_temperature is None:
+            if self._attr_hvac_mode == HVACMode.OFF:
+                _LOGGER.warning(
+                    "Current temperature unavailable for %s; sending switch-off only",
+                    self.dev_name,
+                )
+                send_results.append(
+                    self.sendPacket([0x00], response_callback=response_callback)
+                )
+                return send_results
+            _LOGGER.debug(
+                "Skipping heating update for %s: current temperature unavailable",
+                self.dev_name,
+            )
+            return send_results
 
         # set target temperature depending on mode
         if self._attr_hvac_mode == HVACMode.OFF:
@@ -555,46 +753,82 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
 
         # Update controller state
         ## integrator state based on previous error
-        cur_time = datetime.now()
-        pi_control_timedelta = (cur_time - self._pi_control_update_time).total_seconds()/60
+        cur_time = monotonic()
+        pi_control_timedelta = (cur_time - self._pi_control_update_time) / 60
         self._pi_control_update_time = cur_time
+        if (
+            self._attr_pi_control_output is None
+            or self._pi_control_integrator_state is None
+        ):
+            self._attr_pi_control_output = 0.0
+            self._pi_control_integrator_state = 0.0
         # integrator anti-wind-up
         if self._attr_pi_control_output >= 100 or self._attr_pi_control_output <= 0:
             anti_wind_up = 0
         else:
             anti_wind_up = 1
-        self._pi_control_integrator_state = self._pi_control_integrator_state + pi_control_timedelta * self._pi_control_Kp * anti_wind_up * self._pi_control_error
+        self._pi_control_integrator_state = (
+            self._pi_control_integrator_state
+            + pi_control_timedelta
+            * self._pi_control_Kp
+            * anti_wind_up
+            * self._pi_control_error
+        )
         ## new error
         self._pi_control_error = target_temp - self._attr_current_temperature
-        self._attr_pi_control_output = min(max(self._pi_control_Kp * ( self._pi_control_error + 1/self._pi_control_Tn * self._pi_control_integrator_state ), 0), 100)
+        self._attr_pi_control_output = min(
+            max(
+                self._pi_control_Kp
+                * (
+                    self._pi_control_error
+                    + 1 / self._pi_control_Tn * self._pi_control_integrator_state
+                ),
+                0,
+            ),
+            100,
+        )
 
         # Send command to heating actor
         ## thermostat packet
         ### calculate set point from target temperature: min_temp...max_temp -> 0...255
-        setPoint = round( (target_temp-self._target_temp_base)*12.75 + 127.5)
+        setPoint = round((target_temp - self._target_temp_base) * 12.75 + 127.5)
         if setPoint > 255:
             setPoint = 255
             _LOGGER.info("Temperature set point greater than 255, clipping value.")
         elif setPoint < 0:
             setPoint = 0
-            if not self._attr_hvac_mode == HVACMode.OFF:
+            if self._attr_hvac_mode != HVACMode.OFF:
                 _LOGGER.info("Temperature set point less than 0, clipping value.")
 
         ### calculate temperature in protocol format: 0...+40°C -> 255...0
-        cur_temp_protocol = 255 - round( 6.375 * self._attr_current_temperature )
+        cur_temp_protocol = 255 - round(6.375 * self._attr_current_temperature)
         if cur_temp_protocol > 255:
             cur_temp_protocol = 255
-            _LOGGER.info("Current temperature protocol value greater than 255, clipping value.")
+            _LOGGER.info(
+                "Current temperature protocol value greater than 255, clipping value."
+            )
         elif cur_temp_protocol < 0:
             cur_temp_protocol = 0
-            _LOGGER.info("Current temperature protocol value less than 0, clipping value.")
-        self.sendPacket([0x00, setPoint, cur_temp_protocol, 0b00001001])
-        
+            _LOGGER.info(
+                "Current temperature protocol value less than 0, clipping value."
+            )
+        send_results.append(
+            self.sendPacket(
+                [0x00, setPoint, cur_temp_protocol, 0b00001001],
+                response_callback=response_callback,
+            )
+        )
+
         ## switch sensor packet
-        if (self._attr_hvac_mode == HVACMode.OFF):
-            self.sendPacket([0x00]) # switch off
+        if self._attr_hvac_mode == HVACMode.OFF:
+            send_results.append(
+                self.sendPacket([0x00], response_callback=response_callback)
+            )
         else:
-            self.sendPacket([0x10]) # switch on
+            send_results.append(
+                self.sendPacket([0x10], response_callback=response_callback)
+            )
+        return send_results
 
     def teach_in_actor(self) -> None:
         """Send teach-in telegram for temperature sensor."""
@@ -604,24 +838,42 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):
         """Send teach-in telegram for switch sensor."""
         self.sendPacket([0x70])
 
-    def sendPacket(self, data: list):
-        """Compose and send packet."""
+    def sendPacket(
+        self,
+        data: list,
+        response_callback: Callable[[bool], None] | None = None,
+    ) -> bool:
+        """Compose and queue a packet."""
         if len(data) == 1:
-            _LOGGER.debug(f"Send switch command packet for {self.dev_name}, value: {data[0]}")
+            _LOGGER.debug(
+                f"Send switch command packet for {self.dev_name}, value: {data[0]}"
+            )
             # packet type RPS
             command = [0xF6]
             command.extend(data)
             command.extend(self._sender_id_switch)
             command.extend([0x30])
-            self.send_command(command, [], 0x01)    # button pressed
-        else:
-            _LOGGER.debug(f"Send temperature command packet for {self.dev_name}, setPoint: {data[1]}, temperature: {data[2]}")
-            # packet type 4BS
-            command = [0xA5]
-            # 4 data bytes
-            command.extend(data)
-            # sender ID
-            command.extend(self._sender_id)
-            # Checksum byte
-            command.extend([0x00])
-            self.send_command(command, [], 0x01)
+            return self.send_command(
+                command,
+                build_radio_optional(),
+                0x01,
+                response_callback=response_callback,
+            )
+
+        _LOGGER.debug(
+            f"Send temperature command packet for {self.dev_name}, setPoint: {data[1]}, temperature: {data[2]}"
+        )
+        # packet type 4BS
+        command = [0xA5]
+        # 4 data bytes
+        command.extend(data)
+        # sender ID
+        command.extend(self._sender_id)
+        # Checksum byte
+        command.extend([0x00])
+        return self.send_command(
+            command,
+            build_radio_optional(),
+            0x01,
+            response_callback=response_callback,
+        )

@@ -1,32 +1,49 @@
 """Support for EnOcean switches."""
+
 from __future__ import annotations
 
 from typing import Any
 
-from .enocean_library.utils import combine_hex
 import voluptuous as vol
-
 from homeassistant.components.switch import PLATFORM_SCHEMA, SwitchEntity
 from homeassistant.const import CONF_ID, CONF_NAME, Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import config_validation as cv, entity_registry as er
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .const import DOMAIN, LOGGER
-from .device import EnOceanEntity
+from .device import EnOceanEntity, build_radio_optional
+from .enocean_library.utils import combine_hex
+from .schema import ENOCEAN_ID, exact_finite_int
 
 CONF_CHANNEL = "channel"
 DEFAULT_NAME = "EnOcean Switch"
 CONF_SWITCH_TYPE = "switch_type"
 
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
-    {
-        vol.Required(CONF_ID): vol.All(cv.ensure_list, [vol.Coerce(int)]),
-        vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
-        vol.Optional(CONF_CHANNEL, default=0): cv.positive_int,
-        vol.Optional(CONF_SWITCH_TYPE, default="default"): cv.string,
-    }
+SWITCH_TYPES = ("default", "RPS")
+
+
+def _validate_switch_config(config: ConfigType) -> ConfigType:
+    """Validate channel semantics for the selected switch profile."""
+    if config[CONF_SWITCH_TYPE] == "RPS" and config[CONF_CHANNEL] not in (0, 1):
+        raise vol.Invalid("RPS channel must be 0 or 1")
+    return config
+
+
+PLATFORM_SCHEMA = vol.All(
+    PLATFORM_SCHEMA.extend(
+        {
+            vol.Required(CONF_ID): ENOCEAN_ID,
+            vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
+            vol.Optional(CONF_CHANNEL, default=0): vol.All(
+                exact_finite_int, vol.Range(min=0, max=255)
+            ),
+            vol.Optional(CONF_SWITCH_TYPE, default="default"): vol.In(SWITCH_TYPES),
+        }
+    ),
+    _validate_switch_config,
 )
 
 
@@ -48,16 +65,11 @@ def _migrate_to_new_unique_id(hass: HomeAssistant, dev_id, channel) -> None:
             ent_reg.async_update_entity(entity_id, new_unique_id=new_unique_id)
         except ValueError:
             LOGGER.warning(
-                "Skip migration of id [%s] to [%s] because it already exists",
-                old_unique_id,
-                new_unique_id,
+                "Skipped EnOcean switch identity migration because the target "
+                "identity already exists"
             )
         else:
-            LOGGER.debug(
-                "Migrating unique_id from [%s] to [%s]",
-                old_unique_id,
-                new_unique_id,
-            )
+            LOGGER.debug("Migrated EnOcean switch to a channel-aware identity")
 
 
 async def async_setup_platform(
@@ -79,11 +91,13 @@ async def async_setup_platform(
 class EnOceanSwitch(EnOceanEntity, SwitchEntity):
     """Representation of an EnOcean switch device."""
 
+    _attr_assumed_state = True
+
     def __init__(self, dev_id, dev_name, channel, switch_type):
         """Initialize the EnOcean switch device."""
         super().__init__(dev_id, dev_name)
         self._light = None
-        self._on_state = False
+        self._on_state = None
         self._on_state2 = False
         self.channel = channel
         self.switch_type = switch_type
@@ -102,79 +116,98 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
     def turn_on(self, **kwargs: Any) -> None:
         """Turn on the switch."""
         if self.switch_type == "RPS":
-            if self.channel == 1:
-                val_pushed = 0x10
-            else:
-                val_pushed = 0x50
-            #self.send_command([0xF6, val_pushed, self.dev_id, 0x30], [], 0x01)
-            #self.send_command([0xF6, 0x00, self.dev_id, 0x20], [], 0x01)
-            command = [0xF6, val_pushed]
-            command.extend(self.dev_id)
-            command.extend([0x30])
-            self.send_command(command, [], 0x01)
-            command = [0xF6, 0x00]
-            command.extend(self.dev_id)
-            command.extend([0x20])
-            self.send_command(command, [], 0x01)
-            self._on_state = True
+            val_pushed = 0x10 if self.channel == 1 else 0x50
+            packets = [
+                ([0xF6, val_pushed, *self.dev_id, 0x30], build_radio_optional()),
+                ([0xF6, 0x00, *self.dev_id, 0x20], build_radio_optional()),
+            ]
         else:
-            optional = [0x03]
-            optional.extend(self.dev_id)
-            optional.extend([0xFF, 0x00])
-            self.send_command(
-                data=[0xD2, 0x01, self.channel & 0xFF, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00],
-                optional=optional,
-                packet_type=0x01,
-            )
-            self._on_state = True
+            packets = [
+                (
+                    [
+                        0xD2,
+                        0x01,
+                        self.channel & 0xFF,
+                        0x64,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                    ],
+                    [0x03, *self.dev_id, 0xFF, 0x00],
+                )
+            ]
+        self._send_state_packets(packets, True)
 
     def turn_off(self, **kwargs: Any) -> None:
         """Turn off the switch."""
         if self.switch_type == "RPS":
-            if self.channel == 1:
-                val_pushed = 0x30
-            else:
-                val_pushed = 0x70
-            #self.send_command([0xF6, val_pushed, self.dev_id, 0x30], [], 0x01)
-            #self.send_command([0xF6, 0x00, self.dev_id, 0x20], [], 0x01)
-            command = [0xF6, val_pushed]
-            command.extend(self.dev_id)
-            command.extend([0x30])
-            self.send_command(command, [], 0x01)
-            command = [0xF6, 0x00]
-            command.extend(self.dev_id)
-            command.extend([0x20])
-            self.send_command(command, [], 0x01)
-            self._on_state = False
+            val_pushed = 0x30 if self.channel == 1 else 0x70
+            packets = [
+                ([0xF6, val_pushed, *self.dev_id, 0x30], build_radio_optional()),
+                ([0xF6, 0x00, *self.dev_id, 0x20], build_radio_optional()),
+            ]
         else:
-            optional = [0x03]
-            optional.extend(self.dev_id)
-            optional.extend([0xFF, 0x00])
-            self.send_command(
-                data=[0xD2, 0x01, self.channel & 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
-                optional=optional,
-                packet_type=0x01,
-            )
-            self._on_state = False
+            packets = [
+                (
+                    [
+                        0xD2,
+                        0x01,
+                        self.channel & 0xFF,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                    ],
+                    [0x03, *self.dev_id, 0xFF, 0x00],
+                )
+            ]
+        self._send_state_packets(packets, False)
+
+    def _send_state_packets(
+        self, packets: list[tuple[list[int], list[int]]], target_state: bool
+    ) -> None:
+        """Apply state only when every packet in the command sequence succeeds."""
+        remaining = len(packets)
+        all_accepted = True
+
+        def _response(accepted: bool) -> None:
+            nonlocal remaining, all_accepted
+            all_accepted = all_accepted and accepted
+            remaining -= 1
+            if remaining == 0 and all_accepted:
+                self._on_state = target_state
+                self.async_write_ha_state()
+
+        for data, optional in packets:
+            if not self.send_command(data, optional, 0x01, response_callback=_response):
+                _response(False)
 
     def value_changed(self, packet):
         """Update the internal state of the switch."""
-        if packet.data[0] == 0xA5:
-            # power meter telegram, turn on if > 10 watts
-            packet.parse_eep(0x12, 0x01)
-            if packet.parsed["DT"]["raw_value"] == 1:
-                raw_val = packet.parsed["MR"]["raw_value"]
-                divisor = packet.parsed["DIV"]["raw_value"]
-                watts = raw_val / (10**divisor)
-                if watts > 1:
-                    self._on_state = True
+        if not packet.data:
+            return
+        try:
+            if packet.data[0] == 0xA5:
+                # Power meter telegram, turn on if > 1 watt.
+                packet.parse_eep(0x12, 0x01)
+                if packet.parsed["DT"]["raw_value"] == 1:
+                    raw_val = packet.parsed["MR"]["raw_value"]
+                    divisor = packet.parsed["DIV"]["raw_value"]
+                    watts = raw_val / (10**divisor)
+                    self._on_state = watts > 1
                     self.schedule_update_ha_state()
-        elif packet.data[0] == 0xD2:
-            # actuator status telegram
-            packet.parse_eep(0x01, 0x01)
-            if packet.parsed["CMD"]["raw_value"] == 4:
-                channel = packet.parsed["IO"]["raw_value"]
-                output = packet.parsed["OV"]["raw_value"]
-                if channel == self.channel:
-                    self._on_state = output > 0
-                    self.schedule_update_ha_state()
+            elif packet.data[0] == 0xD2:
+                # Actuator status telegram.
+                packet.parse_eep(0x01, 0x01)
+                if packet.parsed["CMD"]["raw_value"] == 4:
+                    channel = packet.parsed["IO"]["raw_value"]
+                    output = packet.parsed["OV"]["raw_value"]
+                    if channel == self.channel:
+                        self._on_state = output > 0
+                        self.schedule_update_ha_state()
+        except (IndexError, KeyError, TypeError, ValueError, ZeroDivisionError):
+            LOGGER.debug("Ignoring malformed EnOcean switch packet", exc_info=True)

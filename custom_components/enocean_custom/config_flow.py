@@ -1,7 +1,6 @@
 """Config flows for the ENOcean integration."""
 
 import voluptuous as vol
-
 from homeassistant import config_entries
 from homeassistant.const import CONF_DEVICE
 
@@ -24,10 +23,7 @@ class EnOceanFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         """Import a yaml configuration."""
 
         if not await self.validate_enocean_conf(data):
-            LOGGER.warning(
-                "Cannot import yaml configuration: %s is not a valid dongle path",
-                data[CONF_DEVICE],
-            )
+            LOGGER.warning("Cannot import yaml configuration: invalid dongle path")
             return self.async_abort(reason="invalid_dongle_path")
 
         return self.create_enocean_entry(data)
@@ -70,10 +66,43 @@ class EnOceanFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             default_value = user_input[CONF_DEVICE]
             errors = {CONF_DEVICE: ERROR_INVALID_DONGLE_PATH}
 
+        device_field = (
+            vol.Required(CONF_DEVICE, default=default_value)
+            if default_value
+            else vol.Required(CONF_DEVICE)
+        )
         return self.async_show_form(
             step_id="manual",
+            data_schema=vol.Schema({device_field: str}),
+            errors=errors,
+        )
+
+    async def async_step_reconfigure(self, user_input=None):
+        """Allow changing the serial path without deleting the config entry."""
+        entry = self._get_reconfigure_entry()
+        current_path = entry.data[CONF_DEVICE]
+        errors = {}
+        if user_input is not None:
+            new_path = user_input[CONF_DEVICE]
+            if new_path == current_path:
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data_updates={CONF_DEVICE: new_path},
+                    reload_even_if_entry_is_unchanged=False,
+                )
+            is_same_device = await self.hass.async_add_executor_job(
+                dongle.same_device, current_path, new_path
+            )
+            if is_same_device or await self.validate_enocean_conf(user_input):
+                return self.async_update_reload_and_abort(
+                    entry, data_updates={CONF_DEVICE: new_path}
+                )
+            errors[CONF_DEVICE] = ERROR_INVALID_DONGLE_PATH
+
+        return self.async_show_form(
+            step_id="reconfigure",
             data_schema=vol.Schema(
-                {vol.Required(CONF_DEVICE, default=default_value): str}
+                {vol.Required(CONF_DEVICE, default=current_path): str}
             ),
             errors=errors,
         )
