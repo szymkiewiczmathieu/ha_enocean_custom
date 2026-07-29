@@ -12,19 +12,24 @@ from tempfile import TemporaryDirectory
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
-import voluptuous as vol
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.dispatcher import async_dispatcher_send
+try:  # The bare CI lifecycle environment has no Home Assistant installed.
+    import voluptuous as vol
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from custom_components.enocean_custom import learn
-from custom_components.enocean_custom.const import (
-    DOMAIN,
-    EVENT_DEVICE_LEARNED,
-    SERVICE_LEARN,
-    SIGNAL_RECEIVE_MESSAGE,
-)
-from custom_components.enocean_custom.options_flow import _unique_id_for
-from custom_components.enocean_custom.schema import UI_DEVICE_SCHEMA
+    from custom_components.enocean_custom import learn
+    from custom_components.enocean_custom.const import (
+        DOMAIN,
+        EVENT_DEVICE_LEARNED,
+        SERVICE_LEARN,
+        SIGNAL_RECEIVE_MESSAGE,
+    )
+    from custom_components.enocean_custom.options_flow import _unique_id_for
+    from custom_components.enocean_custom.schema import UI_DEVICE_SCHEMA
+
+    HA_AVAILABLE = True
+except ModuleNotFoundError:  # pragma: no cover - exercised by bare CI env
+    HA_AVAILABLE = False
 
 COMPONENT_ROOT = ROOT / "custom_components/enocean_custom"
 STRINGS_PATH = COMPONENT_ROOT / "strings.json"
@@ -55,6 +60,7 @@ class TranslationSyncTests(unittest.TestCase):
         self.assertEqual(_key_paths(strings), _key_paths(french))
 
 
+@unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
 class UniqueIdFormulaTests(unittest.TestCase):
     def test_binary_sensor_unique_id_matches_yaml_formula(self):
         device = {
@@ -76,6 +82,7 @@ class UniqueIdFormulaTests(unittest.TestCase):
         self.assertEqual(_unique_id_for(device), f"{identifier}")
 
 
+@unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
 class UiDeviceSchemaTests(unittest.TestCase):
     def test_schema_accepts_a_minimal_switch_device(self):
         validated = UI_DEVICE_SCHEMA(
@@ -107,6 +114,7 @@ class FakeRadioPacket:
         self.sender_int = sender_int
 
 
+@unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
 class LearnManagerTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self._config_dir = TemporaryDirectory()
@@ -294,6 +302,7 @@ class LearnManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(combine_hex(climate_id), known)
 
 
+@unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
 class ServiceRegistrationTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self._config_dir = TemporaryDirectory()
