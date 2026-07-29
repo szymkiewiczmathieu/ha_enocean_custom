@@ -1,5 +1,6 @@
 """Representation of an EnOcean device."""
 
+from homeassistant.core import callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity
 
@@ -46,13 +47,20 @@ class EnOceanEntity(Entity):
         dongle = enocean_data.get(ENOCEAN_DONGLE)
         self._attr_available = bool(dongle and dongle.available)
 
+    @callback
     def _dongle_status_changed(self, available: bool) -> None:
-        """Mirror serial-worker availability on every EnOcean entity."""
+        """Mirror serial-worker availability on the event loop.
+
+        Plain sync dispatcher targets run in the executor, where
+        ``async_write_ha_state`` raises. ``@callback`` keeps this on the
+        event loop so the state write is legal.
+        """
         self._attr_available = available
         self.async_write_ha_state()
 
+    @callback
     def _message_received_callback(self, packet):
-        """Handle incoming packets."""
+        """Handle incoming packets on the event loop."""
 
         if self.dev_id and packet.sender_int == combine_hex(self.dev_id):
             try:

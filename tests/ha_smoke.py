@@ -9,7 +9,7 @@ from collections import deque
 from datetime import timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from threading import Event, Lock
+from threading import Event, Lock, Thread
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import Mock
@@ -39,7 +39,12 @@ from custom_components.enocean_custom import (
     sensor,
     switch,
 )
-from custom_components.enocean_custom.const import DATA_ENOCEAN, ENOCEAN_DONGLE
+from custom_components.enocean_custom.const import (
+    DATA_ENOCEAN,
+    ENOCEAN_DONGLE,
+    SIGNAL_DONGLE_STATUS,
+)
+from custom_components.enocean_custom.device import EnOceanEntity
 from custom_components.enocean_custom.diagnostics import (
     async_get_config_entry_diagnostics,
 )
@@ -313,6 +318,62 @@ async def _assert_legacy_send_only_light_identity_is_preserved() -> None:
                 raise AssertionError(
                     "legacy light entity_id was not preserved during migration"
                 )
+        finally:
+            await hass.async_stop(force=True)
+
+
+async def _assert_dongle_status_signal_writes_state_from_worker_thread() -> None:
+    """Run the dongle status target on the event loop, not the executor.
+
+    Regression: a plain sync dispatcher target runs in the executor, where
+    ``async_write_ha_state`` raises and the entity stays stuck in its previous
+    availability forever. The status target must run on the event loop.
+    """
+    import threading
+
+    from homeassistant.helpers.dispatcher import (
+        async_dispatcher_connect,
+        dispatcher_send,
+    )
+
+    if not getattr(EnOceanEntity._dongle_status_changed, "_hass_callback", False):
+        raise AssertionError("dongle status target is not marked as a loop callback")
+    if not getattr(EnOceanEntity._message_received_callback, "_hass_callback", False):
+        raise AssertionError("packet target is not marked as a loop callback")
+
+    with TemporaryDirectory() as config_dir:
+        hass = HomeAssistant(config_dir)
+        try:
+            loop_thread = threading.get_ident()
+            calls: list[tuple[bool, int]] = []
+            entity = EnOceanEntity([1, 2, 3, 4], "status probe")
+            entity.hass = hass
+            entity.async_write_ha_state = (  # type: ignore[method-assign]
+                lambda: calls.append((entity.available, threading.get_ident()))
+            )
+            async_dispatcher_connect(
+                hass, SIGNAL_DONGLE_STATUS, entity._dongle_status_changed
+            )
+
+            fired = Event()
+
+            def flip() -> None:
+                dispatcher_send(hass, SIGNAL_DONGLE_STATUS, False)
+                fired.set()
+
+            worker = Thread(target=flip)
+            worker.start()
+            await asyncio.to_thread(fired.wait, 5)
+            await hass.async_block_till_done()
+            worker.join(timeout=5)
+            if not calls:
+                raise AssertionError(
+                    "status signal from a worker thread was never delivered"
+                )
+            if any(thread_id != loop_thread for _, thread_id in calls):
+                raise AssertionError("status target ran off the event loop thread")
+            if calls[-1][0] is not False:
+                raise AssertionError("availability was not mirrored to False")
         finally:
             await hass.async_stop(force=True)
 
@@ -1005,6 +1066,7 @@ def main() -> None:
     asyncio.run(_assert_climate_response_transactions())
     asyncio.run(_assert_real_climate_send_chain())
     asyncio.run(_assert_legacy_send_only_light_identity_is_preserved())
+    asyncio.run(_assert_dongle_status_signal_writes_state_from_worker_thread())
     print(
         "HA_2026_7_3_SMOKE_OK "
         f"invalid_cases_rejected={len(invalid_cases)} "
