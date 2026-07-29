@@ -234,13 +234,12 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
             elif packet.data[0] == 0xD2:
                 # EEP 2.6.7, §D2-01 CMD 0x4, pp. 135-136 and TYPE 0x12,
                 # pp. 145-147: TYPE 0x12 has two channels; OV 0 is OFF and
-                # OV 1..100 is ON. RPS entities retain their existing path.
+                # OV 1..100 is ON. RPS entities consume it too: their module
+                # reports the real state after a physical wall-switch toggle
+                # (the exact sync the feedback exists for). Modules without
+                # D2 simply never send it, leaving RPS behavior unchanged.
                 status = parse_d2_01_actuator_status(packet.data)
-                if (
-                    self.switch_type != "RPS"
-                    and status is not None
-                    and status.channel == self.channel
-                ):
+                if status is not None and status.channel == self.channel:
                     self.record_d2_status(status)
                     self._on_state = status.output_value > 0
                     self.async_write_ha_state()

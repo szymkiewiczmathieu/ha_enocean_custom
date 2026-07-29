@@ -8,7 +8,8 @@
   local wall-switch changes.
 - Expose the latest D2 channel, output value, power-failure flags, and timestamp
   as entity state attributes while ignoring malformed or unknown-sender
-  telegrams and preserving the existing RPS behavior.
+  telegrams. RPS switches consume it too: a physical wall-switch toggle on a
+  directly-paired module now syncs HA state (channel-filtered).
 - Add EnOcean Alliance product-label QR commissioning with a strict
   `AA:BB:CC:DD` fallback and rejection of unsupported 48-bit EURIDs.
 - Extend config-entry options management to `climate` and `sensor`, preserving

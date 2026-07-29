@@ -441,7 +441,8 @@ async def _assert_d2_status_parse_dispatch_and_entities() -> None:
             if (
                 channel_0.is_on is not True
                 or channel_1.is_on is not None
-                or rps.is_on is not None
+                # RPS entities now consume D2 status on their own channel.
+                or rps.is_on is not True
                 or d2_light.is_on is not True
                 or d2_light.brightness != 128
             ):
@@ -473,7 +474,8 @@ async def _assert_d2_status_parse_dispatch_and_entities() -> None:
             if (
                 channel_0.is_on is not True
                 or channel_1.is_on is not False
-                or rps.is_on is not None
+                # The RPS entity ignores the channel-1 packet (no leak).
+                or rps.is_on is not True
                 # Regression (review finding): the channel-1 packet must NOT
                 # touch the channel-0 light — it keeps the channel-0 state.
                 or d2_light.is_on is not True
@@ -1715,7 +1717,7 @@ def main() -> None:
         "learn_windows=owned_serialized details_schemas=ws_serializable "
         "deleted_id=teachable_again "
         "d2_status=parse_dispatch_switch_light d2_channels=0_1 "
-        "d2_unknown_sender=ignored d2_malformed=ignored d2_rps=unchanged "
+        "d2_unknown_sender=ignored d2_malformed=ignored d2_rps=synced_no_leak "
         "d2_loop_write=safe"
     )
 

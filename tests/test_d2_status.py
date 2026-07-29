@@ -203,12 +203,20 @@ class D201DispatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(entity.extra_state_attributes, {})
         self.assertEqual(self.loop_writes, [])
 
-    async def test_d2_feedback_does_not_change_rps_switch_state(self):
+    async def test_d2_feedback_syncs_rps_switch_state(self):
+        # Deliberate contract: RPS entities consume D2 status so a physical
+        # wall-switch toggle on a directly-paired module syncs HA's state.
         entity = await self._add(EnOceanSwitch(self.sender, "RPS", 0, "RPS"))
         _, status = _status_packet(self.sender, 0, 100)
         async_dispatcher_send(self.hass, SIGNAL_RECEIVE_MESSAGE, status)
         await self.hass.async_block_till_done()
 
-        self.assertIsNone(entity.is_on)
-        self.assertEqual(entity.extra_state_attributes, {})
-        self.assertEqual(self.loop_writes, [])
+        self.assertIs(entity.is_on, True)
+        self.assertEqual(entity.extra_state_attributes["d2_output_value"], 100)
+        self.assertTrue(self.loop_writes)
+
+        # A status for the OTHER channel still does not leak across.
+        _, other = _status_packet(self.sender, 1, 0)
+        async_dispatcher_send(self.hass, SIGNAL_RECEIVE_MESSAGE, other)
+        await self.hass.async_block_till_done()
+        self.assertIs(entity.is_on, True)
