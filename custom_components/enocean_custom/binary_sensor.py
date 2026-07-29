@@ -1,21 +1,27 @@
-"""Support for EnOcean binary sensors."""
+"""Binary sensor platform for EnOcean rocker telegrams."""
 
 from __future__ import annotations
 
-import homeassistant.helpers.config_validation as cv
+from typing import override
+
 import voluptuous as vol
 from homeassistant.components.binary_sensor import (
     DEVICE_CLASSES_SCHEMA,
-    PLATFORM_SCHEMA,
+    BinarySensorDeviceClass,
     BinarySensorEntity,
+)
+from homeassistant.components.binary_sensor import (
+    PLATFORM_SCHEMA as BINARY_SENSOR_PLATFORM_SCHEMA,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_DEVICE_CLASS, CONF_ID, CONF_NAME
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .device import EnOceanEntity
+from .enocean_library.protocol.constants import RORG
 from .enocean_library.utils import combine_hex
 from .learn import register_known_id
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, valid_ui_devices
@@ -23,12 +29,13 @@ from .schema import CONF_UI_DEVICES, ENOCEAN_ID, valid_ui_devices
 DEFAULT_NAME = "EnOcean binary sensor"
 EVENT_BUTTON_PRESSED = "button_pressed"
 
-ATTR_ONOFF = "OnOff"
-ATTR_WHICH = "Which"
-ATTR_REPEATED_TELEGRAM = "Repeated telegram"
+ATTR_ONOFF, ATTR_WHICH, ATTR_REPEATED_TELEGRAM = (
+    "OnOff",
+    "Which",
+    "Repeated telegram",
+)
 
-
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
+PLATFORM_SCHEMA = BINARY_SENSOR_PLATFORM_SCHEMA.extend(
     {
         vol.Required(CONF_ID): ENOCEAN_ID,
         vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
@@ -43,13 +50,18 @@ def setup_platform(
     add_entities: AddEntitiesCallback,
     discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
-    """Set up the Binary Sensor platform for EnOcean."""
-    dev_id = config.get(CONF_ID)
-    dev_name = config.get(CONF_NAME)
-    device_class = config.get(CONF_DEVICE_CLASS)
-
-    register_known_id(hass, dev_id)
-    add_entities([EnOceanBinarySensor(dev_id, dev_name, device_class)])
+    """Create a YAML-configured rocker sensor."""
+    device_id: list[int] = config[CONF_ID]
+    register_known_id(hass, device_id)
+    add_entities(
+        [
+            EnOceanBinarySensor(
+                device_id,
+                config[CONF_NAME],
+                config.get(CONF_DEVICE_CLASS),
+            )
+        ]
+    )
 
 
 async def async_setup_entry(
@@ -57,117 +69,80 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up EnOcean binary sensors configured entirely from the UI."""
-    entities = []
-    for device in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, [])):
-        if device["platform"] != "binary_sensor":
-            continue
-        dev_id = device["id"]
-        entities.append(
-            EnOceanBinarySensor(dev_id, device["name"], device["device_class"])
+    """Create rocker sensors stored in the entry options."""
+    configured = (
+        EnOceanBinarySensor(
+            row["id"],
+            row["name"],
+            row["device_class"],
         )
-    async_add_entities(entities)
+        for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
+        if row["platform"] == "binary_sensor"
+    )
+    async_add_entities(list(configured))
 
 
 class EnOceanBinarySensor(EnOceanEntity, BinarySensorEntity):
-    """Representation of EnOcean binary sensors such as wall switches.
+    """Represent an F6-02-01/F6-02-02 energy-bow rocker."""
 
-    Supported EEPs (EnOcean Equipment Profiles):
-    - F6-02-01 (Light and Blind Control - Application Style 2)
-    - F6-02-02 (Light and Blind Control - Application Style 1)
-    """
-
-    def __init__(self, dev_id, dev_name, device_class):
-        """Initialize the EnOcean binary sensor."""
+    def __init__(
+        self,
+        dev_id: list[int],
+        dev_name: str,
+        device_class: BinarySensorDeviceClass | None,
+    ) -> None:
+        """Initialize a rocker entity with its legacy identity."""
         super().__init__(dev_id, dev_name)
-        self._device_class = device_class
-        self.which = -1
-        self.onoff = -1
-        self.repeated_telegram = -1
+        self._attr_device_class = device_class
+        self._attr_name = dev_name
         self._attr_unique_id = f"{combine_hex(dev_id)}-{device_class}"
+        self.onoff = -1
+        self.which = -1
+        self.repeated_telegram: int = -1
 
     @property
-    def name(self):
-        """Return the default name for the binary sensor."""
-        return self.dev_name
+    def extra_state_attributes(self) -> dict[str, int]:
+        """Expose the decoded rocker direction and repeater count."""
+        return dict(
+            zip(
+                (ATTR_ONOFF, ATTR_WHICH, ATTR_REPEATED_TELEGRAM),
+                (self.onoff, self.which, self.repeated_telegram),
+                strict=True,
+            )
+        )
 
-    @property
-    def device_class(self):
-        """Return the class of this sensor."""
-        return self._device_class
-
-    @property
-    def extra_state_attributes(self):
-        """Return entity specific state attributes."""
-        self._attrs = {
-            ATTR_ONOFF: self.onoff,
-            ATTR_WHICH: self.which,
-            ATTR_REPEATED_TELEGRAM: self.repeated_telegram,
-        }
-        return self._attrs
-
-    def value_changed(self, packet):
-        """Fire an event with the data that have changed.
-
-        This method is called when there is an incoming packet associated
-        with this platform.
-
-        Example packet data:
-        - 2nd button pressed
-            ['0xf6', '0x10', '0x00', '0x2d', '0xcf', '0x45', '0x30']
-        - button released
-            ['0xf6', '0x00', '0x00', '0x2d', '0xcf', '0x45', '0x20']
-        """
-        if packet.rorg != 0xF6 or len(packet.data) < 7:
+    @override
+    def value_changed(self, packet) -> None:
+        """Decode one complete RPS rocker telegram and emit its legacy event."""
+        if packet.rorg != RORG.RPS or len(packet.data) < 7:
             return
 
-        # Energy Bow
-        pushed = None
+        status = packet.status
+        message_kind = status >> 4
+        pushed = 1 if message_kind == 3 else 0 if message_kind == 2 else None
+        self.repeated_telegram = status & 0x0F
 
-        # take first byte for pushed status
-        if packet.data[6] // 16 == 3:
-            pushed = 1
-        elif packet.data[6] // 16 == 2:
-            pushed = 0
-
-        # take second byte for repeated status
-        self.repeated_telegram = packet.data[6] % 16
-
-        # set state
-        if pushed == 1:
-            self._attr_is_on = True
-        elif pushed == 0:
-            self._attr_is_on = False
-
+        if pushed is not None:
+            self._attr_is_on = bool(pushed)
         self.schedule_update_ha_state()
 
-        action = packet.data[1]
-        if action == 0x70:
-            self.which = 0
-            self.onoff = 0
-        elif action == 0x50:
-            self.which = 0
-            self.onoff = 1
-        elif action == 0x30:
-            self.which = 1
-            self.onoff = 0
-        elif action == 0x10:
-            self.which = 1
-            self.onoff = 1
-        elif action == 0x37:
-            self.which = 10
-            self.onoff = 0
-        elif action == 0x15:
-            self.which = 10
-            self.onoff = 1
-        self.hass.bus.fire(
-            EVENT_BUTTON_PRESSED,
-            {
-                "name": self.dev_name,
-                "id": self.dev_id,
-                "pushed": pushed,
-                "which": self.which,
-                "onoff": self.onoff,
-                "repeated_telegram": self.repeated_telegram,
-            },
-        )
+        action_map = {
+            0x70: (0, 0),
+            0x50: (0, 1),
+            0x30: (1, 0),
+            0x10: (1, 1),
+            0x37: (10, 0),
+            0x15: (10, 1),
+        }
+        if (decoded := action_map.get(packet.data[1])) is not None:
+            self.which, self.onoff = decoded
+
+        event_data = {
+            "name": str(self.dev_name),
+            "id": list(self.dev_id),
+            "pushed": pushed,
+            "which": int(self.which),
+            "onoff": int(self.onoff),
+            "repeated_telegram": int(self.repeated_telegram),
+        }
+        self.hass.bus.fire(EVENT_BUTTON_PRESSED, event_data)

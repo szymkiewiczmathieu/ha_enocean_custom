@@ -1,17 +1,26 @@
 {
-  "title": "EnOcean Custom",
+  "title": "EnOcean Custom Integration",
   "config": {
+    "flow_title": "{name}",
     "step": {
       "detect": {
-        "title": "Select the path to your EnOcean dongle",
+        "title": "Choose an EnOcean USB dongle",
+        "description": "Select your EnOcean USB dongle.",
         "data": {
           "device": "USB dongle path"
+        },
+        "data_description": {
+          "device": "Path to your EnOcean USB dongle."
         }
       },
       "manual": {
-        "title": "Enter the path to your EnOcean dongle",
+        "title": "Provide an EnOcean USB dongle path",
+        "description": "Enter the path to your EnOcean USB dongle.",
         "data": {
           "device": "USB dongle path"
+        },
+        "data_description": {
+          "device": "Path to your EnOcean USB dongle."
         }
       },
       "reconfigure": {
@@ -19,7 +28,13 @@
         "description": "Change the serial device. Home Assistant reloads the integration only after the new path is validated.",
         "data": {
           "device": "USB dongle path"
+        },
+        "data_description": {
+          "device": "Path to your EnOcean USB dongle."
         }
+      },
+      "usb_confirm": {
+        "description": "{manufacturer} USB dongle detected at {device}. Do you want to set up this device?"
       }
     },
     "error": {
@@ -28,6 +43,26 @@
     "abort": {
       "invalid_dongle_path": "Invalid dongle path",
       "single_instance_allowed": "[%key:common::config_flow::abort::single_instance_allowed%]"
+    }
+  },
+  "selector": {
+    "devices": {
+      "options": {
+        "manual": "Custom path"
+      }
+    },
+    "actuator_type": {
+      "options": {
+        "relay_rps": "Relay (RPS, e.g. Ubiwizz)",
+        "dimmer_4bs": "4BS dimmer (e.g. Eltako)"
+      }
+    },
+    "pairing_failure_action": {
+      "options": {
+        "retry": "Try again",
+        "keep": "Keep the device without pairing",
+        "delete": "Remove the device"
+      }
     }
   },
   "options": {
@@ -162,29 +197,14 @@
       "yaml_managed": "This EnOcean ID is also configured in YAML. Remove the YAML configuration before deleting its UI device."
     }
   },
-  "selector": {
-    "actuator_type": {
-      "options": {
-        "relay_rps": "Relay (RPS, e.g. Ubiwizz)",
-        "dimmer_4bs": "4BS dimmer (e.g. Eltako)"
-      }
-    },
-    "pairing_failure_action": {
-      "options": {
-        "retry": "Try again",
-        "keep": "Keep the device without pairing",
-        "delete": "Remove the device"
-      }
-    }
-  },
   "services": {
     "climate_teach_in_actor": {
-      "name": "Send teach-in telegram to climate actor",
-      "description": "Send teach-in telegram to climate actor"
+      "name": "Teach in climate actuator",
+      "description": "Transmit the configured climate profile's teach-in telegram to the selected actuator."
     },
     "climate_teach_in_actor_switch": {
-      "name": "Send teach-in telegram for switch to climate actor",
-      "description": "Send teach-in telegram for switch to climate actor"
+      "name": "Teach in climate rocker input",
+      "description": "Transmit the legacy RPS teach-in telegram to the selected SRC-D08 actuator."
     },
     "learn": {
       "name": "Start EnOcean teach-in",

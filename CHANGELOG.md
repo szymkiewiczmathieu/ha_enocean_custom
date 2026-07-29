@@ -1,6 +1,21 @@
 # Changelog
 
-## Unreleased
+## 2.0.0 - 2026-07-29
+
+- Rebuild the integration on the Apache-2.0 Home Assistant Core 2026.7.3
+  EnOcean component and remove the former unlicensed implementation lineage.
+- Preserve the `enocean_custom` domain, YAML schemas, UI-managed devices,
+  unique IDs, serial lifecycle guarantees, teach-in flows, D2 feedback, and
+  transactional actuator state.
+- Independently implement F6-02-01 RPS commands, A5-38-08 dimmer commands and
+  teach-in, D2-01 power/energy measurements, and A5-20-04 valve control and
+  feedback.
+- Add the Apache-2.0 `LICENSE`, third-party `NOTICE`, core `icons.json`, and
+  current hassfest manifest metadata.
+- Add Home Assistant USB discovery while keeping safe path probing,
+  reconfiguration through serial aliases, and diagnostic/error redaction.
+
+## 1.5.0 - 2026-07-29
 
 - Add a guided actuator-pairing wizard to the config-entry options UI. It
   creates supported receivers through the existing `ui_devices` persistence

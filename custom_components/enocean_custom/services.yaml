@@ -1,16 +1,18 @@
 climate_teach_in_actor:
-  name: Send teach-in telegram to climate actor
-  description: Send teach-in telegram to climate actor
+  name: Teach in climate actuator
+  description: Transmit the configured climate profile's teach-in telegram to the selected actuator.
   target:
     entity:
       domain: climate
+      integration: enocean_custom
 
 climate_teach_in_actor_switch:
-  name: Send teach-in telegram for switch to climate actor
-  description: Send teach-in telegram for switch to climate actor
+  name: Teach in climate rocker input
+  description: Transmit the legacy RPS teach-in telegram to the selected SRC-D08 actuator.
   target:
     entity:
       domain: climate
+      integration: enocean_custom
 
 learn:
   name: Start EnOcean teach-in

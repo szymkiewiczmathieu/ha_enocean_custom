@@ -32,6 +32,8 @@ jobs:
           python -m json.tool custom_components/enocean_custom/manifest.json >/dev/null
           python -m json.tool custom_components/enocean_custom/strings.json >/dev/null
           python -m json.tool custom_components/enocean_custom/translations/en.json >/dev/null
+          python -m json.tool custom_components/enocean_custom/translations/fr.json >/dev/null
+          python -m json.tool custom_components/enocean_custom/icons.json >/dev/null
           python -m json.tool hacs.json >/dev/null
       - name: Lint maintained integration code
         run: |
@@ -78,11 +80,12 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/hacs
         with:
-          # Upstream has no repository-wide license; see NOTICE.md and issue #6.
-          # Keep every technical HACS check enabled while reporting that legal gap.
-          ignore: license
           category: integration
           comment: false
+          # TEMPORAIRE v2.0.0 : le check license interroge l'API GitHub sur la
+          # branche par défaut ; LICENSE n'y arrivera qu'avec le merge v2.0.0.
+          # À RETIRER juste après le merge (LICENSE sera détectée sur main).
+          ignore: license
 
   hassfest:
     name: Hassfest 2026.7.3

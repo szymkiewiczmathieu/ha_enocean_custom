@@ -38,7 +38,6 @@ from .climate import (
     CONF_SENSOR_TARGET_TEMP_TOLERANCE,
     CONF_TARGET_TEMP_BASE,
     CONF_TARGET_TEMP_NIGHT_REDUCTION,
-    DEVICE_SUPPORTED_LIST,
 )
 from .const import (
     DOMAIN,
@@ -53,6 +52,7 @@ from .learn import get_known_ids, get_learn_manager
 from .light import CONF_SENDER_ID
 from .schema import (
     CONF_UI_DEVICES,
+    UI_CLIMATE_DEVICE_TYPES,
     UI_DEVICE_SCHEMA,
     exact_finite_int,
     valid_ui_devices,
@@ -783,7 +783,9 @@ class EnOceanOptionsFlow(OptionsFlow):
                 selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
             )
             schema_dict[vol.Required(CONF_DEVICE_TYPE)] = selector.SelectSelector(
-                selector.SelectSelectorConfig(options=DEVICE_SUPPORTED_LIST)
+                # Review finding P2-02: only offer what UI_DEVICE_SCHEMA can
+                # actually persist (A5-20-04 stays YAML-only for now).
+                selector.SelectSelectorConfig(options=list(UI_CLIMATE_DEVICE_TYPES))
             )
             schema_dict[vol.Required(CONF_SENSOR_ENTITY_ID)] = selector.TextSelector(
                 selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)

@@ -1,6 +1,9 @@
-"""Representation of an EnOcean device."""
+"""Shared entity support for the vendored ESP3 transport."""
+
+from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from homeassistant.core import callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -13,100 +16,113 @@ from .const import (
     SIGNAL_DONGLE_STATUS,
     SIGNAL_RECEIVE_MESSAGE,
 )
-from .enocean_library.protocol.packet import Packet
-from .enocean_library.utils import combine_hex
+from .enocean_library.protocol.packet import Packet as ESP3Packet
+from .enocean_library.utils import combine_hex as enocean_id_as_int
 
 
 def build_radio_optional(destination: list[int] | None = None) -> list[int]:
-    """Build the seven ESP3 optional bytes required for outbound ERP1 radio."""
-    return [0x03, *(destination or [0xFF] * 4), 0xFF, 0x00]
+    """Return the seven optional bytes required by an ERP1 radio frame."""
+    radio_destination = destination if destination is not None else [0xFF] * 4
+    return [0x03, *radio_destination, 0xFF, 0x00]
 
 
 class EnOceanEntity(Entity):
-    """Parent class for all entities associated with the EnOcean component."""
+    """Base entity bound to one four-byte EnOcean sender identity."""
 
     _attr_should_poll = False
 
-    def __init__(self, dev_id, dev_name="EnOcean device"):
-        """Initialize the device."""
+    def __init__(
+        self,
+        dev_id: list[int],
+        dev_name: str = "EnOcean device",
+    ) -> None:
+        """Store identity and initialize transport-derived availability."""
         self.dev_id = dev_id
         self.dev_name = dev_name
-        self._d2_status = None
-        self._last_status = None
         self._attr_available = False
+        self._d2_status = None
+        self._last_status: str | None = None
 
     @property
-    def d2_status_attributes(self) -> dict:
-        """Return common D2-01 feedback attributes after the first status."""
-        if self._d2_status is None:
+    def d2_status_attributes(self) -> dict[str, Any]:
+        """Describe the last valid D2-01 status response."""
+        status = self._d2_status
+        if status is None:
             return {}
         return {
-            "d2_channel": self._d2_status.channel,
-            "d2_output_value": self._d2_status.output_value,
+            "d2_channel": status.channel,
+            "d2_output_value": status.output_value,
             "d2_power_failure_detection_enabled": (
-                self._d2_status.power_failure_detection_enabled
+                status.power_failure_detection_enabled
             ),
-            "d2_power_failure_detected": self._d2_status.power_failure_detected,
+            "d2_power_failure_detected": status.power_failure_detected,
             "last_status": self._last_status,
         }
 
-    def record_d2_status(self, status) -> None:
-        """Store status metadata while already executing on HA's event loop."""
+    def record_d2_status(self, status: Any) -> None:
+        """Save feedback metadata on Home Assistant's event-loop thread."""
         self._d2_status = status
         self._last_status = datetime.now(UTC).isoformat()
 
-    async def async_added_to_hass(self):
-        """Register packet and serial-health callbacks."""
+    async def async_added_to_hass(self) -> None:
+        """Connect radio and serial-health dispatcher callbacks."""
+        await super().async_added_to_hass()
         self.async_on_remove(
             async_dispatcher_connect(
-                self.hass, SIGNAL_RECEIVE_MESSAGE, self._message_received_callback
+                self.hass,
+                SIGNAL_RECEIVE_MESSAGE,
+                self._message_received_callback,
             )
         )
         self.async_on_remove(
             async_dispatcher_connect(
-                self.hass, SIGNAL_DONGLE_STATUS, self._dongle_status_changed
+                self.hass,
+                SIGNAL_DONGLE_STATUS,
+                self._dongle_status_changed,
             )
         )
-        enocean_data = self.hass.data.get(DATA_ENOCEAN, {})
-        dongle = enocean_data.get(ENOCEAN_DONGLE)
-        self._attr_available = bool(dongle and dongle.available)
+        integration_data = self.hass.data.get(DATA_ENOCEAN, {})
+        gateway = integration_data.get(ENOCEAN_DONGLE)
+        self._attr_available = bool(gateway and gateway.available)
 
     @callback
     def _dongle_status_changed(self, available: bool) -> None:
-        """Mirror serial-worker availability on the event loop.
-
-        Plain sync dispatcher targets run in the executor, where
-        ``async_write_ha_state`` raises. ``@callback`` keeps this on the
-        event loop so the state write is legal.
-        """
+        """Mirror serial health and write state on the event loop."""
         self._attr_available = available
         self.async_write_ha_state()
 
     @callback
-    def _message_received_callback(self, packet):
-        """Handle incoming packets on the event loop."""
+    def _message_received_callback(self, packet: Any) -> None:
+        """Route telegrams from this entity's sender only."""
+        if not self.dev_id or packet.sender_int != enocean_id_as_int(self.dev_id):
+            return
+        try:
+            self.value_changed(packet)
+        except (IndexError, KeyError, TypeError, ValueError, ZeroDivisionError):
+            LOGGER.warning(
+                "Ignoring malformed EnOcean packet for %s",
+                self.dev_name,
+                exc_info=True,
+            )
 
-        if self.dev_id and packet.sender_int == combine_hex(self.dev_id):
-            try:
-                self.value_changed(packet)
-            except (IndexError, KeyError, TypeError, ValueError, ZeroDivisionError):
-                LOGGER.warning(
-                    "Ignoring malformed EnOcean packet for %s",
-                    self.dev_name,
-                    exc_info=True,
-                )
+    def value_changed(self, packet: Any) -> None:
+        """Handle one matching inbound telegram."""
 
-    def value_changed(self, packet):
-        """Update the internal state of the device when a packet arrives."""
-
-    def send_command(self, data, optional, packet_type, response_callback=None) -> bool:
-        """Send a command via the EnOcean dongle."""
-        packet = Packet(packet_type, data=data, optional=optional)
-        enocean_data = self.hass.data.get(DATA_ENOCEAN, {})
-        if (dongle := enocean_data.get(ENOCEAN_DONGLE)) is None:
+    def send_command(
+        self,
+        data: list[int],
+        optional: list[int],
+        packet_type: int,
+        response_callback=None,
+    ) -> bool:
+        """Queue an ESP3 packet through the entry-owned dongle."""
+        packet = ESP3Packet(packet_type, data=data, optional=optional)
+        integration_data = self.hass.data.get(DATA_ENOCEAN, {})
+        gateway = integration_data.get(ENOCEAN_DONGLE)
+        if gateway is None:
             self._attr_available = False
             return False
-        if dongle.send(packet, response_callback=response_callback):
+        if gateway.send(packet, response_callback=response_callback):
             return True
         self._attr_available = False
         self.schedule_update_ha_state()

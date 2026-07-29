@@ -1,11 +1,16 @@
-"""Support for EnOcean switches."""
+"""Switch platform for EnOcean actuators."""
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, override
 
 import voluptuous as vol
-from homeassistant.components.switch import PLATFORM_SCHEMA, SwitchEntity
+from homeassistant.components.switch import (
+    PLATFORM_SCHEMA as SWITCH_PLATFORM_SCHEMA,
+)
+from homeassistant.components.switch import (
+    SwitchEntity,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ID, CONF_NAME, Platform
 from homeassistant.core import HomeAssistant
@@ -16,27 +21,28 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .const import DOMAIN, LOGGER
 from .device import EnOceanEntity, build_radio_optional
+from .enocean_library.protocol.constants import RORG
 from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
 from .enocean_library.utils import combine_hex
 from .learn import register_known_id
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devices
 
-CONF_CHANNEL = "channel"
+CONF_CHANNEL, CONF_SWITCH_TYPE = "channel", "switch_type"
 DEFAULT_NAME = "EnOcean Switch"
-CONF_SWITCH_TYPE = "switch_type"
 
 SWITCH_TYPES = ("default", "RPS")
 
 
 def _validate_switch_config(config: ConfigType) -> ConfigType:
-    """Validate channel semantics for the selected switch profile."""
-    if config[CONF_SWITCH_TYPE] == "RPS" and config[CONF_CHANNEL] not in (0, 1):
+    """Restrict rocker simulation to the two buttons defined by F6-02-01."""
+    channel = config[CONF_CHANNEL]
+    if config[CONF_SWITCH_TYPE] == "RPS" and channel not in (0, 1):
         raise vol.Invalid("RPS channel must be 0 or 1")
     return config
 
 
 PLATFORM_SCHEMA = vol.All(
-    PLATFORM_SCHEMA.extend(
+    SWITCH_PLATFORM_SCHEMA.extend(
         {
             vol.Required(CONF_ID): ENOCEAN_ID,
             vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
@@ -51,28 +57,32 @@ PLATFORM_SCHEMA = vol.All(
 
 
 def generate_unique_id(dev_id: list[int], channel: int) -> str:
-    """Generate a valid unique id."""
+    """Build the channel-aware identity used since the core integration."""
     return f"{combine_hex(dev_id)}-{channel}"
 
 
-def _migrate_to_new_unique_id(hass: HomeAssistant, dev_id, channel) -> None:
-    """Migrate old unique ids to new unique ids."""
-    old_unique_id = f"{combine_hex(dev_id)}"
+def _migrate_to_new_unique_id(
+    hass: HomeAssistant, dev_id: list[int], channel: int
+) -> None:
+    """Move the historical channel-less registry row when it is unambiguous."""
+    registry = er.async_get(hass)
+    old_identity = str(combine_hex(dev_id))
+    entity_id = registry.async_get_entity_id(Platform.SWITCH, DOMAIN, old_identity)
+    if entity_id is None:
+        return
 
-    ent_reg = er.async_get(hass)
-    entity_id = ent_reg.async_get_entity_id(Platform.SWITCH, DOMAIN, old_unique_id)
-
-    if entity_id is not None:
-        new_unique_id = generate_unique_id(dev_id, channel)
-        try:
-            ent_reg.async_update_entity(entity_id, new_unique_id=new_unique_id)
-        except ValueError:
-            LOGGER.warning(
-                "Skipped EnOcean switch identity migration because the target "
-                "identity already exists"
-            )
-        else:
-            LOGGER.debug("Migrated EnOcean switch to a channel-aware identity")
+    try:
+        registry.async_update_entity(
+            entity_id,
+            new_unique_id=generate_unique_id(dev_id, channel),
+        )
+    except ValueError:
+        LOGGER.warning(
+            "Skipped EnOcean switch identity migration because the target "
+            "identity already exists"
+        )
+    else:
+        LOGGER.debug("Migrated EnOcean switch to a channel-aware identity")
 
 
 async def async_setup_platform(
@@ -81,15 +91,21 @@ async def async_setup_platform(
     async_add_entities: AddEntitiesCallback,
     discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
-    """Set up the EnOcean switch platform."""
-    channel = config.get(CONF_CHANNEL)
-    dev_id = config.get(CONF_ID)
-    dev_name = config.get(CONF_NAME)
-    switch_type = config.get(CONF_SWITCH_TYPE)
-
-    _migrate_to_new_unique_id(hass, dev_id, channel)
-    register_known_id(hass, dev_id)
-    async_add_entities([EnOceanSwitch(dev_id, dev_name, channel, switch_type)])
+    """Create a YAML-configured EnOcean switch."""
+    device_id: list[int] = config[CONF_ID]
+    channel: int = config[CONF_CHANNEL]
+    _migrate_to_new_unique_id(hass, device_id, channel)
+    register_known_id(hass, device_id)
+    async_add_entities(
+        [
+            EnOceanSwitch(
+                device_id,
+                config[CONF_NAME],
+                channel,
+                config[CONF_SWITCH_TYPE],
+            )
+        ]
+    )
 
 
 async def async_setup_entry(
@@ -97,151 +113,139 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up EnOcean switches configured entirely from the UI."""
-    entities = []
-    for device in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, [])):
-        if device["platform"] != "switch":
-            continue
-        dev_id = device["id"]
-        entities.append(
-            EnOceanSwitch(
-                dev_id,
-                device["name"],
-                device["channel"],
-                device.get("switch_type") or "default",
-            )
+    """Create switches stored by the options flow."""
+    entities = [
+        EnOceanSwitch(
+            row["id"],
+            row["name"],
+            row["channel"],
+            row.get("switch_type") or "default",
         )
+        for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
+        if row["platform"] == "switch"
+    ]
     async_add_entities(entities)
 
 
 class EnOceanSwitch(EnOceanEntity, SwitchEntity):
-    """Representation of an EnOcean switch device."""
+    """Represent a D2 actuator or an F6 rocker-paired relay."""
 
     _attr_assumed_state = True
 
-    def __init__(self, dev_id, dev_name, channel, switch_type):
-        """Initialize the EnOcean switch device."""
+    def __init__(
+        self,
+        dev_id: list[int],
+        dev_name: str,
+        channel: int,
+        switch_type: str,
+    ) -> None:
+        """Initialize an actuator without claiming an unconfirmed state."""
         super().__init__(dev_id, dev_name)
-        self._light = None
-        self._on_state = None
-        self._on_state2 = False
-        self.channel = channel
-        self.switch_type = switch_type
+        self._attr_name = dev_name
         self._attr_unique_id = generate_unique_id(dev_id, channel)
+        self._attr_is_on = None
+        self.channel = channel
+        self._profile = switch_type
 
     @property
-    def is_on(self):
-        """Return whether the switch is on or off."""
-        return self._on_state
-
-    @property
-    def name(self):
-        """Return the device name."""
-        return self.dev_name
-
-    @property
-    def extra_state_attributes(self):
-        """Return D2-01 feedback metadata after the first status."""
+    def extra_state_attributes(self) -> dict:
+        """Expose feedback metadata once the actuator reports it."""
         return self.d2_status_attributes
 
+    @override
     def turn_on(self, **kwargs: Any) -> None:
-        """Turn on the switch."""
-        if self.switch_type == "RPS":
-            val_pushed = 0x10 if self.channel == 1 else 0x50
-            packets = [
-                ([0xF6, val_pushed, *self.dev_id, 0x30], build_radio_optional()),
-                ([0xF6, 0x00, *self.dev_id, 0x20], build_radio_optional()),
-            ]
-        else:
-            packets = [
-                (
-                    [
-                        0xD2,
-                        0x01,
-                        self.channel & 0xFF,
-                        0x64,
-                        0x00,
-                        0x00,
-                        0x00,
-                        0x00,
-                        0x00,
-                    ],
-                    [0x03, *self.dev_id, 0xFF, 0x00],
-                )
-            ]
-        self._send_state_packets(packets, True)
+        """Request the ON state."""
+        self._queue_state_change(True)
 
+    @override
     def turn_off(self, **kwargs: Any) -> None:
-        """Turn off the switch."""
-        if self.switch_type == "RPS":
-            val_pushed = 0x30 if self.channel == 1 else 0x70
-            packets = [
-                ([0xF6, val_pushed, *self.dev_id, 0x30], build_radio_optional()),
-                ([0xF6, 0x00, *self.dev_id, 0x20], build_radio_optional()),
-            ]
+        """Request the OFF state."""
+        self._queue_state_change(False)
+
+    def _queue_state_change(self, target: bool) -> None:
+        """Encode the configured profile and wait for all ESP3 acknowledgements."""
+        if self._profile == "RPS":
+            pressed = {
+                (0, True): 0x50,
+                (1, True): 0x10,
+                (0, False): 0x70,
+                (1, False): 0x30,
+            }[(self.channel, target)]
+            frames = (
+                ([RORG.RPS, pressed, *self.dev_id, 0x30], build_radio_optional()),
+                ([RORG.RPS, 0x00, *self.dev_id, 0x20], build_radio_optional()),
+            )
         else:
-            packets = [
+            output = 100 if target else 0
+            frames = (
                 (
                     [
-                        0xD2,
+                        RORG.VLD,
                         0x01,
-                        self.channel & 0xFF,
-                        0x00,
+                        self.channel,
+                        output,
                         0x00,
                         0x00,
                         0x00,
                         0x00,
                         0x00,
                     ],
-                    [0x03, *self.dev_id, 0xFF, 0x00],
-                )
-            ]
-        self._send_state_packets(packets, False)
+                    build_radio_optional(self.dev_id),
+                ),
+            )
+        self._send_state_packets(list(frames), target)
 
     def _send_state_packets(
-        self, packets: list[tuple[list[int], list[int]]], target_state: bool
+        self,
+        packets: list[tuple[list[int], list[int]]],
+        target_state: bool,
     ) -> None:
-        """Apply state only when every packet in the command sequence succeeds."""
-        remaining = len(packets)
-        all_accepted = True
+        """Commit the requested state only when the complete sequence is accepted."""
+        outstanding = len(packets)
+        successful = True
 
-        def _response(accepted: bool) -> None:
-            nonlocal remaining, all_accepted
-            all_accepted = all_accepted and accepted
-            remaining -= 1
-            if remaining == 0 and all_accepted:
-                self._on_state = target_state
+        def response_received(accepted: bool) -> None:
+            nonlocal outstanding, successful
+            successful &= accepted
+            outstanding -= 1
+            if outstanding == 0 and successful:
+                self._attr_is_on = target_state
                 self.async_write_ha_state()
 
         for data, optional in packets:
-            if not self.send_command(data, optional, 0x01, response_callback=_response):
-                _response(False)
+            queued = self.send_command(
+                data,
+                optional,
+                0x01,
+                response_callback=response_received,
+            )
+            if not queued:
+                response_received(False)
 
-    def value_changed(self, packet):
-        """Update the internal state of the switch."""
+    @override
+    def value_changed(self, packet) -> None:
+        """Apply power-meter or D2 actuator feedback."""
         if not packet.data:
             return
         try:
-            if packet.data[0] == 0xA5:
-                # Power meter telegram, turn on if > 1 watt.
+            if packet.data[0] == RORG.BS4:
                 packet.parse_eep(0x12, 0x01)
-                if packet.parsed["DT"]["raw_value"] == 1:
-                    raw_val = packet.parsed["MR"]["raw_value"]
-                    divisor = packet.parsed["DIV"]["raw_value"]
-                    watts = raw_val / (10**divisor)
-                    self._on_state = watts > 1
-                    self.schedule_update_ha_state()
-            elif packet.data[0] == 0xD2:
-                # EEP 2.6.7, §D2-01 CMD 0x4, pp. 135-136 and TYPE 0x12,
-                # pp. 145-147: TYPE 0x12 has two channels; OV 0 is OFF and
-                # OV 1..100 is ON. RPS entities consume it too: their module
-                # reports the real state after a physical wall-switch toggle
-                # (the exact sync the feedback exists for). Modules without
-                # D2 simply never send it, leaving RPS behavior unchanged.
-                status = parse_d2_01_actuator_status(packet.data)
-                if status is not None and status.channel == self.channel:
-                    self.record_d2_status(status)
-                    self._on_state = status.output_value > 0
-                    self.async_write_ha_state()
+                values = packet.parsed
+                if values["DT"]["raw_value"] != 1:
+                    return
+                measured = values["MR"]["raw_value"]
+                scale = values["DIV"]["raw_value"]
+                self._attr_is_on = measured / (10**scale) > 1
+                self.schedule_update_ha_state()
+                return
+
+            if packet.data[0] != RORG.VLD:
+                return
+            status = parse_d2_01_actuator_status(packet.data)
+            if status is None or status.channel != self.channel:
+                return
+            self.record_d2_status(status)
+            self._attr_is_on = status.output_value > 0
+            self.async_write_ha_state()
         except (IndexError, KeyError, TypeError, ValueError, ZeroDivisionError):
             LOGGER.debug("Ignoring malformed EnOcean switch packet", exc_info=True)

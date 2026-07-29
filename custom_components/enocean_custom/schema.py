@@ -56,6 +56,9 @@ def optional_enocean_id(value: object) -> list[int]:
 
 # Config entry options: devices added and removed entirely from the UI.
 CONF_UI_DEVICES = "ui_devices"
+# Device types the options flow may persist for climate entities. A5-20-04
+# stays YAML-only: its UI surface is not modeled yet.
+UI_CLIMATE_DEVICE_TYPES = ("SRC-D08",)
 
 
 def _validate_platform_fields(device: dict) -> dict:

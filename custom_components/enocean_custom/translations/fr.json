@@ -1,17 +1,26 @@
 {
-  "title": "EnOcean Custom",
+  "title": "Intégration EnOcean Custom",
   "config": {
+    "flow_title": "{name}",
     "step": {
       "detect": {
-        "title": "Sélectionnez le chemin de votre dongle EnOcean",
+        "title": "Choisir un dongle USB EnOcean",
+        "description": "Sélectionnez votre dongle USB EnOcean.",
         "data": {
           "device": "Chemin du dongle USB"
+        },
+        "data_description": {
+          "device": "Chemin d'accès à votre dongle USB EnOcean."
         }
       },
       "manual": {
-        "title": "Entrez le chemin de votre dongle EnOcean",
+        "title": "Indiquer le chemin d'un dongle USB EnOcean",
+        "description": "Saisissez le chemin d'accès à votre dongle USB EnOcean.",
         "data": {
           "device": "Chemin du dongle USB"
+        },
+        "data_description": {
+          "device": "Chemin d'accès à votre dongle USB EnOcean."
         }
       },
       "reconfigure": {
@@ -19,7 +28,13 @@
         "description": "Changez le périphérique série. Home Assistant ne recharge l'intégration qu'après validation du nouveau chemin.",
         "data": {
           "device": "Chemin du dongle USB"
+        },
+        "data_description": {
+          "device": "Chemin d'accès à votre dongle USB EnOcean."
         }
+      },
+      "usb_confirm": {
+        "description": "Un dongle USB {manufacturer} a été détecté à l'emplacement {device}. Voulez-vous configurer cet appareil ?"
       }
     },
     "error": {
@@ -28,6 +43,26 @@
     "abort": {
       "invalid_dongle_path": "Chemin de dongle invalide",
       "single_instance_allowed": "[%key:common::config_flow::abort::single_instance_allowed%]"
+    }
+  },
+  "selector": {
+    "devices": {
+      "options": {
+        "manual": "Chemin personnalisé"
+      }
+    },
+    "actuator_type": {
+      "options": {
+        "relay_rps": "Relais (RPS, ex. Ubiwizz)",
+        "dimmer_4bs": "Variateur 4BS (ex. Eltako)"
+      }
+    },
+    "pairing_failure_action": {
+      "options": {
+        "retry": "Réessayer",
+        "keep": "Garder l'appareil sans appairage",
+        "delete": "Supprimer l'appareil"
+      }
     }
   },
   "options": {
@@ -162,29 +197,14 @@
       "yaml_managed": "Cet ID EnOcean est aussi configuré en YAML. Supprimez la configuration YAML avant de supprimer son équipement de l'interface."
     }
   },
-  "selector": {
-    "actuator_type": {
-      "options": {
-        "relay_rps": "Relais (RPS, ex. Ubiwizz)",
-        "dimmer_4bs": "Variateur 4BS (ex. Eltako)"
-      }
-    },
-    "pairing_failure_action": {
-      "options": {
-        "retry": "Réessayer",
-        "keep": "Garder l'appareil sans appairage",
-        "delete": "Supprimer l'appareil"
-      }
-    }
-  },
   "services": {
     "climate_teach_in_actor": {
-      "name": "Envoyer un télégramme d'apprentissage à l'actionneur climatique",
-      "description": "Envoyer un télégramme d'apprentissage à l'actionneur climatique"
+      "name": "Appairer l'actionneur climatique",
+      "description": "Transmet le télégramme d'apprentissage du profil climatique configuré à l'actionneur sélectionné."
     },
     "climate_teach_in_actor_switch": {
-      "name": "Envoyer un télégramme d'apprentissage d'interrupteur à l'actionneur climatique",
-      "description": "Envoyer un télégramme d'apprentissage d'interrupteur à l'actionneur climatique"
+      "name": "Appairer l'entrée rocker climatique",
+      "description": "Transmet le télégramme d'apprentissage RPS historique à l'actionneur SRC-D08 sélectionné."
     },
     "learn": {
       "name": "Démarrer le mode apprentissage EnOcean",
