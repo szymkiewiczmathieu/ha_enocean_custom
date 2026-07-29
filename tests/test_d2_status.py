@@ -6,21 +6,22 @@ import asyncio
 import unittest
 from tempfile import TemporaryDirectory
 
-from custom_components.enocean_custom.enocean_library.protocol.constants import (
-    PACKET,
-    PARSE_RESULT,
-    RORG,
-)
-from custom_components.enocean_custom.enocean_library.protocol.d2 import (
-    parse_d2_01_actuator_status,
-)
-from custom_components.enocean_custom.enocean_library.protocol.packet import Packet
-
 try:  # The bare CI lifecycle environment has no Home Assistant installed.
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.dispatcher import async_dispatcher_send
 
     from custom_components.enocean_custom.const import SIGNAL_RECEIVE_MESSAGE
+    from custom_components.enocean_custom.enocean_library.protocol.constants import (
+        PACKET,
+        PARSE_RESULT,
+        RORG,
+    )
+    from custom_components.enocean_custom.enocean_library.protocol.d2 import (
+        parse_d2_01_actuator_status,
+    )
+    from custom_components.enocean_custom.enocean_library.protocol.packet import (
+        Packet,
+    )
     from custom_components.enocean_custom.light import EnOceanLight
     from custom_components.enocean_custom.switch import EnOceanSwitch
 
@@ -66,6 +67,7 @@ def _status_packet(
     )
 
 
+@unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
 class D201PacketTests(unittest.TestCase):
     """Exercise the vendored parser and D2-01-12 decoder together."""
 
