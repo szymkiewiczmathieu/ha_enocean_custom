@@ -58,6 +58,7 @@ from homeassistant.util import dt as dt_util
 from .const import DOMAIN, LOGGER
 from .device import EnOceanEntity, build_radio_optional
 from .enocean_library.utils import combine_hex
+from .learn import register_known_id
 from .schema import ENOCEAN_ID, exact_finite_int
 
 DEVICE_SUPPORTED_LIST = ["SRC-D08"]
@@ -198,6 +199,7 @@ async def async_setup_platform(
         return
 
     _migrate_to_new_unique_id(hass, dev_id, 0)
+    register_known_id(hass, dev_id)
     add_entities(
         [
             EnOceanClimate(

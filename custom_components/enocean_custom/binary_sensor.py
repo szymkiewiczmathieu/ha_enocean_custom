@@ -9,6 +9,7 @@ from homeassistant.components.binary_sensor import (
     PLATFORM_SCHEMA,
     BinarySensorEntity,
 )
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_DEVICE_CLASS, CONF_ID, CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -16,7 +17,8 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .device import EnOceanEntity
 from .enocean_library.utils import combine_hex
-from .schema import ENOCEAN_ID
+from .learn import register_known_id
+from .schema import CONF_UI_DEVICES, ENOCEAN_ID, valid_ui_devices
 
 DEFAULT_NAME = "EnOcean binary sensor"
 EVENT_BUTTON_PRESSED = "button_pressed"
@@ -46,7 +48,26 @@ def setup_platform(
     dev_name = config.get(CONF_NAME)
     device_class = config.get(CONF_DEVICE_CLASS)
 
+    register_known_id(hass, dev_id)
     add_entities([EnOceanBinarySensor(dev_id, dev_name, device_class)])
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up EnOcean binary sensors configured entirely from the UI."""
+    entities = []
+    for device in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, [])):
+        if device["platform"] != "binary_sensor":
+            continue
+        dev_id = device["id"]
+        register_known_id(hass, dev_id)
+        entities.append(
+            EnOceanBinarySensor(dev_id, device["name"], device["device_class"])
+        )
+    async_add_entities(entities)
 
 
 class EnOceanBinarySensor(EnOceanEntity, BinarySensorEntity):

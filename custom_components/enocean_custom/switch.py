@@ -6,6 +6,7 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.components.switch import PLATFORM_SCHEMA, SwitchEntity
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ID, CONF_NAME, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
@@ -16,7 +17,8 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from .const import DOMAIN, LOGGER
 from .device import EnOceanEntity, build_radio_optional
 from .enocean_library.utils import combine_hex
-from .schema import ENOCEAN_ID, exact_finite_int
+from .learn import register_known_id
+from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devices
 
 CONF_CHANNEL = "channel"
 DEFAULT_NAME = "EnOcean Switch"
@@ -85,7 +87,31 @@ async def async_setup_platform(
     switch_type = config.get(CONF_SWITCH_TYPE)
 
     _migrate_to_new_unique_id(hass, dev_id, channel)
+    register_known_id(hass, dev_id)
     async_add_entities([EnOceanSwitch(dev_id, dev_name, channel, switch_type)])
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up EnOcean switches configured entirely from the UI."""
+    entities = []
+    for device in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, [])):
+        if device["platform"] != "switch":
+            continue
+        dev_id = device["id"]
+        register_known_id(hass, dev_id)
+        entities.append(
+            EnOceanSwitch(
+                dev_id,
+                device["name"],
+                device["channel"],
+                device.get("switch_type") or "default",
+            )
+        )
+    async_add_entities(entities)
 
 
 class EnOceanSwitch(EnOceanEntity, SwitchEntity):

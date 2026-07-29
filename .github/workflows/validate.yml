@@ -45,7 +45,9 @@ jobs:
             custom_components/enocean_custom/device.py
             custom_components/enocean_custom/diagnostics.py
             custom_components/enocean_custom/dongle.py
+            custom_components/enocean_custom/learn.py
             custom_components/enocean_custom/light.py
+            custom_components/enocean_custom/options_flow.py
             custom_components/enocean_custom/schema.py
             custom_components/enocean_custom/sensor.py
             custom_components/enocean_custom/switch.py

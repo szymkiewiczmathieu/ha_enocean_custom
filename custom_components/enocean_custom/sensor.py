@@ -31,6 +31,7 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .device import EnOceanEntity
 from .enocean_library.utils import combine_hex
+from .learn import register_known_id
 from .schema import ENOCEAN_ID, exact_finite_int
 
 CONF_MAX_TEMP = "max_temp"
@@ -195,6 +196,7 @@ def setup_platform(
     elif sensor_type == SENSOR_TYPE_SHUTTERCONTACT:
         entities = [EnOceanShutterContact(dev_id, dev_name, SENSOR_DESC_SHUTTERCONTACT)]
 
+    register_known_id(hass, dev_id)
     add_entities(entities)
 
 

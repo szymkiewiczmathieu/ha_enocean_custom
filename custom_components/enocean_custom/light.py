@@ -15,6 +15,7 @@ from homeassistant.components.light import (
 from homeassistant.components.light import (
     DOMAIN as LIGHT_DOMAIN,
 )
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ID, CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -24,7 +25,8 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from .const import DOMAIN
 from .device import EnOceanEntity, build_radio_optional
 from .enocean_library.utils import combine_hex
-from .schema import ENOCEAN_ID, optional_enocean_id
+from .learn import register_known_id
+from .schema import CONF_UI_DEVICES, ENOCEAN_ID, optional_enocean_id, valid_ui_devices
 
 CONF_SENDER_ID = "sender_id"
 
@@ -64,7 +66,24 @@ async def async_setup_platform(
                 legacy_entity_id,
                 new_unique_id=entity.unique_id,
             )
+    register_known_id(hass, dev_id)
     async_add_entities([entity])
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up EnOcean lights configured entirely from the UI."""
+    entities = []
+    for device in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, [])):
+        if device["platform"] != "light":
+            continue
+        dev_id = device["id"]
+        register_known_id(hass, dev_id)
+        entities.append(EnOceanLight(device["sender_id"], dev_id, device["name"]))
+    async_add_entities(entities)
 
 
 class EnOceanLight(EnOceanEntity, LightEntity):

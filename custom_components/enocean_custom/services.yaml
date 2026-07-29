@@ -11,3 +11,23 @@ climate_teach_in_actor_switch:
   target:
     entity:
       domain: climate
+
+learn:
+  name: Start EnOcean teach-in
+  description: Listen for the next unknown EnOcean sender and fire enocean_custom_device_learned once one is captured.
+  fields:
+    timeout:
+      name: Timeout
+      description: Seconds to listen before giving up.
+      required: false
+      default: 60
+      selector:
+        number:
+          min: 15
+          max: 300
+          unit_of_measurement: seconds
+          mode: box
+
+reload:
+  name: Reload EnOcean YAML platforms
+  description: Reload YAML-configured EnOcean platforms from the current configuration.

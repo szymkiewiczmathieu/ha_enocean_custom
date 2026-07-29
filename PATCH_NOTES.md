@@ -1,4 +1,34 @@
-# EnOcean serial lifecycle hardening
+# EnOcean serial lifecycle hardening and UI teach-in
+
+## v1.3.0 — UI teach-in for binary_sensor/switch/light
+
+`v1.3.0` adds a config-entry options flow to add and remove devices from the
+UI, on top of the `v1.2.4` serial lifecycle hardening below. Read this
+honestly before relying on it:
+
+- **In scope:** `binary_sensor`, `switch`, and `light` only. A device is
+  captured by listening for the first EnOcean sender not already known (from
+  YAML or the UI), then filled in through a short device form.
+- **Out of scope:** `climate` and `sensor` remain YAML-only; they are not
+  offered by the options flow and are not affected by this feature.
+- **YAML is still fully supported.** Nothing in `configuration.yaml` needs to
+  change, and YAML-configured devices cohabit on the same platform as
+  UI-managed ones. There is no YAML-to-UI migration in this release.
+- **One capture per physical device identity.** "Unknown" means absent from
+  the combined set of YAML and UI device IDs, regardless of platform. Once any
+  entity (YAML or UI, on any of the five platforms) exists for a given
+  EnOcean ID, teach-in will never offer that ID again. A second entity for an
+  already-known multi-profile device (e.g. an actuator that is both a
+  `binary_sensor` and a `switch`) still requires YAML.
+- **No merging, ever.** If the computed `unique_id` already exists in the
+  entity registry, the add form is refused with an explicit error. Deleting a
+  UI device removes only the exact registry row matching its own domain,
+  platform, and `unique_id`.
+- Options changes reload the config entry automatically; this only forwards
+  `binary_sensor`, `switch`, and `light` platform setup, not `climate` or
+  `sensor`.
+
+## v1.2.4 — EnOcean serial lifecycle hardening
 
 Version `v1.2.4` hardens the serial lifecycle on top of upstream `v1.2.2`:
 
