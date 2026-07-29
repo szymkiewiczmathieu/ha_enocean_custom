@@ -52,6 +52,8 @@ from .switch import CONF_CHANNEL, CONF_SWITCH_TYPE, SWITCH_TYPES
 _FLOW_OWNER = "options_flow"
 _HEX_BYTE = re.compile(r"^[0-9A-Fa-f]{2}$")
 _HEX_12 = re.compile(r"^[0-9A-Fa-f]{12}$")
+_STRICT_TYPED_ID = re.compile(r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){3}$")
+_LABEL_CHARSET = re.compile(r"^[0-9A-Za-z+]+$")
 _CONF_QR_CODE = "qr_code"
 
 
@@ -109,12 +111,19 @@ def _parse_commissioning_code(value: Any) -> list[int] | None:
     1P (12-hex Product ID) containers. This integration supports 32-bit radio
     IDs only, so a genuine 48-bit EURID is rejected instead of truncated.
     """
-    fallback = _parse_sender_id(value)
-    if fallback is not None:
-        return fallback
     if not isinstance(value, str):
         return None
-    containers = value.strip().split("+")
+    value = value.strip()
+    # Strict typed fallback: exactly four colon-separated hex bytes. The
+    # tolerant sender-id parser stays reserved for the sender_id form field;
+    # a commissioning path must never guess from a malformed string.
+    if _STRICT_TYPED_ID.fullmatch(value):
+        return [int(value[offset : offset + 2], 16) for offset in range(0, 12, 3)]
+    # Label payloads are '+'-separated alphanumeric MH10.8.2 containers:
+    # anything else (spaces, NULs, unicode) is not a product label.
+    if not _LABEL_CHARSET.fullmatch(value):
+        return None
+    containers = value.split("+")
     eurids = [item[3:] for item in containers if item.startswith("30S")]
     product_ids = [item[2:] for item in containers if item.startswith("1P")]
     if (
@@ -282,6 +291,16 @@ class EnOceanOptionsFlow(OptionsFlow):
             schema_dict[vol.Required(CONF_SENDER_ID)] = selector.TextSelector(
                 selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
             )
+            # D2-01-12 multi-gang actuators report every channel; pick which
+            # one drives this light (I/O channel is 5 bits wide).
+            schema_dict[vol.Optional("channel", default=0)] = selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0,
+                    max=31,
+                    step=1,
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            )
         elif platform == "sensor":
             schema_dict[vol.Optional(CONF_DEVICE_CLASS, default="powersensor")] = (
                 selector.SelectSelector(
@@ -370,6 +389,13 @@ class EnOceanOptionsFlow(OptionsFlow):
             if user_input.get(CONF_SWITCH_TYPE) == "RPS" and channel not in (0, 1):
                 return self._show_details_form(
                     platform, errors={CONF_CHANNEL: "invalid_channel_rps"}
+                )
+        elif platform == "light":
+            # D2-01-12 I/O channel is 5 bits wide (0-31).
+            channel = _exact_int(user_input.get(CONF_CHANNEL, 0))
+            if channel is None or not 0 <= channel <= 31:
+                return self._show_details_form(
+                    platform, errors={CONF_CHANNEL: "invalid_channel"}
                 )
         else:
             channel = 0

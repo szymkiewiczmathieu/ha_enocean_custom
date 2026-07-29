@@ -64,8 +64,12 @@ async def async_setup_entry(
         )
     except Exception:
         # Never leave a live serial reader behind when platform setup fails:
-        # a retry must find the port free, not busy on a zombie owner.
+        # a retry must find the port free, not busy on a zombie owner. Drop
+        # the reference as well so a retry builds a fresh dongle instead of
+        # reusing the unloaded one (review finding: rollback residue).
         await usb_dongle.async_unload()
+        enocean_data.pop(ENOCEAN_DONGLE, None)
+        config_entry.runtime_data = None
         raise
     config_entry.async_on_unload(
         config_entry.add_update_listener(_async_reload_on_options_update)

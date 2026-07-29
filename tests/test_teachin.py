@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT))
 try:  # The bare CI lifecycle environment has no Home Assistant installed.
     import voluptuous as vol
     from homeassistant.core import HomeAssistant
+    from homeassistant.exceptions import HomeAssistantError
     from homeassistant.helpers.dispatcher import async_dispatcher_send
 
     from custom_components.enocean_custom import learn, light
@@ -161,6 +162,20 @@ class CommissioningQrTests(unittest.TestCase):
             with self.subTest(payload=payload):
                 self.assertIsNone(_parse_commissioning_code(payload))
 
+    def test_malformed_fallbacks_and_label_garbage_are_rejected(self):
+        # Adversarial review vectors: the tolerant sender-id parser must not
+        # leak into the commissioning path, and labels must be clean MH10.8.2.
+        for payload in (
+            "AA::BB:CC:DD",
+            "AA  BB CC DD",
+            "AA : BB : CC : DD",
+            "aabbccdd",
+            "30S0000A1B2C3D4+1P001B0000789A+99ZBAD\x00UNICODE☃",
+            "30S0000A1B2C3D4 +1P001B0000789A",
+        ):
+            with self.subTest(payload=payload):
+                self.assertIsNone(_parse_commissioning_code(payload))
+
 
 @unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
 class SendTeachInTests(unittest.TestCase):
@@ -212,6 +227,12 @@ class SendTeachInTests(unittest.TestCase):
                 )
             ],
         )
+
+    def test_send_teach_in_without_sender_id_fails_cleanly(self):
+        # Review finding: a missing sender_id produced a raw TypeError.
+        entity = light.EnOceanLight(None, [0x01, 0x02, 0x03, 0x04], "dimmer")
+        with self.assertRaises(HomeAssistantError):
+            entity.send_teach_in()
 
 
 class FakeRadioPacket:

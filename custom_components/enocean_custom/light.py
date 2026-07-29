@@ -18,6 +18,7 @@ from homeassistant.components.light import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ID, CONF_NAME
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -28,9 +29,16 @@ from .device import EnOceanEntity, build_radio_optional
 from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
 from .enocean_library.utils import combine_hex
 from .learn import register_known_id
-from .schema import CONF_UI_DEVICES, ENOCEAN_ID, optional_enocean_id, valid_ui_devices
+from .schema import (
+    CONF_UI_DEVICES,
+    ENOCEAN_ID,
+    exact_finite_int,
+    optional_enocean_id,
+    valid_ui_devices,
+)
 
 CONF_SENDER_ID = "sender_id"
+CONF_CHANNEL = "channel"
 
 DEFAULT_NAME = "EnOcean Light"
 _A5_38_08_ELTAKO_TEACH_IN = [0xE0, 0x40, 0x0D, 0x80]
@@ -40,6 +48,11 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Optional(CONF_ID, default=[]): optional_enocean_id,
         vol.Required(CONF_SENDER_ID): ENOCEAN_ID,
         vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
+        # D2-01-12 actuators report per-channel status (I/O is 5 bits); the
+        # channel selects which one drives this entity's state.
+        vol.Optional(CONF_CHANNEL, default=0): vol.All(
+            exact_finite_int, vol.Range(min=0, max=31)
+        ),
     }
 )
 
@@ -54,7 +67,8 @@ async def async_setup_platform(
     sender_id = config.get(CONF_SENDER_ID)
     dev_id = config.get(CONF_ID)
     dev_name = config.get(CONF_NAME)
-    entity = EnOceanLight(sender_id, dev_id, dev_name)
+    channel = config.get(CONF_CHANNEL)
+    entity = EnOceanLight(sender_id, dev_id, dev_name, channel)
     if not dev_id:
         registry = er.async_get(hass)
         legacy_entity_id = registry.async_get_entity_id(LIGHT_DOMAIN, DOMAIN, "0")
@@ -69,7 +83,7 @@ async def async_setup_platform(
                 legacy_entity_id,
                 new_unique_id=entity.unique_id,
             )
-    register_known_id(hass, dev_id)
+    register_known_id(hass, dev_id or sender_id)
     async_add_entities([entity])
     _async_register_send_teach_in_service()
 
@@ -85,7 +99,11 @@ async def async_setup_entry(
         if device["platform"] != "light":
             continue
         dev_id = device["id"]
-        entities.append(EnOceanLight(device["sender_id"], dev_id, device["name"]))
+        entities.append(
+            EnOceanLight(
+                device["sender_id"], dev_id, device["name"], device.get("channel", 0)
+            )
+        )
     async_add_entities(entities)
     _async_register_send_teach_in_service()
 
@@ -111,12 +129,13 @@ class EnOceanLight(EnOceanEntity, LightEntity):
     _attr_color_mode = ColorMode.BRIGHTNESS
     _attr_supported_color_modes: ClassVar[set[ColorMode]] = {ColorMode.BRIGHTNESS}
 
-    def __init__(self, sender_id, dev_id, dev_name):
+    def __init__(self, sender_id, dev_id, dev_name, channel=0):
         """Initialize the EnOcean light."""
         super().__init__(dev_id, dev_name)
         self._on_state = None
         self._brightness = 50
         self._sender_id = sender_id
+        self._channel = channel
         self._attr_unique_id = f"{combine_hex(dev_id or sender_id)}"
 
     @property
@@ -182,6 +201,10 @@ class EnOceanLight(EnOceanEntity, LightEntity):
         4BS teach-in variation 2 bit layout. Eltako ManID 0x00D encodes the
         resulting DB3..DB0 bytes as E0 40 0D 80.
         """
+        if self._sender_id is None:
+            raise HomeAssistantError(
+                "This light has no sender_id to teach in; set one first."
+            )
         command = [
             0xA5,
             *_A5_38_08_ELTAKO_TEACH_IN,
@@ -213,9 +236,11 @@ class EnOceanLight(EnOceanEntity, LightEntity):
             self.schedule_update_ha_state()
         elif packet.rorg == 0xD2:
             # EEP 2.6.7, §D2-01 CMD 0x4, p. 136, offsets 17..23: OV is an
-            # absolute 0..100 %, mapped to HA's 0..255 brightness.
+            # absolute 0..100 %, mapped to HA's 0..255 brightness. Multi-gang
+            # actuators report every channel: only the configured one drives
+            # this entity (review finding: last-packet-wins was wrong).
             status = parse_d2_01_actuator_status(packet.data)
-            if status is not None:
+            if status is not None and status.channel == self._channel:
                 self.record_d2_status(status)
                 self._brightness = round(status.output_value / 100.0 * 255.0)
                 self._on_state = status.output_value > 0

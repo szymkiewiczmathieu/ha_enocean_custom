@@ -14,8 +14,22 @@
 - Extend config-entry options management to `climate` and `sensor`, preserving
   the YAML field defaults, bounds, and unique-ID formulas.
 - Add the light-targeted `enocean_custom.send_teach_in` service for Eltako 4BS
-  dimmers using EEP A5-38-08.
-- Refuse UI deletion when the same EnOcean ID is also managed by YAML.
+  dimmers using EEP A5-38-08; calling it on a light without a `sender_id`
+  fails with a clean error instead of a `TypeError`.
+- Add an optional `channel` (0-31) to lights (YAML and UI): D2-01-12
+  multi-gang actuators report every channel, and only the configured one now
+  drives the entity (review finding: the last received telegram used to win
+  regardless of channel).
+- Refuse UI deletion when the same EnOcean ID is also managed by YAML,
+  including send-only YAML lights whose identity is their `sender_id`.
+- Strict commissioning-code parsing: the typed fallback accepts only exact
+  `AA:BB:CC:DD`, and product labels must be clean MH10.8.2 containers
+  (malformed input can no longer smuggle an ID into the device form).
+- On platform-forwarding failure the dongle reference is dropped from
+  `hass.data`/`runtime_data`, so a retry builds a fresh dongle instead of
+  reusing the unloaded one. (A single platform failing during forwarding is
+  absorbed by Home Assistant itself and does not fail the whole entry; that
+  is core behavior, unchanged.)
 
 ## 1.3.0 - 2026-07-29
 

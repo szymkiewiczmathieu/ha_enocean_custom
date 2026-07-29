@@ -143,6 +143,9 @@ class D201DispatcherTests(unittest.IsolatedAsyncioTestCase):
         light = await self._add(
             EnOceanLight([0x05, 0x06, 0x07, 0x08], self.sender, "dimmer")
         )
+        light_ch1 = await self._add(
+            EnOceanLight([0x05, 0x06, 0x07, 0x08], self.sender, "dimmer ch1", 1)
+        )
 
         _, channel_0 = _status_packet(self.sender, 0, 25)
         async_dispatcher_send(self.hass, SIGNAL_RECEIVE_MESSAGE, channel_0)
@@ -152,6 +155,8 @@ class D201DispatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(switch_1.is_on)
         self.assertIs(light.is_on, True)
         self.assertEqual(light.brightness, 64)
+        # Channel-1 light does not react to a channel-0 status.
+        self.assertIsNone(light_ch1.is_on)
         self.assertEqual(switch_0.extra_state_attributes["d2_channel"], 0)
         self.assertEqual(
             switch_0.extra_state_attributes["d2_output_value"],
@@ -165,8 +170,12 @@ class D201DispatcherTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(switch_0.is_on, True)
         self.assertIs(switch_1.is_on, False)
-        self.assertIs(light.is_on, False)
-        self.assertEqual(light.brightness, 0)
+        # Regression guard (review finding): a channel-1 status must NOT
+        # overwrite a light bound to channel 0.
+        self.assertIs(light.is_on, True)
+        self.assertEqual(light.brightness, 64)
+        self.assertIs(light_ch1.is_on, False)
+        self.assertEqual(light_ch1.brightness, 0)
         self.assertTrue(self.loop_writes)
         self.assertTrue(all(loop is self.hass.loop for loop in self.loop_writes))
 

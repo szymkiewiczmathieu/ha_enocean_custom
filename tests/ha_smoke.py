@@ -474,8 +474,10 @@ async def _assert_d2_status_parse_dispatch_and_entities() -> None:
                 channel_0.is_on is not True
                 or channel_1.is_on is not False
                 or rps.is_on is not None
-                or d2_light.is_on is not False
-                or d2_light.brightness != 0
+                # Regression (review finding): the channel-1 packet must NOT
+                # touch the channel-0 light — it keeps the channel-0 state.
+                or d2_light.is_on is not True
+                or d2_light.brightness != 128
             ):
                 raise AssertionError(
                     "D2 channel 1, unknown sender, malformed, or RPS isolation failed"
