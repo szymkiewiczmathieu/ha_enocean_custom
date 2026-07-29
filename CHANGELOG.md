@@ -9,6 +9,13 @@
 - Expose the latest D2 channel, output value, power-failure flags, and timestamp
   as entity state attributes while ignoring malformed or unknown-sender
   telegrams and preserving the existing RPS behavior.
+- Add EnOcean Alliance product-label QR commissioning with a strict
+  `AA:BB:CC:DD` fallback and rejection of unsupported 48-bit EURIDs.
+- Extend config-entry options management to `climate` and `sensor`, preserving
+  the YAML field defaults, bounds, and unique-ID formulas.
+- Add the light-targeted `enocean_custom.send_teach_in` service for Eltako 4BS
+  dimmers using EEP A5-38-08.
+- Refuse UI deletion when the same EnOcean ID is also managed by YAML.
 
 ## 1.3.0 - 2026-07-29
 

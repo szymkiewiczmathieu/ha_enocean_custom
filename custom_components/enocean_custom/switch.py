@@ -103,7 +103,6 @@ async def async_setup_entry(
         if device["platform"] != "switch":
             continue
         dev_id = device["id"]
-        register_known_id(hass, dev_id)
         entities.append(
             EnOceanSwitch(
                 dev_id,

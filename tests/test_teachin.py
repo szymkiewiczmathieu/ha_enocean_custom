@@ -8,6 +8,7 @@ import sys
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
@@ -17,14 +18,17 @@ try:  # The bare CI lifecycle environment has no Home Assistant installed.
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-    from custom_components.enocean_custom import learn
+    from custom_components.enocean_custom import learn, light
     from custom_components.enocean_custom.const import (
         DOMAIN,
         EVENT_DEVICE_LEARNED,
         SERVICE_LEARN,
         SIGNAL_RECEIVE_MESSAGE,
     )
-    from custom_components.enocean_custom.options_flow import _unique_id_for
+    from custom_components.enocean_custom.options_flow import (
+        _parse_commissioning_code,
+        _unique_id_for,
+    )
     from custom_components.enocean_custom.schema import UI_DEVICE_SCHEMA
 
     HA_AVAILABLE = True
@@ -81,6 +85,20 @@ class UniqueIdFormulaTests(unittest.TestCase):
         identifier = (1 << 24) | (2 << 16) | (3 << 8) | 4
         self.assertEqual(_unique_id_for(device), f"{identifier}")
 
+    def test_climate_unique_id_matches_yaml_formula(self):
+        device = {"id": [1, 2, 3, 4], "platform": "climate"}
+        identifier = (1 << 24) | (2 << 16) | (3 << 8) | 4
+        self.assertEqual(_unique_id_for(device), f"{identifier}-0")
+
+    def test_sensor_unique_id_matches_yaml_formula(self):
+        device = {
+            "id": [1, 2, 3, 4],
+            "platform": "sensor",
+            "device_class": "temperature",
+        }
+        identifier = (1 << 24) | (2 << 16) | (3 << 8) | 4
+        self.assertEqual(_unique_id_for(device), f"{identifier}-temperature")
+
 
 @unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
 class UiDeviceSchemaTests(unittest.TestCase):
@@ -92,9 +110,22 @@ class UiDeviceSchemaTests(unittest.TestCase):
         self.assertIsNone(validated["device_class"])
         self.assertIsNone(validated["sender_id"])
 
-    def test_schema_rejects_unknown_platform(self):
-        with self.assertRaises(vol.Invalid):
-            UI_DEVICE_SCHEMA({"id": [1, 2, 3, 4], "platform": "climate", "name": "x"})
+    def test_schema_accepts_climate_and_sensor(self):
+        climate_device = UI_DEVICE_SCHEMA(
+            {
+                "id": [1, 2, 3, 4],
+                "platform": "climate",
+                "name": "heating",
+                "id_switch": [5, 6, 7, 8],
+                "device_type": "SRC-D08",
+                "sensor_entity_id": "sensor.room_temperature",
+            }
+        )
+        self.assertEqual(climate_device["sensor_target_temperature_range"], 5)
+        sensor_device = UI_DEVICE_SCHEMA(
+            {"id": [1, 2, 3, 4], "platform": "sensor", "name": "power"}
+        )
+        self.assertEqual(sensor_device["device_class"], "powersensor")
 
     def test_schema_rejects_bool_and_out_of_range_channel(self):
         base = {"id": [1, 2, 3, 4], "platform": "switch", "name": "x"}
@@ -107,6 +138,80 @@ class UiDeviceSchemaTests(unittest.TestCase):
         UI_DEVICE_SCHEMA({**base, "sender_id": [1, 2, 3, 4]})
         with self.assertRaises(vol.Invalid):
             UI_DEVICE_SCHEMA({**base, "sender_id": [1, 2, 3]})
+
+
+@unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
+class CommissioningQrTests(unittest.TestCase):
+    def test_official_qr_extracts_32_bit_eurid(self):
+        payload = "30S0000AABBCCDD+1P001B0000789A+10Z00+11Z12312312"
+        self.assertEqual(_parse_commissioning_code(payload), [0xAA, 0xBB, 0xCC, 0xDD])
+
+    def test_fallback_colon_id_is_accepted(self):
+        self.assertEqual(
+            _parse_commissioning_code("AA:BB:CC:DD"), [0xAA, 0xBB, 0xCC, 0xDD]
+        )
+
+    def test_invalid_or_48_bit_qr_is_rejected(self):
+        for payload in (
+            "not-a-code",
+            "30S0000AABBCCDD",
+            "30S1234AABBCCDD+1P001B0000789A",
+            "30S0000AABBCCDG+1P001B0000789A",
+        ):
+            with self.subTest(payload=payload):
+                self.assertIsNone(_parse_commissioning_code(payload))
+
+
+@unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
+class SendTeachInTests(unittest.TestCase):
+    def test_light_entity_service_is_registered(self):
+        platform = Mock()
+        with patch.object(
+            light.entity_platform,
+            "async_get_current_platform",
+            return_value=platform,
+        ):
+            light._async_register_send_teach_in_service()
+        platform.async_register_entity_service.assert_called_once_with(
+            "send_teach_in", {}, "send_teach_in"
+        )
+
+    def test_packet_matches_a5_38_08_eltako_teach_in(self):
+        entity = light.EnOceanLight(
+            [0xFF, 0x9C, 0xD4, 0x38],
+            [0x01, 0x02, 0x03, 0x04],
+            "dimmer",
+        )
+        packets = []
+        entity.send_command = (  # type: ignore[method-assign]
+            lambda data, optional, packet_type: (
+                packets.append((data, optional, packet_type)) or True
+            )
+        )
+
+        entity.send_teach_in()
+
+        self.assertEqual(
+            packets,
+            [
+                (
+                    [
+                        0xA5,
+                        0xE0,
+                        0x40,
+                        0x0D,
+                        0x80,
+                        0xFF,
+                        0x9C,
+                        0xD4,
+                        0x38,
+                        0x00,
+                    ],
+                    [0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00],
+                    0x01,
+                )
+            ],
+        )
 
 
 class FakeRadioPacket:
