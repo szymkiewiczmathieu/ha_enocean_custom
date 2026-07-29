@@ -9,7 +9,7 @@ from collections import deque
 from datetime import timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from threading import Event, Lock, Thread
+from threading import Event, Lock, Thread, get_ident
 from types import MappingProxyType, SimpleNamespace
 from typing import Any
 from unittest.mock import Mock
@@ -69,6 +69,7 @@ from custom_components.enocean_custom.enocean_library.protocol.constants import 
     PACKET,
     PARSE_RESULT,
     RETURN_CODE,
+    RORG,
 )
 from custom_components.enocean_custom.enocean_library.protocol.packet import (
     Packet,
@@ -385,6 +386,102 @@ async def _assert_dongle_status_signal_writes_state_from_worker_thread() -> None
                 raise AssertionError("status target ran off the event loop thread")
             if calls[-1][0] is not False:
                 raise AssertionError("availability was not mirrored to False")
+        finally:
+            await hass.async_stop(force=True)
+
+
+async def _assert_d2_status_parse_dispatch_and_entities() -> None:
+    """Exercise D2 status via real ESP3 parse, dispatcher, switch, and light."""
+    with TemporaryDirectory() as config_dir:
+        hass = HomeAssistant(config_dir)
+        try:
+            sender = [0x01, 0x02, 0x03, 0x04]
+            writes: list[int] = []
+            entities = [
+                switch.EnOceanSwitch(sender, "D2 channel 0", 0, "default"),
+                switch.EnOceanSwitch(sender, "D2 channel 1", 1, "default"),
+                switch.EnOceanSwitch(sender, "RPS regression", 0, "RPS"),
+                light.EnOceanLight([0x05, 0x06, 0x07, 0x08], sender, "D2 light"),
+            ]
+            for entity in entities:
+                entity.hass = hass
+                entity.async_write_ha_state = (  # type: ignore[method-assign]
+                    lambda: writes.append(get_ident())
+                )
+                await entity.async_added_to_hass()
+
+            def parsed_status(packet_sender: list[int], channel: int, output: int):
+                wire = Packet(
+                    PACKET.RADIO_ERP1,
+                    data=[
+                        RORG.VLD,
+                        0xC4,
+                        channel,
+                        output,
+                        *packet_sender,
+                        0x00,
+                    ],
+                    optional=[0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0x40, 0x00],
+                ).build()
+                status, remaining, packet = Packet.parse_msg(bytearray(wire))
+                if (
+                    status != PARSE_RESULT.OK
+                    or remaining
+                    or packet is None
+                    or len(packet.data) != 9
+                ):
+                    raise AssertionError("D2 VLD variable-length frame was not parsed")
+                return packet
+
+            async_dispatcher_send(
+                hass, SIGNAL_RECEIVE_MESSAGE, parsed_status(sender, 0, 50)
+            )
+            await hass.async_block_till_done()
+            channel_0, channel_1, rps, d2_light = entities
+            if (
+                channel_0.is_on is not True
+                or channel_1.is_on is not None
+                or rps.is_on is not None
+                or d2_light.is_on is not True
+                or d2_light.brightness != 128
+            ):
+                raise AssertionError("D2 channel 0 feedback did not update entities")
+            if channel_0.extra_state_attributes.get("d2_output_value") != 50:
+                raise AssertionError("D2 state attributes did not expose output value")
+
+            async_dispatcher_send(
+                hass, SIGNAL_RECEIVE_MESSAGE, parsed_status(sender, 1, 0)
+            )
+            async_dispatcher_send(
+                hass,
+                SIGNAL_RECEIVE_MESSAGE,
+                parsed_status([0x10, 0x20, 0x30, 0x40], 0, 100),
+            )
+            malformed_wire = Packet(
+                PACKET.RADIO_ERP1,
+                data=[RORG.VLD, 0x04, 0x00, *sender, 0x00],
+                optional=[0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0x40, 0x00],
+            ).build()
+            status, _, malformed = Packet.parse_msg(bytearray(malformed_wire))
+            if status != PARSE_RESULT.OK or malformed is None:
+                raise AssertionError(
+                    "Malformed D2 radio envelope could not be exercised"
+                )
+            async_dispatcher_send(hass, SIGNAL_RECEIVE_MESSAGE, malformed)
+            await hass.async_block_till_done()
+
+            if (
+                channel_0.is_on is not True
+                or channel_1.is_on is not False
+                or rps.is_on is not None
+                or d2_light.is_on is not False
+                or d2_light.brightness != 0
+            ):
+                raise AssertionError(
+                    "D2 channel 1, unknown sender, malformed, or RPS isolation failed"
+                )
+            if not writes or any(thread_id != get_ident() for thread_id in writes):
+                raise AssertionError("D2 state feedback wrote outside HA's event loop")
         finally:
             await hass.async_stop(force=True)
 
@@ -1475,6 +1572,7 @@ def main() -> None:
     asyncio.run(_assert_real_climate_send_chain())
     asyncio.run(_assert_legacy_send_only_light_identity_is_preserved())
     asyncio.run(_assert_dongle_status_signal_writes_state_from_worker_thread())
+    asyncio.run(_assert_d2_status_parse_dispatch_and_entities())
     asyncio.run(_assert_ui_devices_create_entities_with_yaml_compatible_unique_ids())
     asyncio.run(_assert_options_flow_add_and_delete_device())
     asyncio.run(_assert_learn_service_starts_window_and_registers_once())
@@ -1492,7 +1590,10 @@ def main() -> None:
         "teach_in=captured options_flow=add_collide_delete "
         "learn_service=idempotent_registration "
         "learn_windows=owned_serialized details_schemas=ws_serializable "
-        "deleted_id=teachable_again"
+        "deleted_id=teachable_again "
+        "d2_status=parse_dispatch_switch_light d2_channels=0_1 "
+        "d2_unknown_sender=ignored d2_malformed=ignored d2_rps=unchanged "
+        "d2_loop_write=safe"
     )
 
 

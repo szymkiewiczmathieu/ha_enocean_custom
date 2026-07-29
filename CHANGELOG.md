@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Add bidirectional EEP D2-01-12 status feedback for Ubiwizz UBID1507C
+  actuators. Parsed VLD Actuator Status Response telegrams now synchronize
+  matching default switch channels and light on/off/brightness state, including
+  local wall-switch changes.
+- Expose the latest D2 channel, output value, power-failure flags, and timestamp
+  as entity state attributes while ignoring malformed or unknown-sender
+  telegrams and preserving the existing RPS behavior.
+
 ## 1.3.0 - 2026-07-29
 
 - Add a config-entry options flow to add and remove `binary_sensor`, `switch`,
