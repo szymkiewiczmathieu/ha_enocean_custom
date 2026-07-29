@@ -15,6 +15,13 @@
   success.
 - Cancel pairing tasks and dispatcher listeners when the options flow is
   abandoned, and stop further commands immediately after success or timeout.
+  The deadline also bounds each individual service call; a command already
+  running inside Home Assistant's executor may still complete once (it cannot
+  be killed), but no further command is ever issued.
+- Adversarial-review hardening: relay success requires the D2-01 status to
+  match the configured channel; a concurrently deleted device can no longer
+  reach the success screen; `send_teach_in` raises when the dongle rejects
+  the telegram locally, so rejected attempts never count as sent.
 
 ## 1.4.0 - 2026-07-29
 

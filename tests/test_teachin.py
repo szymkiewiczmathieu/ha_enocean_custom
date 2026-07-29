@@ -230,8 +230,22 @@ class SendTeachInTests(unittest.TestCase):
 
     def test_send_teach_in_without_sender_id_fails_cleanly(self):
         # Review finding: a missing sender_id produced a raw TypeError.
-        entity = light.EnOceanLight(None, [0x01, 0x02, 0x03, 0x04], "dimmer")
+        entity = light.EnOceanLight(None, [0x01, 0x02, 0x03, 0x04], "bad dimmer")
         with self.assertRaises(HomeAssistantError):
+            entity.send_teach_in()
+
+    def test_send_teach_in_rejected_by_dongle_raises(self):
+        # Review finding P1-02: a locally rejected telegram is a service
+        # error, never a silently "sent" teach-in.
+        entity = light.EnOceanLight(
+            [0xFF, 0x9C, 0xD4, 0x38],
+            [0x01, 0x02, 0x03, 0x04],
+            "dimmer",
+        )
+        with (
+            patch.object(entity, "send_command", return_value=False),
+            self.assertRaises(HomeAssistantError),
+        ):
             entity.send_teach_in()
 
 

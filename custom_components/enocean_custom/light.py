@@ -211,7 +211,12 @@ class EnOceanLight(EnOceanEntity, LightEntity):
             *self._sender_id,
             0x00,
         ]
-        self.send_command(command, build_radio_optional(), 0x01)
+        # Review finding P1-02: a locally rejected telegram must surface as a
+        # service error, never as a silently "sent" teach-in.
+        if not self.send_command(command, build_radio_optional(), 0x01):
+            raise HomeAssistantError(
+                f"EnOcean teach-in for {self.name} was rejected by the dongle"
+            )
 
     def _command_response(
         self, accepted: bool, on_state: bool, brightness: int

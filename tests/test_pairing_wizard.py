@@ -263,6 +263,113 @@ class PairingWizardTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(task.cancelled())
         self.assertEqual(len(self.toggle_calls), calls_at_remove)
 
+    async def test_wrong_channel_status_does_not_confirm(self) -> None:
+        """Review P1-01: a valid status for another channel is not a success."""
+        actuator_id = "51:52:53:54"
+        flow, _entry, _entity_id = await self._create_actuator(
+            actuator_id=actuator_id,
+            actuator_type="relay_rps",
+        )
+        with (
+            patch.object(options_flow, "PAIRING_TIMEOUT", 0.3),
+            patch.object(options_flow, "PAIRING_RELAY_INTERVAL", 0.01),
+        ):
+            await flow.async_step_pair_actuator_instructions({})
+            async_dispatcher_send(
+                self.hass,
+                SIGNAL_RECEIVE_MESSAGE,
+                self._d2_status(actuator_id, channel=1),
+            )
+            await asyncio.sleep(0.05)
+            self.assertFalse(flow._pairing_task.done())
+            async_dispatcher_send(
+                self.hass,
+                SIGNAL_RECEIVE_MESSAGE,
+                self._d2_status(actuator_id, channel=0),
+            )
+            await asyncio.wait_for(flow._pairing_task, 1)
+        self.assertEqual(flow._pairing_outcome, "success")
+
+    async def test_rejected_teach_in_never_counts_as_sent(self) -> None:
+        """Review P1-02: a dongle-level rejection ends in failure, not success."""
+        from homeassistant.exceptions import HomeAssistantError
+
+        async def _rejecting_teach_in(call) -> None:
+            raise HomeAssistantError("rejected by the dongle")
+
+        self.hass.services.async_remove(DOMAIN, SERVICE_SEND_TEACH_IN)
+        self.hass.services.async_register(
+            DOMAIN, SERVICE_SEND_TEACH_IN, _rejecting_teach_in
+        )
+        flow, _entry, _entity_id = await self._create_actuator(
+            actuator_id="61:62:63:64",
+            actuator_type="dimmer_4bs",
+            sender_id="05:9F:89:34",
+        )
+        with (
+            patch.object(options_flow, "PAIRING_TIMEOUT", 0.05),
+            patch.object(options_flow, "PAIRING_DIMMER_INTERVAL", 0.005),
+        ):
+            await flow.async_step_pair_actuator_instructions({})
+            await asyncio.wait_for(flow._pairing_task, 1)
+        self.assertEqual(flow._pairing_outcome, "timeout")
+        done = await flow.async_step_pair_actuator_progress()
+        self.assertEqual(done["step_id"], "pair_actuator_failure")
+
+    async def test_deleted_device_cannot_reach_success(self) -> None:
+        """Review P2-02: a concurrently deleted device never reports success."""
+        actuator_id = "71:72:73:74"
+        flow, entry, _entity_id = await self._create_actuator(
+            actuator_id=actuator_id,
+            actuator_type="relay_rps",
+        )
+        with (
+            patch.object(options_flow, "PAIRING_TIMEOUT", 0.5),
+            patch.object(options_flow, "PAIRING_RELAY_INTERVAL", 0.01),
+        ):
+            await flow.async_step_pair_actuator_instructions({})
+            while not self.toggle_calls:
+                await asyncio.sleep(0)
+            # A second options flow deletes the device while we pair.
+            self.hass.config_entries.async_update_entry(
+                entry, options={CONF_UI_DEVICES: []}
+            )
+            async_dispatcher_send(
+                self.hass,
+                SIGNAL_RECEIVE_MESSAGE,
+                self._d2_status(actuator_id, channel=0),
+            )
+            await asyncio.sleep(0.05)
+            # The stale status must not confirm; the loop runs to timeout.
+            self.assertNotEqual(flow._pairing_outcome, "success")
+            flow.async_remove()
+            with contextlib.suppress(asyncio.CancelledError):
+                await flow._pairing_task
+
+    async def test_deadline_bounds_the_service_call(self) -> None:
+        """Review P2-01: a stuck service call cannot overrun the deadline."""
+        stuck = asyncio.Event()
+
+        async def _blocking_toggle(call) -> None:
+            self.toggle_calls.append(call.data[CONF_ENTITY_ID])
+            await stuck.wait()
+
+        self.hass.services.async_remove("switch", "toggle")
+        self.hass.services.async_register("switch", "toggle", _blocking_toggle)
+        flow, _entry, _entity_id = await self._create_actuator(
+            actuator_id="81:82:83:84",
+            actuator_type="relay_rps",
+        )
+        with (
+            patch.object(options_flow, "PAIRING_TIMEOUT", 0.05),
+            patch.object(options_flow, "PAIRING_RELAY_INTERVAL", 0.01),
+        ):
+            await flow.async_step_pair_actuator_instructions({})
+            await asyncio.wait_for(flow._pairing_task, 1)
+        stuck.set()
+        self.assertEqual(flow._pairing_outcome, "timeout")
+        self.assertEqual(len(self.toggle_calls), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

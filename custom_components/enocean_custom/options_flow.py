@@ -420,13 +420,18 @@ class EnOceanOptionsFlow(OptionsFlow):
                     "timeout": str(round(PAIRING_TIMEOUT)),
                 },
             )
-        if self._pairing_outcome == "success":
+        if (
+            self._pairing_outcome == "success"
+            and self._pairing_device_still_persisted()
+        ):
             next_step = (
                 "pair_relay_success"
                 if self._pairing_actuator_type == _ACTUATOR_RELAY
                 else "pair_dimmer_success"
             )
         else:
+            # A success whose device vanished meanwhile (concurrent delete) is
+            # reported as a failure, never as a stale success (review P2-02).
             next_step = "pair_actuator_failure"
         return self.async_show_progress_done(next_step_id=next_step)
 
@@ -465,11 +470,23 @@ class EnOceanOptionsFlow(OptionsFlow):
             if self._pairing_status_event.is_set():
                 self._pairing_outcome = "success"
                 return
-            await self._async_call_pairing_service(SWITCH_DOMAIN, SERVICE_TOGGLE)
+            # Review finding P2-01: the deadline also bounds the service call
+            # itself. Cancelling the await cannot kill an executor handler
+            # already running, so one last in-flight command may still
+            # complete — but no further command is issued afterwards.
+            try:
+                await asyncio.wait_for(
+                    self._async_call_pairing_service(SWITCH_DOMAIN, SERVICE_TOGGLE),
+                    timeout=remaining,
+                )
+            except TimeoutError:
+                self._pairing_outcome = "timeout"
+                return
+            remaining = deadline - asyncio.get_running_loop().time()
             try:
                 await asyncio.wait_for(
                     self._pairing_status_event.wait(),
-                    timeout=min(PAIRING_RELAY_INTERVAL, remaining),
+                    timeout=min(PAIRING_RELAY_INTERVAL, max(remaining, 0.0)),
                 )
             except TimeoutError:
                 continue
@@ -487,9 +504,26 @@ class EnOceanOptionsFlow(OptionsFlow):
         ):
             return False
         try:
-            return parse_d2_01_actuator_status(getattr(packet, "data", [])) is not None
+            status = parse_d2_01_actuator_status(getattr(packet, "data", []))
         except (IndexError, TypeError, ValueError):
             return False
+        if status is None:
+            return False
+        # Review finding P1-01: a valid status for the OTHER channel of a
+        # multi-gang actuator does not prove THIS channel learned the command.
+        if status.channel != self._pairing_device["channel"]:
+            return False
+        # Review finding P2-02: a concurrent options flow may have deleted the
+        # device while we wait; a stale success must never be reported.
+        return self._pairing_device_still_persisted()
+
+    def _pairing_device_still_persisted(self) -> bool:
+        """Return whether the pairing device identity is still in the options."""
+        if self._pairing_device is None:
+            return False
+        unique_id = _unique_id_for(self._pairing_device)
+        devices = self.config_entry.options.get(CONF_UI_DEVICES, [])
+        return any(_unique_id_for(existing) == unique_id for existing in devices)
 
     async def _run_dimmer_pairing(self, deadline: float) -> None:
         """Send the existing A5-38-08 entity service a bounded number of times."""
@@ -499,12 +533,20 @@ class EnOceanOptionsFlow(OptionsFlow):
             if remaining <= 0:
                 self._pairing_outcome = "timeout"
                 return
-            if await self._async_call_pairing_service(DOMAIN, SERVICE_SEND_TEACH_IN):
+            try:
+                accepted = await asyncio.wait_for(
+                    self._async_call_pairing_service(DOMAIN, SERVICE_SEND_TEACH_IN),
+                    timeout=remaining,
+                )
+            except TimeoutError:
+                self._pairing_outcome = "timeout"
+                return
+            if accepted:
                 sent += 1
                 if sent >= PAIRING_DIMMER_ATTEMPTS:
                     self._pairing_outcome = "success"
                     return
-            await asyncio.sleep(min(PAIRING_DIMMER_INTERVAL, remaining))
+            await asyncio.sleep(min(PAIRING_DIMMER_INTERVAL, max(remaining, 0.0)))
         self._pairing_outcome = "success"
 
     async def _async_call_pairing_service(self, domain: str, service: str) -> bool:
