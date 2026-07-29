@@ -143,6 +143,37 @@ Two things worth knowing:
   form is refused with an explicit error: teach-in never merges or overwrites
   an existing device.
 
+### Guided actuator pairing
+
+Since `v1.5.0`, **Settings > Devices & services > EnOcean Custom > Configure >
+Pair an actuator (guided)** pairs supported receivers without DolphinView.
+
+1. Scan or paste the actuator's EnOcean Alliance commissioning label. You can
+   instead type its four-byte radio ID exactly as `AA:BB:CC:DD`.
+2. Give it a name and select its family:
+   - **Relay (RPS, e.g. Ubiwizz)** creates an RPS `switch`; select channel `0`
+     or `1`.
+   - **4BS dimmer (e.g. Eltako)** creates a `light`; enter the required
+     four-byte outbound `sender_id` and optionally select channel `0`–`31`.
+3. Put the receiver into pairing mode. For a Ubiwizz UBID1507C, briefly press
+   **PRESS** three times and check that its LED flashes, then continue.
+4. During the 120-second window, the relay wizard resolves the new entity by
+   its registry `unique_id` and calls its normal `switch.toggle` service about
+   every four seconds. This reuses the entity's RPS press/release transaction
+   and its dongle response handling. Pairing is confirmed only when a valid
+   D2-01 actuator status arrives from the module's own radio ID.
+5. For an Eltako dimmer, the wizard calls the existing
+   `enocean_custom.send_teach_in` entity service three times, about five
+   seconds apart. A5-38-08 provides no confirmation telegram: the final screen
+   therefore asks you to verify physically that the dimmer responds.
+
+The device is saved in the existing `ui_devices` config-entry option before
+the pairing loop begins, and the normal options update listener reloads the
+integration to create its entity. If the 120-second relay window expires, you
+can retry, keep the saved device without pairing, or remove it through the
+same protected UI-device removal path. Closing the flow cancels the loop and
+its D2 listener, so it cannot keep transmitting in the background.
+
 ### Binary sensors
 
 Binary sensors do not only trigger events but also have a state variable which may be `On` or `Off`. The state attributes `Onoff` and `Which` have been added to identify which pushbutton is being pressed. The state attribute `Repeated telegram` indicates if the received telegram was received by an EnOcean repeater.

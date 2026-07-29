@@ -1243,17 +1243,26 @@ async def _assert_learn_windows_are_owned_and_serialized() -> None:
             await hass.async_stop(force=True)
 
 
-def _assert_device_details_schemas_are_ws_serializable() -> None:
-    """The P0 regression: every device_details schema must survive the WS handler."""
+def _assert_options_schemas_are_ws_serializable() -> None:
+    """The P0 regression: every options schema must survive the WS handler."""
     import homeassistant.helpers.config_validation as cv
     import voluptuous_serialize
 
     flow = options_flow.EnOceanOptionsFlow()
-    schemas = [options_flow._qr_code_schema()]
+    schemas = [
+        options_flow._qr_code_schema(),
+        options_flow._pair_actuator_type_schema(),
+        options_flow._pairing_failure_schema(),
+        vol.Schema({}),  # instructions and both terminal success forms
+    ]
     schemas.extend(
         flow._device_details_schema(platform)
         for platform in ("binary_sensor", "switch", "light", "climate", "sensor")
     )
+    flow._pairing_actuator_type = "relay_rps"
+    schemas.append(flow._pair_actuator_details_schema())
+    flow._pairing_actuator_type = "dimmer_4bs"
+    schemas.append(flow._pair_actuator_details_schema())
     for schema in schemas:
         try:
             voluptuous_serialize.convert(schema, custom_serializer=cv.custom_serializer)
@@ -1702,7 +1711,7 @@ def main() -> None:
     asyncio.run(_assert_options_flow_add_and_delete_device())
     asyncio.run(_assert_learn_service_starts_window_and_registers_once())
     asyncio.run(_assert_learn_windows_are_owned_and_serialized())
-    _assert_device_details_schemas_are_ws_serializable()
+    _assert_options_schemas_are_ws_serializable()
     print(
         "HA_2026_7_3_SMOKE_OK "
         f"invalid_cases_rejected={len(invalid_cases)} "
@@ -1714,7 +1723,7 @@ def main() -> None:
         "climate_responses=transactional climate_send_chain=real base_id_retry=valid "
         "teach_in=captured options_flow=add_collide_delete "
         "learn_service=idempotent_registration "
-        "learn_windows=owned_serialized details_schemas=ws_serializable "
+        "learn_windows=owned_serialized options_schemas=ws_serializable "
         "deleted_id=teachable_again "
         "d2_status=parse_dispatch_switch_light d2_channels=0_1 "
         "d2_unknown_sender=ignored d2_malformed=ignored d2_rps=synced_no_leak "
