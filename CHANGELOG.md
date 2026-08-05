@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.4.1 - Unreleased
+
+- Add optional `which` and `onoff` capabilities to native EnOcean device
+  triggers, allowing an exact conversion of historical `button_pressed` event
+  filters while preserving the broad v2.4.0 behavior when they are omitted.
+- Reject optional channel filters that contradict a fixed channel trigger type.
+
 ## 2.4.0 - Unreleased
 
 - Add native Home Assistant device triggers for EnOcean F6/RPS rocker presses,

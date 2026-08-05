@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from typing import Any
 
 import voluptuous as vol
@@ -15,6 +16,7 @@ from homeassistant.const import CONF_DEVICE_ID, CONF_DOMAIN, CONF_PLATFORM, CONF
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import selector
 from homeassistant.helpers.trigger import TriggerActionType, TriggerInfo
 from homeassistant.helpers.typing import ConfigType
 
@@ -32,8 +34,37 @@ TRIGGER_TYPES: dict[str, dict[str, Any]] = {
     "button_pressed_channel_1": {"pushed": 1, "which": 1},
 }
 
+CONF_WHICH = "which"
+CONF_ONOFF = "onoff"
+WHICH_OPTIONS = (0, 1, 10)
+ONOFF_OPTIONS = (0, 1)
+
+
+def _select_int(options: tuple[int, ...]) -> Callable[[Any], int]:
+    """Accept an integer or the numeric string emitted by HA SelectSelector."""
+    string_options = {str(value): value for value in options}
+
+    def validate(value: Any) -> int:
+        if type(value) is int and value in options:
+            return value
+        if type(value) is str and value in string_options:
+            return string_options[value]
+        raise vol.Invalid(f"value must be one of {options}")
+
+    return validate
+
+
+_OPTIONAL_FILTERS: dict[str, Callable[[Any], int]] = {
+    CONF_WHICH: _select_int(WHICH_OPTIONS),
+    CONF_ONOFF: _select_int(ONOFF_OPTIONS),
+}
+
 TRIGGER_SCHEMA = DEVICE_TRIGGER_BASE_SCHEMA.extend(
-    {vol.Required(CONF_TYPE): vol.In(sorted(TRIGGER_TYPES))}
+    {
+        vol.Required(CONF_TYPE): vol.In(sorted(TRIGGER_TYPES)),
+        vol.Optional(CONF_WHICH): _OPTIONAL_FILTERS[CONF_WHICH],
+        vol.Optional(CONF_ONOFF): _OPTIONAL_FILTERS[CONF_ONOFF],
+    }
 )
 
 # Device identifiers are minted as four uppercase hex bytes by EnOceanEntity.
@@ -85,8 +116,41 @@ async def async_validate_trigger_config(
 ) -> ConfigType:
     """Validate an EnOcean device trigger configuration."""
     config = TRIGGER_SCHEMA(config)
+    fixed_which = TRIGGER_TYPES[config[CONF_TYPE]].get(CONF_WHICH)
+    if (
+        fixed_which is not None
+        and CONF_WHICH in config
+        and config[CONF_WHICH] != fixed_which
+    ):
+        raise vol.Invalid(
+            f"Trigger type {config[CONF_TYPE]} requires which={fixed_which}"
+        )
     _radio_id(hass, config[CONF_DEVICE_ID])
     return config
+
+
+async def async_get_trigger_capabilities(
+    hass: HomeAssistant, config: ConfigType
+) -> dict[str, vol.Schema]:
+    """Return optional event-data filters for an EnOcean device trigger."""
+    return {
+        "extra_fields": vol.Schema(
+            {
+                vol.Optional(CONF_WHICH): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[str(value) for value in WHICH_OPTIONS],
+                        custom_value=False,
+                    )
+                ),
+                vol.Optional(CONF_ONOFF): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[str(value) for value in ONOFF_OPTIONS],
+                        custom_value=False,
+                    )
+                ),
+            }
+        )
+    }
 
 
 async def async_attach_trigger(
@@ -100,6 +164,14 @@ async def async_attach_trigger(
         "id": _radio_id(hass, config[CONF_DEVICE_ID]),
         **TRIGGER_TYPES[config[CONF_TYPE]],
     }
+    # Re-validated defensively: HA always normalizes via async_validate_trigger_config
+    # before attaching (setup, reload, and the live "test trigger" websocket preview
+    # all call it), but a raw string from a SelectSelector would silently never match
+    # the int the event carries, so this is cheap insurance against a caller that
+    # skips that step.
+    for optional_key, validate in _OPTIONAL_FILTERS.items():
+        if optional_key in config:
+            event_data[optional_key] = validate(config[optional_key])
     event_config = event_trigger.TRIGGER_SCHEMA(
         {
             event_trigger.CONF_PLATFORM: "event",

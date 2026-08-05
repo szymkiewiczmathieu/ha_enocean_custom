@@ -242,7 +242,18 @@ button release, and presses on channel 1 or channel 2. Create one from
 **Settings > Devices & services > Automations > Device > Trigger**, then select
 the EnOcean device and the desired button trigger. The resulting automation
 references the Home Assistant device ID, so it is listed under **Used by** on
-the device page. Existing event-based automations are not migrated or changed.
+the device page. Each trigger can optionally filter the decoded button position
+(`which`: 0, 1, or 10 for multi-touch) and direction (`onoff`: 0 or 1). To
+convert a historical `button_pressed` event trigger without changing its
+semantics, copy its `which` and `onoff` values exactly into these optional
+fields. Leaving both fields unset preserves the broader v2.4.0 behavior.
+
+Home Assistant 2026.7 select capabilities serialize option values as strings,
+so the integration converts the closed lists `"0"`, `"1"`, `"10"` to integers
+before matching event data; arbitrary strings remain invalid. The device
+capabilities API provides field keys and selectors but no integration-specific
+translation namespace for labels, so Home Assistant renders the `which` and
+`onoff` field names directly.
 
 A5-14-01 contacts are excluded because they decode 4BS telegrams and never emit
 the `button_pressed` event. They are recognised by their own unique ID, so a

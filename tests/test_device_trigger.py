@@ -25,6 +25,7 @@ try:
     from homeassistant.helpers import area_registry as ar
     from homeassistant.helpers import device_registry as dr
     from homeassistant.helpers import entity_registry as er
+    from homeassistant.helpers import selector
 
     from custom_components.enocean_custom.binary_sensor import (
         A514_CONTACT_UNIQUE_ID_SUFFIX,
@@ -35,6 +36,7 @@ try:
     from custom_components.enocean_custom.device_trigger import (
         TRIGGER_TYPES,
         async_attach_trigger,
+        async_get_trigger_capabilities,
         async_get_triggers,
         async_validate_trigger_config,
     )
@@ -150,7 +152,7 @@ class DeviceTriggerTests(unittest.IsolatedAsyncioTestCase):
         )
         return device_id
 
-    async def _attach(self, device_id: str, trigger_type: str, calls: list):
+    async def _attach(self, device_id: str, trigger_type: str, calls: list, **extra):
         """Attach one native trigger and return its removal callback."""
 
         async def action(variables, context=None) -> None:
@@ -163,6 +165,7 @@ class DeviceTriggerTests(unittest.IsolatedAsyncioTestCase):
                 CONF_DOMAIN: DOMAIN,
                 CONF_DEVICE_ID: device_id,
                 CONF_TYPE: trigger_type,
+                **extra,
             },
             action,
             {"trigger_data": {}, "variables": {}},
@@ -272,6 +275,162 @@ class DeviceTriggerTests(unittest.IsolatedAsyncioTestCase):
             await async_validate_trigger_config(
                 self.hass, {**config, CONF_DEVICE_ID: "missing"}
             )
+
+    async def test_trigger_capabilities(self) -> None:
+        """Both optional filters use closed HA select lists."""
+        capabilities = await async_get_trigger_capabilities(self.hass, {})
+        schema = capabilities["extra_fields"]
+        self.assertIsInstance(schema, vol.Schema)
+        fields = {
+            marker.schema: validator for marker, validator in schema.schema.items()
+        }
+        self.assertEqual(set(fields), {"which", "onoff"})
+        self.assertTrue(all(isinstance(key, vol.Optional) for key in schema.schema))
+        self.assertEqual(fields["which"].config["options"], ["0", "1", "10"])
+        self.assertEqual(fields["onoff"].config["options"], ["0", "1"])
+        self.assertFalse(fields["which"].config["custom_value"])
+        self.assertFalse(fields["onoff"].config["custom_value"])
+        self.assertIsInstance(fields["which"], selector.SelectSelector)
+
+    async def test_validate_optional_filters_and_channel_conflicts(self) -> None:
+        """Only decoded values validate and fixed channel types cannot conflict."""
+        base = {
+            CONF_PLATFORM: "device",
+            CONF_DOMAIN: DOMAIN,
+            CONF_DEVICE_ID: self._device(),
+            CONF_TYPE: "button_pressed",
+        }
+        validated = await async_validate_trigger_config(
+            self.hass, {**base, "which": "10", "onoff": "0"}
+        )
+        self.assertEqual((validated["which"], validated["onoff"]), (10, 0))
+
+        for key, value in (
+            ("which", 2),
+            ("which", "other"),
+            ("which", 1.0),
+            ("which", "01"),
+            ("which", " 1"),
+            ("which", "+1"),
+            ("onoff", 2),
+            ("onoff", "other"),
+            ("onoff", True),
+            ("onoff", "01"),
+            ("onoff", " 1"),
+            ("onoff", "+1"),
+        ):
+            with self.subTest(key=key, value=value), self.assertRaises(vol.Invalid):
+                await async_validate_trigger_config(self.hass, {**base, key: value})
+
+        for trigger_type, which in (
+            ("button_pressed_channel_0", 1),
+            ("button_pressed_channel_0", 10),
+            ("button_pressed_channel_1", 0),
+            ("button_pressed_channel_1", 10),
+        ):
+            with (
+                self.subTest(trigger_type=trigger_type, which=which),
+                self.assertRaisesRegex(vol.Invalid, "requires which="),
+            ):
+                await async_validate_trigger_config(
+                    self.hass,
+                    {**base, CONF_TYPE: trigger_type, "which": which},
+                )
+
+        # Redundant but consistent: a which that already matches the fixed
+        # channel (or the generic button_pressed type, which has none) validates.
+        for trigger_type, which in (
+            ("button_pressed_channel_0", 0),
+            ("button_pressed", 0),
+        ):
+            with self.subTest(trigger_type=trigger_type, which=which):
+                validated = await async_validate_trigger_config(
+                    self.hass, {**base, CONF_TYPE: trigger_type, "which": which}
+                )
+                self.assertEqual(validated["which"], which)
+
+    async def test_validate_trigger_config_is_idempotent(self) -> None:
+        """Re-validating an already-normalized config does not change it.
+
+        The UI editor's save endpoint persists the raw frontend payload as-is
+        and relies on the automation reload path to re-validate it, so a second
+        pass through async_validate_trigger_config must be a no-op, not a
+        second destructive string-to-int conversion (which would already fail
+        since the value is an int, not the numeric string it once was).
+        """
+        base = {
+            CONF_PLATFORM: "device",
+            CONF_DOMAIN: DOMAIN,
+            CONF_DEVICE_ID: self._device(),
+            CONF_TYPE: "button_pressed",
+            "which": "10",
+            "onoff": "0",
+        }
+        once = await async_validate_trigger_config(self.hass, base)
+        twice = await async_validate_trigger_config(self.hass, once)
+        self.assertEqual(once, twice)
+        self.assertEqual((twice["which"], twice["onoff"]), (10, 0))
+
+    async def test_attach_trigger_normalizes_unvalidated_string_filters(self) -> None:
+        """async_attach_trigger defends against a config that skipped validation.
+
+        Home Assistant always calls async_validate_trigger_config before
+        attaching (setup, reload after a UI save, and the live "test trigger"
+        websocket preview all do), which is what turns the numeric strings a
+        SelectSelector stores into the ints the button_pressed event carries.
+        This proves the belt-and-suspenders case: even a caller that attaches
+        straight from raw SelectSelector strings still matches the int event,
+        instead of silently never firing.
+        """
+        device_id = self._device()
+        calls: list = []
+        remove = await self._attach(
+            device_id, "button_released", calls, which="1", onoff="0"
+        )
+        try:
+            self.hass.bus.async_fire(
+                EVENT_BUTTON_PRESSED,
+                {"id": SENDER, "pushed": 0, "which": 1, "onoff": 0},
+            )
+            await self._settle()
+            self.assertEqual(len(calls), 1)
+        finally:
+            remove()
+
+    async def test_optional_filters_match_exact_event_subset(self) -> None:
+        """Configured which/onoff values participate in event-data matching."""
+        device_id = self._device()
+        calls: list = []
+        remove = await self._attach(
+            device_id, "button_released", calls, which=10, onoff=1
+        )
+        try:
+            exact = {"id": SENDER, "pushed": 0, "which": 10, "onoff": 1}
+            self.hass.bus.async_fire(EVENT_BUTTON_PRESSED, exact)
+            await self._settle()
+            self.assertEqual(len(calls), 1)
+
+            self.hass.bus.async_fire(EVENT_BUTTON_PRESSED, {**exact, "onoff": 0})
+            await self._settle()
+            self.assertEqual(len(calls), 1)
+        finally:
+            remove()
+
+    async def test_omitted_optional_filters_preserve_broad_matching(self) -> None:
+        """A v2.4.0 trigger still ignores which and onoff."""
+        device_id = self._device()
+        calls: list = []
+        remove = await self._attach(device_id, "button_released", calls)
+        try:
+            for which, onoff in ((0, 0), (10, 1)):
+                self.hass.bus.async_fire(
+                    EVENT_BUTTON_PRESSED,
+                    {"id": SENDER, "pushed": 0, "which": which, "onoff": onoff},
+                )
+                await self._settle()
+            self.assertEqual(len(calls), 2)
+        finally:
+            remove()
 
     async def test_trigger_never_matches_another_sender(self) -> None:
         """The radio id of the configured device is part of the match."""
