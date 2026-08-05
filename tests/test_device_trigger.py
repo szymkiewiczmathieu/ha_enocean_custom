@@ -9,33 +9,47 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import MappingProxyType
 
-import voluptuous as vol
-from homeassistant.components.device_automation import InvalidDeviceAutomationConfig
-from homeassistant.config_entries import ConfigEntries, ConfigEntry
-from homeassistant.const import CONF_DEVICE_ID, CONF_DOMAIN, CONF_PLATFORM, CONF_TYPE
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers import area_registry as ar
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
+try:
+    import voluptuous as vol
+    from homeassistant.components.device_automation import (
+        InvalidDeviceAutomationConfig,
+    )
+    from homeassistant.config_entries import ConfigEntries, ConfigEntry
+    from homeassistant.const import (
+        CONF_DEVICE_ID,
+        CONF_DOMAIN,
+        CONF_PLATFORM,
+        CONF_TYPE,
+    )
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers import area_registry as ar
+    from homeassistant.helpers import device_registry as dr
+    from homeassistant.helpers import entity_registry as er
 
-from custom_components.enocean_custom.binary_sensor import (
-    A514_CONTACT_UNIQUE_ID_SUFFIX,
-    EVENT_BUTTON_PRESSED,
-    EnOceanBinarySensor,
-)
-from custom_components.enocean_custom.const import DOMAIN
-from custom_components.enocean_custom.device_trigger import (
-    TRIGGER_TYPES,
-    async_attach_trigger,
-    async_get_triggers,
-    async_validate_trigger_config,
-)
-from custom_components.enocean_custom.enocean_library.protocol.constants import (
-    PACKET,
-    PARSE_RESULT,
-    RORG,
-)
-from custom_components.enocean_custom.enocean_library.protocol.packet import Packet
+    from custom_components.enocean_custom.binary_sensor import (
+        A514_CONTACT_UNIQUE_ID_SUFFIX,
+        EVENT_BUTTON_PRESSED,
+        EnOceanBinarySensor,
+    )
+    from custom_components.enocean_custom.const import DOMAIN
+    from custom_components.enocean_custom.device_trigger import (
+        TRIGGER_TYPES,
+        async_attach_trigger,
+        async_get_triggers,
+        async_validate_trigger_config,
+    )
+    from custom_components.enocean_custom.enocean_library.protocol.constants import (
+        PACKET,
+        PARSE_RESULT,
+        RORG,
+    )
+    from custom_components.enocean_custom.enocean_library.protocol.packet import (
+        Packet,
+    )
+
+    HA_AVAILABLE = True
+except ModuleNotFoundError:  # pragma: no cover - bare unit-test environments
+    HA_AVAILABLE = False
 
 SENDER = [1, 2, 3, 4]
 SENDER_HEX = "01020304"
@@ -68,6 +82,7 @@ def _rps_packet(action: int, status: int):
     return packet
 
 
+@unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
 class DeviceTriggerTests(unittest.IsolatedAsyncioTestCase):
     """Exercise discovery, validation and event matching with real HA registries."""
 
@@ -102,14 +117,14 @@ class DeviceTriggerTests(unittest.IsolatedAsyncioTestCase):
         self._config_dir.cleanup()
 
     def _register_device(
-        self, sender: str = SENDER_HEX, *, domain: str = DOMAIN
+        self, sender: str = SENDER_HEX, *, domain: str | None = None
     ) -> str:
         """Register one device registry entry without any entity."""
         return (
             dr.async_get(self.hass)
             .async_get_or_create(
                 config_entry_id=self._entry_id,
-                identifiers={(domain, sender)},
+                identifiers={(domain or DOMAIN, sender)},
                 name="Test device",
             )
             .id
@@ -119,7 +134,7 @@ class DeviceTriggerTests(unittest.IsolatedAsyncioTestCase):
         self,
         sender: str = SENDER_HEX,
         *,
-        domain: str = DOMAIN,
+        domain: str | None = None,
         device_class: str | None = None,
         entity_domain: str = "binary_sensor",
         unique_id: str | None = None,
@@ -128,7 +143,7 @@ class DeviceTriggerTests(unittest.IsolatedAsyncioTestCase):
         device_id = self._register_device(sender, domain=domain)
         er.async_get(self.hass).async_get_or_create(
             entity_domain,
-            domain,
+            domain or DOMAIN,
             unique_id if unique_id is not None else f"{sender}-{device_class}",
             device_id=device_id,
             original_device_class=device_class,
@@ -346,6 +361,7 @@ class DeviceTriggerTests(unittest.IsolatedAsyncioTestCase):
                 remove()
 
 
+@unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
 class TriggerTranslationTests(unittest.TestCase):
     """Keep the device_automation strings in step with the exposed types."""
 
