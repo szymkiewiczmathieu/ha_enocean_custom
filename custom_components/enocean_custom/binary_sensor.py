@@ -75,7 +75,7 @@ async def async_setup_entry(
             row["id"],
             row["name"],
             row["device_class"],
-        )
+        ).set_radio_metadata(row.get("radio_metadata"))
         for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
         if row["platform"] == "binary_sensor"
     )

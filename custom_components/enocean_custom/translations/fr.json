@@ -84,7 +84,7 @@
       },
       "pair_actuator_type": {
         "title": "Choisir le type d'actionneur",
-        "description": "ID de l'actionneur : {captured_id}",
+        "description": "ID de l'actionneur : {captured_id}\n\nProfil EEP : {radio_eep}\nFabricant : {radio_manufacturer}\nIdentifiant fabricant : {radio_manufacturer_id}\nModèle : {radio_model}\nNiveau de preuve : {radio_evidence}\nPrise en charge : {radio_support}\nConflit : {radio_conflict}",
         "data": {
           "name": "Nom",
           "actuator_type": "Type d'actionneur"
@@ -126,10 +126,14 @@
       },
       "device_form": {
         "title": "Nommer l'équipement capturé",
-        "description": "ID EnOcean capturé : {captured_id}",
+        "description": "ID EnOcean capturé : {captured_id}\n\nProfil EEP : {radio_eep}\nFabricant : {radio_manufacturer}\nIdentifiant fabricant : {radio_manufacturer_id}\nModèle : {radio_model}\nNiveau de preuve : {radio_evidence}\nPrise en charge : {radio_support}\nConflit : {radio_conflict}",
         "data": {
           "platform": "Type",
-          "name": "Nom"
+          "name": "Nom",
+          "manual_eep": "Profil EEP manuel (facultatif)"
+        },
+        "data_description": {
+          "manual_eep": "Laisser vide pour conserver un profil inconnu. Format XX-XX-XX, ex. A5-12-01. Un profil saisi est enregistré comme une déclaration de l'opérateur, jamais comme une preuve."
         }
       },
       "device_details": {
@@ -186,7 +190,8 @@
       "invalid_temperature_range": "La température minimale doit être inférieure à la température maximale.",
       "invalid_raw_range": "Le début et la fin de la plage brute doivent être différents.",
       "invalid_command_frequency": "La fréquence des commandes doit être une durée positive valide d'au moins une seconde.",
-      "invalid_device_details": "Les détails de l'équipement sont invalides."
+      "invalid_device_details": "Les détails de l'équipement sont invalides.",
+      "invalid_eep": "L'EEP manuel doit respecter le format hexadécimal exact XX-XX-XX, ex. A5-12-01."
     },
     "abort": {
       "learn_timeout": "Aucun expéditeur EnOcean inconnu n'a été entendu avant expiration du délai.",

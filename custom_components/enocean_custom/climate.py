@@ -280,7 +280,9 @@ async def async_setup_entry(
             }
         )
         _migrate_to_new_unique_id(hass, config[CONF_ID], 0)
-        entities.append(_entity_from_config(config))
+        entities.append(
+            _entity_from_config(config).set_radio_metadata(row.get("radio_metadata"))
+        )
     async_add_entities(entities)
     _register_climate_services()
 

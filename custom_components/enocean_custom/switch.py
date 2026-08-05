@@ -120,7 +120,7 @@ async def async_setup_entry(
             row["name"],
             row["channel"],
             row.get("switch_type") or "default",
-        )
+        ).set_radio_metadata(row.get("radio_metadata"))
         for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
         if row["platform"] == "switch"
     ]

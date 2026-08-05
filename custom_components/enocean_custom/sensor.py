@@ -184,7 +184,10 @@ async def async_setup_entry(
                 CONF_RANGE_TO: row[CONF_RANGE_TO],
             }
         )
-        entities.extend(_entities_from_config(config))
+        entities.extend(
+            entity.set_radio_metadata(row.get("radio_metadata"))
+            for entity in _entities_from_config(config)
+        )
     async_add_entities(entities)
 
 

@@ -10,6 +10,12 @@ import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 
 from .const import UI_DEVICE_PLATFORMS
+from .device_intelligence import (
+    MAX_MANUFACTURER_ID,
+    PERSISTED_METADATA_FIELDS,
+    Evidence,
+    SupportVerdict,
+)
 
 
 def exact_finite_int(value: object) -> int:
@@ -56,9 +62,58 @@ def optional_enocean_id(value: object) -> list[int]:
 
 # Config entry options: devices added and removed entirely from the UI.
 CONF_UI_DEVICES = "ui_devices"
+CONF_RADIO_METADATA = "radio_metadata"
 # Device types the options flow may persist for climate entities. A5-20-04
 # stays YAML-only: its UI surface is not modeled yet.
 UI_CLIMATE_DEVICE_TYPES = ("SRC-D08",)
+
+
+RADIO_METADATA_SCHEMA = vol.Schema(
+    {
+        vol.Optional("sender_id"): ENOCEAN_ID,
+        vol.Optional("eep"): vol.Match(r"^[0-9A-F]{2}-[0-9A-F]{2}-[0-9A-F]{2}$"),
+        vol.Optional("manufacturer_id"): vol.All(
+            strict_int, vol.Range(min=0, max=MAX_MANUFACTURER_ID)
+        ),
+        vol.Optional("product_id"): vol.Match(r"^[0-9A-F]{12}$"),
+        vol.Optional("product_reference"): vol.All(
+            strict_int, vol.Range(min=0, max=0xFFFFFFFF)
+        ),
+        vol.Optional("evidence"): vol.In([member.value for member in Evidence]),
+        vol.Optional("support"): vol.In([member.value for member in SupportVerdict]),
+        vol.Optional("manufacturer_conflict"): bool,
+        vol.Optional("eep_source"): vol.In(
+            ("radio_declared", "product_declared", "observed", "manual")
+        ),
+    },
+    extra=vol.PREVENT_EXTRA,
+)
+
+
+def _validate_radio_metadata(value: object) -> dict:
+    """Validate the bounded, non-secret Device Intelligence representation.
+
+    Config entry options are hand-editable in ``.storage``. Free-text
+    manufacturer/model/model_id are therefore never accepted here: they are
+    resolved from ``product_id`` against the official catalog at runtime, so a
+    forged string cannot reach the Device Registry.
+    """
+    if not isinstance(value, dict):
+        raise vol.Invalid("radio_metadata must be an object")
+    if not set(value) <= PERSISTED_METADATA_FIELDS:
+        raise vol.Invalid("radio_metadata contains unsupported fields")
+    return RADIO_METADATA_SCHEMA(value)
+
+
+def _validate_radio_metadata_identity(device: dict) -> dict:
+    """Reject metadata whose sender disagrees with the device it is attached to."""
+    metadata = device.get(CONF_RADIO_METADATA)
+    if not metadata:
+        return device
+    sender_id = metadata.get("sender_id")
+    if sender_id is not None and sender_id != device["id"]:
+        raise vol.Invalid("radio_metadata sender_id must match the device id")
+    return device
 
 
 def _validate_platform_fields(device: dict) -> dict:
@@ -104,6 +159,9 @@ UI_DEVICE_SCHEMA = vol.Schema(
             vol.Required("id"): ENOCEAN_ID,
             vol.Required("platform"): vol.In(UI_DEVICE_PLATFORMS),
             vol.Required("name"): cv.string,
+            vol.Optional(CONF_RADIO_METADATA, default=None): vol.Any(
+                None, _validate_radio_metadata
+            ),
             vol.Optional("device_class", default=None): vol.Any(None, cv.string),
             vol.Optional("channel", default=0): vol.All(
                 exact_finite_int, vol.Range(min=0, max=255)
@@ -153,6 +211,7 @@ UI_DEVICE_SCHEMA = vol.Schema(
             ),
         },
         _validate_platform_fields,
+        _validate_radio_metadata_identity,
     )
 )
 

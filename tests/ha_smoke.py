@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import sys
 from collections import deque
 from datetime import timedelta
@@ -76,6 +77,10 @@ from custom_components.enocean_custom.enocean_library.protocol.packet import (
     ResponsePacket,
 )
 from custom_components.enocean_custom.schema import CONF_UI_DEVICES
+
+STRINGS = json.loads(
+    (ROOT / "custom_components/enocean_custom/strings.json").read_text(encoding="utf-8")
+)
 
 
 async def _assert_off_without_sensor_sends_switch_off() -> None:
@@ -375,7 +380,9 @@ async def _assert_dongle_status_signal_writes_state_from_worker_thread() -> None
 
             worker = Thread(target=flip)
             worker.start()
-            await asyncio.to_thread(fired.wait, 5)
+            async with asyncio.timeout(5):
+                while not fired.is_set():
+                    await asyncio.sleep(0.01)
             await hass.async_block_till_done()
             worker.join(timeout=5)
             if not calls:
@@ -1212,12 +1219,135 @@ async def _assert_learn_service_starts_window_and_registers_once() -> None:
             if not refused:
                 raise AssertionError("concurrent learn service call was not refused")
 
-            packet = SimpleNamespace(sender_int=0xAABBCCDD)
+            # An ordinary RPS telegram declares no profile: the event must say
+            # so instead of guessing, and must not carry the raw packet.
+            packet = SimpleNamespace(sender_int=0xAABBCCDD, rorg=RORG.RPS)
             async_dispatcher_send(hass, SIGNAL_RECEIVE_MESSAGE, packet)
             await hass.async_block_till_done()
 
-            if events != [{"id": [0xAA, 0xBB, 0xCC, 0xDD], "hex": "AA:BB:CC:DD"}]:
+            if events != [
+                {
+                    "id": [0xAA, 0xBB, 0xCC, 0xDD],
+                    "hex": "AA:BB:CC:DD",
+                    "evidence": "profile_unknown",
+                    "support": "unknown",
+                }
+            ]:
                 raise AssertionError(f"unexpected teach-in event payload: {events}")
+            if manager.captured_metadata["sender_id"] != [0xAA, 0xBB, 0xCC, 0xDD]:
+                raise AssertionError("captured metadata lost its sender identity")
+        finally:
+            await hass.async_stop(force=True)
+
+
+async def _assert_device_intelligence_flow_and_device_registry() -> None:
+    """QR identification fills translated placeholders and groups the registry."""
+    with TemporaryDirectory() as config_dir:
+        hass = HomeAssistant(config_dir)
+        try:
+            await ar.async_load(hass, load_empty=True)
+            dr.async_setup(hass)
+            await dr.async_load(hass, load_empty=True)
+            await er.async_load(hass, load_empty=True)
+
+            entry = _new_test_config_entry()
+            hass.config_entries = ConfigEntries(hass, {})
+            hass.config_entries._entries[entry.entry_id] = entry
+
+            # -- A cataloged Alliance label identifies the product; the raw
+            # payload and its security containers never survive parsing.
+            flow = _bind_options_flow(hass, entry)
+            label = "30S000010203040+1P002D00000004+10ZSECRETPAYLOAD"
+            result = await flow.async_step_qr_code({"qr_code": label})
+            if result["step_id"] != "device_form":
+                raise AssertionError(f"cataloged label was refused: {result}")
+            placeholders = result["description_placeholders"]
+            declared = set(
+                re.findall(
+                    r"\{([a-z_]+)\}",
+                    STRINGS["options"]["step"]["device_form"]["description"],
+                )
+            )
+            if declared - set(placeholders):
+                raise AssertionError(
+                    f"device_form placeholders are missing: {declared - set(placeholders)}"
+                )
+            if (
+                placeholders["radio_manufacturer"] != "Afriso"
+                or placeholders["radio_model"] != "Cositherm 2-Channel"
+                or placeholders["radio_eep"] != "D2-34-10"
+                or placeholders["radio_support"] != "unsupported"
+            ):
+                raise AssertionError(f"unexpected radio card: {placeholders}")
+            if "SECRETPAYLOAD" in repr(flow._radio_metadata) or "10Z" in repr(
+                flow._radio_metadata
+            ):
+                raise AssertionError("QR security container survived parsing")
+            # D2-34-10 has no decoder here, so no platform may be pre-selected.
+            for key in result["data_schema"].schema:
+                if key == CONF_PLATFORM and key.default is not vol.UNDEFINED:
+                    raise AssertionError("an unsupported profile was pre-selected")
+            # The Product ID already declares the profile: no manual EEP field
+            # is offered, and forging one into the submission changes nothing.
+            if "manual_eep" in [str(key) for key in result["data_schema"].schema]:
+                raise AssertionError("a declared profile was offered for manual entry")
+
+            details = await flow.async_step_device_form(
+                {
+                    "platform": "switch",
+                    "name": "Cositherm relay",
+                    "manual_eep": "F6-02-01",
+                }
+            )
+            created = await flow.async_step_device_details({"channel": 0})
+            if created["type"] != FlowResultType.CREATE_ENTRY:
+                raise AssertionError(f"device_details did not create: {details}")
+            row = created["data"][CONF_UI_DEVICES][0]
+            metadata = row["radio_metadata"]
+            if metadata["product_id"] != "002D00000004":
+                raise AssertionError("the Product ID was not persisted")
+            if (
+                metadata["eep"] != "D2-34-10"
+                or metadata["eep_source"] != "product_declared"
+                or metadata["evidence"] != "assisted"
+            ):
+                raise AssertionError(f"a forged manual EEP overwrote proof: {metadata}")
+            for forgeable in ("manufacturer", "model", "model_id"):
+                if forgeable in metadata:
+                    raise AssertionError(
+                        f"forgeable {forgeable} string was persisted to options"
+                    )
+            hass.config_entries.async_update_entry(entry, options=created["data"])
+
+            # -- Two entities of one sender share a single registry device, and
+            # the model comes from the catalog rather than from stored text.
+            device_registry = dr.async_get(hass)
+            entities = [
+                EnOceanEntity(row["id"], row["name"]).set_radio_metadata(metadata),
+                EnOceanEntity(row["id"], "Second channel").set_radio_metadata(metadata),
+            ]
+            identifiers = {
+                tuple(sorted(entity.device_info["identifiers"])) for entity in entities
+            }
+            if len(identifiers) != 1:
+                raise AssertionError("entities of one sender were not grouped")
+            device = device_registry.async_get_or_create(
+                config_entry_id=entry.entry_id, **entities[0].device_info
+            )
+            if (
+                device.manufacturer != "Afriso"
+                or device.model != "Cositherm 2-Channel"
+                or device.model_id != "002D00000004"
+            ):
+                raise AssertionError(f"registry product identity is wrong: {device}")
+
+            # -- A YAML entity has no metadata: grouped, but never mislabeled.
+            yaml_entity = EnOceanEntity([0x01, 0x02, 0x03, 0x04], "YAML rocker")
+            yaml_info = yaml_entity.device_info
+            if yaml_info["identifiers"] != {(DOMAIN, "01020304")}:
+                raise AssertionError("YAML entity was not grouped by sender")
+            if any(key in yaml_info for key in ("manufacturer", "model", "model_id")):
+                raise AssertionError("YAML entity was given an invented model")
         finally:
             await hass.async_stop(force=True)
 
@@ -1263,6 +1393,15 @@ def _assert_options_schemas_are_ws_serializable() -> None:
     schemas.append(flow._pair_actuator_details_schema())
     flow._pairing_actuator_type = "dimmer_4bs"
     schemas.append(flow._pair_actuator_details_schema())
+    # device_form in its three shapes: fresh, refilled after a rejected submit,
+    # and without the manual EEP field because a profile is already declared.
+    schemas.append(flow._device_form_schema())
+    flow._pending_platform = "switch"
+    flow._pending_name = "Named device"
+    flow._pending_manual_eep = "A5-12-01"
+    schemas.append(flow._device_form_schema())
+    flow._radio_metadata = {"eep": "A5-12-01", "eep_source": "radio_declared"}
+    schemas.append(flow._device_form_schema())
     for schema in schemas:
         try:
             voluptuous_serialize.convert(schema, custom_serializer=cv.custom_serializer)
@@ -1710,6 +1849,7 @@ def main() -> None:
     asyncio.run(_assert_ui_devices_create_entities_with_yaml_compatible_unique_ids())
     asyncio.run(_assert_options_flow_add_and_delete_device())
     asyncio.run(_assert_learn_service_starts_window_and_registers_once())
+    asyncio.run(_assert_device_intelligence_flow_and_device_registry())
     asyncio.run(_assert_learn_windows_are_owned_and_serialized())
     _assert_options_schemas_are_ws_serializable()
     print(
@@ -1727,7 +1867,8 @@ def main() -> None:
         "deleted_id=teachable_again "
         "d2_status=parse_dispatch_switch_light d2_channels=0_1 "
         "d2_unknown_sender=ignored d2_malformed=ignored d2_rps=synced_no_leak "
-        "d2_loop_write=safe"
+        "d2_loop_write=safe "
+        "device_intelligence=catalog_only device_registry=grouped_by_sender"
     )
 
 

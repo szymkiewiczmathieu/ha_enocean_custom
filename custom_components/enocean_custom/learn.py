@@ -23,6 +23,7 @@ from .const import (
     SERVICE_LEARN,
     SIGNAL_RECEIVE_MESSAGE,
 )
+from .device_intelligence import extract_radio_identity, safe_metadata
 from .enocean_library.utils import combine_hex, to_hex_string
 from .schema import CONF_UI_DEVICES, exact_finite_int, valid_ui_devices
 
@@ -88,6 +89,7 @@ class LearnManager:
         """Initialize an idle learn manager."""
         self.hass = hass
         self.captured: list[int] | None = None
+        self.captured_metadata: dict[str, Any] | None = None
         self.captured_at: float | None = None
         self.window_started_at: float | None = None
         self.owner: str | None = None
@@ -114,6 +116,7 @@ class LearnManager:
         if self.is_active:
             return False
         self.captured = None
+        self.captured_metadata = None
         self.captured_at = None
         self.owner = owner
         # Re-seed the known ids on every window: YAML ids are registered by
@@ -157,15 +160,27 @@ class LearnManager:
     @callback
     def _packet_received(self, packet: Any) -> None:
         """Capture the first sender absent from the known-id registry."""
-        sender_int = getattr(packet, "sender_int", None)
-        if sender_int is None or sender_int in self._active_known_ids:
+        identity = extract_radio_identity(packet)
+        if identity is None:
             return
-        self.captured = [(sender_int >> shift) & 0xFF for shift in (24, 16, 8, 0)]
+        sender_int = combine_hex(list(identity.sender_id))
+        if sender_int in self._active_known_ids:
+            return
+        self.captured = list(identity.sender_id)
+        self.captured_metadata = safe_metadata(radio=identity)
         self.captured_at = self.hass.loop.time()
         self.stop()
         self.hass.bus.async_fire(
             EVENT_DEVICE_LEARNED,
-            {"id": self.captured, "hex": to_hex_string(self.captured)},
+            {
+                "id": self.captured,
+                "hex": to_hex_string(self.captured),
+                **{
+                    key: value
+                    for key, value in self.captured_metadata.items()
+                    if key != "sender_id"
+                },
+            },
         )
 
     def capture_is_fresh_for(self, window_started_at: float | None) -> bool:

@@ -46,15 +46,24 @@ from .const import (
     SIGNAL_RECEIVE_MESSAGE,
     UI_DEVICE_PLATFORMS,
 )
+from .device_intelligence import (
+    apply_manual_eep,
+    flow_placeholders,
+    metadata_declares_eep,
+    parse_commissioning_identity,
+    parse_manual_eep,
+    recommended_platform,
+    reconcile_commissioning_metadata,
+)
 from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
 from .enocean_library.utils import combine_hex, to_hex_string
 from .learn import get_known_ids, get_learn_manager
 from .light import CONF_SENDER_ID
 from .schema import (
+    CONF_RADIO_METADATA,
     CONF_UI_DEVICES,
     UI_CLIMATE_DEVICE_TYPES,
     UI_DEVICE_SCHEMA,
-    exact_finite_int,
     valid_ui_devices,
 )
 from .sensor import (
@@ -68,10 +77,8 @@ from .switch import CONF_CHANNEL, CONF_SWITCH_TYPE, SWITCH_TYPES
 
 _FLOW_OWNER = "options_flow"
 _HEX_BYTE = re.compile(r"^[0-9A-Fa-f]{2}$")
-_HEX_12 = re.compile(r"^[0-9A-Fa-f]{12}$")
-_STRICT_TYPED_ID = re.compile(r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){3}$")
-_LABEL_CHARSET = re.compile(r"^[0-9A-Za-z+]+$")
 _CONF_QR_CODE = "qr_code"
+_CONF_MANUAL_EEP = "manual_eep"
 _CONF_ACTUATOR_TYPE = "actuator_type"
 _CONF_FAILURE_ACTION = "failure_action"
 _ACTUATOR_RELAY = "relay_rps"
@@ -140,36 +147,8 @@ def _parse_commissioning_code(value: Any) -> list[int] | None:
     1P (12-hex Product ID) containers. This integration supports 32-bit radio
     IDs only, so a genuine 48-bit EURID is rejected instead of truncated.
     """
-    if not isinstance(value, str):
-        return None
-    value = value.strip()
-    # Strict typed fallback: exactly four colon-separated hex bytes. The
-    # tolerant sender-id parser stays reserved for the sender_id form field;
-    # a commissioning path must never guess from a malformed string.
-    if _STRICT_TYPED_ID.fullmatch(value):
-        return [int(value[offset : offset + 2], 16) for offset in range(0, 12, 3)]
-    # Label payloads are '+'-separated alphanumeric MH10.8.2 containers:
-    # anything else (spaces, NULs, unicode) is not a product label.
-    if not _LABEL_CHARSET.fullmatch(value):
-        return None
-    containers = value.split("+")
-    eurids = [item[3:] for item in containers if item.startswith("30S")]
-    product_ids = [item[2:] for item in containers if item.startswith("1P")]
-    if (
-        len(eurids) != 1
-        or len(product_ids) != 1
-        or not _HEX_12.fullmatch(eurids[0])
-        or not _HEX_12.fullmatch(product_ids[0])
-        or eurids[0][:4] != "0000"
-    ):
-        return None
-    try:
-        return [
-            exact_finite_int(int(eurids[0][offset : offset + 2], 16))
-            for offset in range(4, 12, 2)
-        ]
-    except vol.Invalid:
-        return None
+    parsed = parse_commissioning_identity(value)
+    return list(parsed.sender_id) if parsed else None
 
 
 def _qr_code_schema() -> vol.Schema:
@@ -224,9 +203,11 @@ class EnOceanOptionsFlow(OptionsFlow):
     def __init__(self) -> None:
         """Initialize flow-local state for the current session."""
         self._captured_id: list[int] | None = None
+        self._radio_metadata: dict[str, Any] | None = None
         self._window_started_at: float | None = None
         self._pending_platform: str | None = None
         self._pending_name: str | None = None
+        self._pending_manual_eep: str = ""
         self._manage_index: int | None = None
         self._pairing_actuator_type: str | None = None
         self._pairing_device: dict[str, Any] | None = None
@@ -234,6 +215,13 @@ class EnOceanOptionsFlow(OptionsFlow):
         self._pairing_outcome: str | None = None
         self._pairing_status_event: asyncio.Event | None = None
         self._pairing_unsubscribe = None
+
+    def _radio_placeholders(self) -> dict[str, str]:
+        """Return the captured ID plus the translated radio-card placeholders."""
+        return {
+            "captured_id": to_hex_string(self._captured_id),
+            **flow_placeholders(self._radio_metadata),
+        }
 
     @callback
     def async_remove(self) -> None:
@@ -257,8 +245,11 @@ class EnOceanOptionsFlow(OptionsFlow):
         """Identify an actuator from its QR label or strict typed radio ID."""
         errors = {}
         if user_input is not None:
-            if parsed := _parse_commissioning_code(user_input.get(_CONF_QR_CODE)):
-                self._captured_id = parsed
+            if parsed := parse_commissioning_identity(user_input.get(_CONF_QR_CODE)):
+                self._captured_id = list(parsed.sender_id)
+                self._radio_metadata = reconcile_commissioning_metadata(
+                    parsed, get_learn_manager(self.hass).captured_metadata
+                )
                 return await self.async_step_pair_actuator_type()
             errors[_CONF_QR_CODE] = "invalid_qr_code"
         return self.async_show_form(
@@ -278,7 +269,7 @@ class EnOceanOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="pair_actuator_type",
             data_schema=_pair_actuator_type_schema(),
-            description_placeholders={"captured_id": to_hex_string(self._captured_id)},
+            description_placeholders=self._radio_placeholders(),
         )
 
     def _pair_actuator_details_schema(self) -> vol.Schema:
@@ -363,6 +354,7 @@ class EnOceanOptionsFlow(OptionsFlow):
                     "channel": channel,
                     "switch_type": switch_type,
                     "sender_id": sender_id,
+                    CONF_RADIO_METADATA: self._radio_metadata,
                 }
             )
         except vol.Invalid:
@@ -640,8 +632,11 @@ class EnOceanOptionsFlow(OptionsFlow):
         """Capture an EnOcean ID from a commissioning QR payload or typed ID."""
         errors = {}
         if user_input is not None:
-            if parsed := _parse_commissioning_code(user_input.get(_CONF_QR_CODE)):
-                self._captured_id = parsed
+            if parsed := parse_commissioning_identity(user_input.get(_CONF_QR_CODE)):
+                self._captured_id = list(parsed.sender_id)
+                self._radio_metadata = reconcile_commissioning_metadata(
+                    parsed, get_learn_manager(self.hass).captured_metadata
+                )
                 return await self.async_step_device_form()
             errors[_CONF_QR_CODE] = "invalid_qr_code"
         return self.async_show_form(
@@ -655,7 +650,9 @@ class EnOceanOptionsFlow(OptionsFlow):
         manager = get_learn_manager(self.hass)
         if manager.capture_is_fresh_for(self._window_started_at):
             self._captured_id = manager.captured
+            self._radio_metadata = manager.captured_metadata
             manager.captured = None
+            manager.captured_metadata = None
             manager.captured_at = None
             self._window_started_at = None
             return self.async_show_progress_done(next_step_id="device_form")
@@ -677,10 +674,22 @@ class EnOceanOptionsFlow(OptionsFlow):
         """Abort after no unknown sender was heard before the timeout."""
         return self.async_abort(reason="learn_timeout")
 
-    def _show_device_form(self, errors: dict[str, str] | None = None):
-        """Render the platform/name form, pre-filled after a rejected submit."""
+    def _manual_eep_offered(self) -> bool:
+        """Return whether the operator may still assert a profile by hand.
+
+        The field only appears when no radio telegram and no Product ID has
+        declared one; a proven profile is never presented as editable.
+        """
+        return not metadata_declares_eep(self._radio_metadata)
+
+    def _device_form_schema(self) -> vol.Schema:
+        """Build the platform/name form with websocket-serializable selectors.
+
+        Values typed during a rejected submit are restored as defaults, and the
+        optional manual EEP field is appended only when it is offered at all.
+        """
         if self._pending_platform is not None:
-            schema = {
+            schema: dict[Any, Any] = {
                 vol.Required(
                     CONF_PLATFORM, default=self._pending_platform
                 ): selector.SelectSelector(
@@ -693,28 +702,57 @@ class EnOceanOptionsFlow(OptionsFlow):
                 ),
             }
         else:
+            recommendation = recommended_platform(self._radio_metadata)
             schema = {
-                vol.Required(CONF_PLATFORM): selector.SelectSelector(
+                vol.Required(
+                    CONF_PLATFORM,
+                    **({"default": recommendation} if recommendation else {}),
+                ): selector.SelectSelector(
                     selector.SelectSelectorConfig(options=list(UI_DEVICE_PLATFORMS))
                 ),
                 vol.Required(CONF_NAME): selector.TextSelector(
                     selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                 ),
             }
+        if self._manual_eep_offered():
+            schema[vol.Optional(_CONF_MANUAL_EEP, default=self._pending_manual_eep)] = (
+                selector.TextSelector(
+                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                )
+            )
+        return vol.Schema(schema)
+
+    def _show_device_form(self, errors: dict[str, str] | None = None):
+        """Render the platform/name form, pre-filled after a rejected submit."""
         return self.async_show_form(
             step_id="device_form",
-            data_schema=vol.Schema(schema),
-            description_placeholders={"captured_id": to_hex_string(self._captured_id)},
+            data_schema=self._device_form_schema(),
+            description_placeholders=self._radio_placeholders(),
             errors=errors or {},
         )
 
     async def async_step_device_form(self, user_input=None):
-        """Ask for the platform and name of the captured device."""
-        if user_input is not None:
-            self._pending_platform = user_input[CONF_PLATFORM]
-            self._pending_name = user_input[CONF_NAME]
+        """Ask for the platform, name and optional manual EEP of the device."""
+        if user_input is None:
+            return self._show_device_form()
+        self._pending_platform = user_input[CONF_PLATFORM]
+        self._pending_name = user_input[CONF_NAME]
+        # A submission for a device whose profile is already declared cannot
+        # carry an assertion, even when the field is forged back into the
+        # payload: the declared EEP is simply never reconsidered.
+        if not self._manual_eep_offered():
             return await self.async_step_device_details()
-        return self._show_device_form()
+        submitted = user_input.get(_CONF_MANUAL_EEP)
+        if submitted is None or (isinstance(submitted, str) and not submitted.strip()):
+            self._pending_manual_eep = ""
+            return await self.async_step_device_details()
+        manual_eep = parse_manual_eep(submitted)
+        if manual_eep is None:
+            self._pending_manual_eep = submitted if isinstance(submitted, str) else ""
+            return self._show_device_form(errors={_CONF_MANUAL_EEP: "invalid_eep"})
+        self._pending_manual_eep = manual_eep
+        self._radio_metadata = apply_manual_eep(self._radio_metadata, manual_eep)
+        return await self.async_step_device_details()
 
     def _device_details_schema(self, platform: str) -> vol.Schema:
         """Build the platform form with websocket-serializable selectors only.
@@ -938,6 +976,7 @@ class EnOceanOptionsFlow(OptionsFlow):
             "id": self._captured_id,
             "platform": platform,
             "name": self._pending_name,
+            CONF_RADIO_METADATA: self._radio_metadata,
             "device_class": user_input.get(CONF_DEVICE_CLASS),
             "channel": channel,
             "switch_type": user_input.get(CONF_SWITCH_TYPE),

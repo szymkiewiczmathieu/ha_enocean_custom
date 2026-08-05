@@ -6,16 +6,19 @@ from datetime import UTC, datetime
 from typing import Any
 
 from homeassistant.core import callback
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity
 
 from .const import (
     DATA_ENOCEAN,
+    DOMAIN,
     ENOCEAN_DONGLE,
     LOGGER,
     SIGNAL_DONGLE_STATUS,
     SIGNAL_RECEIVE_MESSAGE,
 )
+from .device_intelligence import resolve_product
 from .enocean_library.protocol.packet import Packet as ESP3Packet
 from .enocean_library.utils import combine_hex as enocean_id_as_int
 
@@ -38,10 +41,40 @@ class EnOceanEntity(Entity):
     ) -> None:
         """Store identity and initialize transport-derived availability."""
         self.dev_id = dev_id
+        self._device_identifier_id = dev_id
         self.dev_name = dev_name
         self._attr_available = False
         self._d2_status = None
         self._last_status: str | None = None
+        self._radio_metadata: dict[str, Any] = {}
+
+    def set_radio_metadata(self, metadata: object) -> EnOceanEntity:
+        """Attach already schema-validated safe metadata and return this entity."""
+        self._radio_metadata = dict(metadata) if isinstance(metadata, dict) else {}
+        return self
+
+    @property
+    def device_info(self) -> DeviceInfo | None:
+        """Group every entity of one sender without inventing product identity.
+
+        A declared EEP is a data profile, not a model, so it never becomes a
+        DeviceInfo model string. Manufacturer/model are resolved at runtime from
+        the exact Product ID catalog and are absent for everything else, which
+        keeps YAML devices grouped but unnamed rather than mislabeled.
+        """
+        identifier = self._device_identifier_id
+        if not isinstance(identifier, (list, tuple)) or len(identifier) != 4:
+            return None
+        sender = "".join(f"{byte:02X}" for byte in identifier)
+        info: dict[str, Any] = {
+            "identifiers": {(DOMAIN, sender)},
+            "name": self.dev_name,
+        }
+        if (product := resolve_product(self._radio_metadata)) is not None:
+            info["manufacturer"] = product.manufacturer
+            info["model"] = product.model
+            info["model_id"] = product.model_id
+        return DeviceInfo(**info)
 
     @property
     def d2_status_attributes(self) -> dict[str, Any]:

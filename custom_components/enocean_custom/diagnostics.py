@@ -11,7 +11,16 @@ from homeassistant.core import HomeAssistant
 
 from .dongle import EnOceanDongle
 
-TO_REDACT = {CONF_DEVICE}
+TO_REDACT = {
+    CONF_DEVICE,
+    "id",
+    "sender_id",
+    "product_id",
+    "product_reference",
+    "manufacturer_id",
+    "radio_metadata",
+    "ui_devices",
+}
 
 
 async def async_get_config_entry_diagnostics(

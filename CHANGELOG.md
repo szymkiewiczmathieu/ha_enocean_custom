@@ -1,5 +1,40 @@
 # Changelog
 
+## 2.1.0 - 2026-08-05
+
+- Add local Device Intelligence for exact UTE and enriched 4BS teach-in
+  identities, strict Alliance QR Product ID parsing, and safe bounded
+  `radio_metadata` persistence. Security containers and raw QR data are never
+  retained. No network lookup, telemetry, automatic UTE acknowledgement or new
+  runtime dependency is introduced.
+- Keep RPS F6 and 1BS D5 profiles unknown unless a separate declaration or
+  manual choice supplies the EEP. Separate evidence, configuration mode and
+  implementation support; unknown catalog entries remain unknown.
+- Reject rather than silently repair malformed commissioning input: a 48-bit
+  EURID and a Product ID whose reserved manufacturer bits are set are refused
+  instead of being truncated or masked to 11 bits.
+- Add an optional manual EEP field to the device form, offered only when
+  neither a radio telegram nor a Product ID has declared a profile. It accepts
+  the strict `XX-XX-XX` form (lowercase normalized to uppercase), is recorded
+  as `evidence=manual` / `eep_source=manual`, never pre-selects a platform, and
+  can never overwrite a declared profile — including through a forged
+  submission. Existing safe QR fields are preserved.
+- Add a translated radio card and unambiguous platform suggestions to the
+  options flow, with manufacturer-conflict handling and fully changeable
+  selections. Each field is a separate placeholder, so French and English
+  descriptions are genuinely translated rather than sharing one English string.
+- Group entities by stable sender identifiers in the Home Assistant Device
+  Registry, including historical YAML devices. `manufacturer`, `model` and
+  `model_id` come only from an exactly cataloged Product ID resolved at
+  runtime; they are never persisted, and a declared EEP alone never becomes a
+  model.
+- Ship a small Product ID catalog sourced from the official EnOcean Alliance
+  DDF repository (Afriso Cositherm 2/6-Channel, BSC Computer eTronic). These
+  devices are identified but remain `unsupported`: no exact decoder exists here.
+- Keep device, product, radio and UI-device identities out of diagnostics;
+  document the local implementation matrix, sources and privacy boundaries in
+  `docs/device-intelligence.md`.
+
 ## 2.0.1 - 2026-07-29
 
 - Ship the official EnOcean brand images (`brand/` directory, HA 2026.3+

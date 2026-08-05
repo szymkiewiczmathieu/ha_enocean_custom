@@ -106,7 +106,7 @@ async def async_setup_entry(
             row["id"],
             row["name"],
             row.get("channel", 0),
-        )
+        ).set_radio_metadata(row.get("radio_metadata"))
         for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
         if row["platform"] == "light"
     ]
@@ -143,6 +143,7 @@ class EnOceanLight(EnOceanEntity, LightEntity):
     ) -> None:
         """Initialize a dimmer with unknown actuator state."""
         super().__init__(dev_id, dev_name)
+        self._device_identifier_id = dev_id or sender_id or []
         self._attr_brightness = 50
         self._attr_is_on = None
         self._attr_name = dev_name

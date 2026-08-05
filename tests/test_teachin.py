@@ -287,9 +287,12 @@ class LearnManagerTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(manager.captured, [0x01, 0x02, 0x03, 0x04])
         self.assertFalse(manager.is_active)
-        self.assertEqual(
-            events, [{"id": [0x01, 0x02, 0x03, 0x04], "hex": "01:02:03:04"}]
-        )
+        self.assertEqual(events[0]["id"], [0x01, 0x02, 0x03, 0x04])
+        self.assertEqual(events[0]["hex"], "01:02:03:04")
+        self.assertEqual(events[0]["evidence"], "profile_unknown")
+        self.assertEqual(events[0]["support"], "unknown")
+        self.assertNotIn("payload", events[0])
+        self.assertEqual(manager.captured_metadata["sender_id"], [1, 2, 3, 4])
 
     async def test_known_sender_is_ignored(self):
         manager = learn.LearnManager(self.hass)

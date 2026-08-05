@@ -84,7 +84,7 @@
       },
       "pair_actuator_type": {
         "title": "Choose the actuator type",
-        "description": "Actuator ID: {captured_id}",
+        "description": "Actuator ID: {captured_id}\n\nEEP profile: {radio_eep}\nManufacturer: {radio_manufacturer}\nManufacturer ID: {radio_manufacturer_id}\nModel: {radio_model}\nEvidence: {radio_evidence}\nSupport: {radio_support}\nConflict: {radio_conflict}",
         "data": {
           "name": "Name",
           "actuator_type": "Actuator type"
@@ -126,10 +126,14 @@
       },
       "device_form": {
         "title": "Name the captured device",
-        "description": "Captured EnOcean ID: {captured_id}",
+        "description": "Captured EnOcean ID: {captured_id}\n\nEEP profile: {radio_eep}\nManufacturer: {radio_manufacturer}\nManufacturer ID: {radio_manufacturer_id}\nModel: {radio_model}\nEvidence: {radio_evidence}\nSupport: {radio_support}\nConflict: {radio_conflict}",
         "data": {
           "platform": "Type",
-          "name": "Name"
+          "name": "Name",
+          "manual_eep": "Manual EEP profile (optional)"
+        },
+        "data_description": {
+          "manual_eep": "Leave empty to keep the profile unknown. Format XX-XX-XX, e.g. A5-12-01. A typed profile is recorded as an operator assertion, never as proof."
         }
       },
       "device_details": {
@@ -186,7 +190,8 @@
       "invalid_temperature_range": "Minimum temperature must be lower than maximum temperature.",
       "invalid_raw_range": "Raw range start and end must differ.",
       "invalid_command_frequency": "Command frequency must be a valid positive duration of at least one second.",
-      "invalid_device_details": "The device details are invalid."
+      "invalid_device_details": "The device details are invalid.",
+      "invalid_eep": "The manual EEP must use the exact XX-XX-XX hexadecimal format, e.g. A5-12-01."
     },
     "abort": {
       "learn_timeout": "No unknown EnOcean sender was heard before the timeout.",

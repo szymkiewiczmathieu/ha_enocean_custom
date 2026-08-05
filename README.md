@@ -95,6 +95,28 @@ The repository is licensed under Apache-2.0; third-party attributions are in
 
 ### Adding devices from the UI (teach-in)
 
+#### Device Intelligence (v2.1)
+
+Device Intelligence identifies devices locally: no network lookup, no
+telemetry, no automatic UTE acknowledgement, and no new runtime dependency.
+
+- A UTE or enriched 4BS teach-in declares an exact EEP. An ordinary RPS `F6` or
+  1BS `D5` telegram does not, and stays `profile_unknown` rather than guessed.
+- An EURID identifies a radio, an EEP identifies a data profile. Neither
+  identifies or certifies a product, so a declared EEP alone never becomes a
+  Device Registry model.
+- A standardized QR label yields a manufacturer and a Product ID. Only an
+  exactly cataloged Product ID produces a manufacturer/model, and a conflict
+  with the radio teach-in suppresses every model claim and pre-selection.
+- The scanned payload and its `10Z`/`11Z`/`13Z` security containers are never
+  persisted, logged or exported. Diagnostics carry aggregates only.
+- Entities of one sender are grouped in the Home Assistant Device Registry.
+  Historical YAML configuration and older `ui_devices` rows stay valid.
+
+The evidence/support glossary, the full implementation matrix and the bundled
+Product ID catalog with its sources are in
+[docs/device-intelligence.md](docs/device-intelligence.md).
+
 Since `v1.3.0`, devices can also be
 added and removed entirely from **Settings > Devices & services > EnOcean
 Custom > Configure**, without editing `configuration.yaml`. YAML configuration
