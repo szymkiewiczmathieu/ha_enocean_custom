@@ -47,6 +47,7 @@ jobs:
             custom_components/enocean_custom/const.py
             custom_components/enocean_custom/device.py
             custom_components/enocean_custom/device_intelligence.py
+            custom_components/enocean_custom/device_trigger.py
             custom_components/enocean_custom/diagnostics.py
             custom_components/enocean_custom/dongle.py
             custom_components/enocean_custom/inbox.py

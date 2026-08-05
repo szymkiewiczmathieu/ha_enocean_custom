@@ -30,6 +30,11 @@ from .yaml_import import track_yaml_device
 DEFAULT_NAME = "EnOcean binary sensor"
 EVENT_BUTTON_PRESSED = "button_pressed"
 
+# Suffix of the unique_id minted by EnOceanA514Contact. It is the only exact
+# discriminator between the two binary sensor classes of this platform, since
+# device_class is free-form user input for rockers.
+A514_CONTACT_UNIQUE_ID_SUFFIX = "-a5-14-01-contact"
+
 ATTR_ONOFF, ATTR_WHICH, ATTR_REPEATED_TELEGRAM = (
     "OnOff",
     "Which",
@@ -159,7 +164,7 @@ class EnOceanA514Contact(EnOceanEntity, BinarySensorEntity):
         """Initialize an automatically mapped contact."""
         super().__init__(dev_id, dev_name)
         self._attr_name = dev_name
-        self._attr_unique_id = f"{combine_hex(dev_id)}-a5-14-01-contact"
+        self._attr_unique_id = f"{combine_hex(dev_id)}{A514_CONTACT_UNIQUE_ID_SUFFIX}"
 
     @override
     def value_changed(self, packet) -> None:

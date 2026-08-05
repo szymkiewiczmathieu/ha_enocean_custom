@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.4.0 - Unreleased
+
+- Add native Home Assistant device triggers for EnOcean F6/RPS rocker presses,
+  releases, and channel 1/2 presses. Generated automations reference the device
+  registry entry and therefore appear in the device page's "Used by" view.
+- Exclude A5-14-01 contacts, identified by their own unique ID, because they
+  decode 4BS telegrams and never emit rocker events. Rockers keep their device
+  triggers whatever `device_class` they were configured with.
+
 ## 2.3.0 - Unreleased
 
 - Add an explicit options-flow import for legacy YAML `binary_sensor` and

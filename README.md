@@ -235,6 +235,20 @@ its D2 listener, so it cannot keep transmitting in the background.
 
 Binary sensors do not only trigger events but also have a state variable which may be `On` or `Off`. The state attributes `Onoff` and `Which` have been added to identify which pushbutton is being pressed. The state attribute `Repeated telegram` indicates if the received telegram was received by an EnOcean repeater.
 
+#### Device triggers
+
+F6/RPS rockers provide native Home Assistant device triggers for button press,
+button release, and presses on channel 1 or channel 2. Create one from
+**Settings > Devices & services > Automations > Device > Trigger**, then select
+the EnOcean device and the desired button trigger. The resulting automation
+references the Home Assistant device ID, so it is listed under **Used by** on
+the device page. Existing event-based automations are not migrated or changed.
+
+A5-14-01 contacts are excluded because they decode 4BS telegrams and never emit
+the `button_pressed` event. They are recognised by their own unique ID, so a
+rocker keeps its device triggers whatever `device_class` it was configured
+with, including `door`.
+
 ### Support for shutter contacts
 
 Add support for shutter contacts with EnOcean Equipment Profile EEP: D5-00-01. The sensor state can be `Open` or `Closed`.

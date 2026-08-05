@@ -236,6 +236,14 @@
       "description": "Reload YAML-configured EnOcean platforms from the current configuration."
     }
   },
+  "device_automation": {
+    "trigger_type": {
+      "button_pressed": "Button pressed",
+      "button_released": "Button released",
+      "button_pressed_channel_0": "Channel 1 button pressed",
+      "button_pressed_channel_1": "Channel 2 button pressed"
+    }
+  },
   "issues": {
     "serial_communicator_stopped": {
       "title": "The EnOcean serial worker stopped",

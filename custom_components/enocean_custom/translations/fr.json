@@ -236,6 +236,14 @@
       "description": "Recharge les plateformes EnOcean configurées en YAML depuis la configuration actuelle."
     }
   },
+  "device_automation": {
+    "trigger_type": {
+      "button_pressed": "Bouton appuyé",
+      "button_released": "Bouton relâché",
+      "button_pressed_channel_0": "Bouton canal 1 appuyé",
+      "button_pressed_channel_1": "Bouton canal 2 appuyé"
+    }
+  },
   "issues": {
     "serial_communicator_stopped": {
       "title": "Le worker série EnOcean s'est arrêté",
