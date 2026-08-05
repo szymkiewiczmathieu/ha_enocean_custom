@@ -72,9 +72,9 @@ except ModuleNotFoundError:
 # Officially sourced Product IDs, from the EnOcean Alliance DDF repository.
 # Entries in its Examples/ folder are deliberately excluded.
 EXPECTED_CATALOG = {
-    "002D00000004": ("Afriso", "Cositherm 2-Channel", "D2-34-10"),
+    "002D00000004": ("Afriso", "Cositherm 2-Channel", "B0-00-00"),
     "002D0000000A": ("Afriso", "Cositherm 2-Channel", "D2-34-10"),
-    "002D00000005": ("Afriso", "Cositherm 6-Channel", "D2-34-10"),
+    "002D00000005": ("Afriso", "Cositherm 6-Channel", "B0-00-00"),
     "002D0000000B": ("Afriso", "Cositherm 6-Channel", "D2-34-10"),
     "001600013045": ("BSC Computer", "eTronic window/door contact", "A5-14-01"),
 }
@@ -260,7 +260,7 @@ class ProductCatalogTests(unittest.TestCase):
             self.assertLessEqual(manufacturer, MAX_MANUFACTURER_ID, product_id)
 
     def test_identified_products_can_still_be_unsupported(self):
-        parsed = parse_commissioning_identity("30S000001020304+1P002D00000004")
+        parsed = parse_commissioning_identity("30S000001020304+1P002D0000000A")
         metadata = safe_metadata(commissioning=parsed)
         self.assertEqual(metadata["eep"], "D2-34-10")
         self.assertEqual(metadata["eep_source"], "product_declared")
@@ -306,6 +306,8 @@ class ImplementationMatrixTests(unittest.TestCase):
             self.assertEqual(recommended_platform({"eep": eep}), "sensor", eep)
             self.assertEqual(support_for(eep), SupportVerdict.SUPPORTED, eep)
         self.assertEqual(recommended_platform({"eep": "A5-38-08"}), "light")
+        self.assertEqual(recommended_platform({"eep": "A5-14-01"}), "binary_sensor")
+        self.assertEqual(support_for("A5-14-01"), SupportVerdict.SUPPORTED)
 
     def test_support_separates_evidence_from_implementation(self):
         self.assertEqual(support_for(None), SupportVerdict.UNKNOWN)
@@ -375,7 +377,10 @@ class ManualEepAssertionTests(unittest.TestCase):
         self.assertTrue(set(metadata) <= PERSISTED_METADATA_FIELDS)
 
     def test_an_unimplemented_profile_is_unsupported(self):
-        for eep in ("D2-34-10", "A5-14-01", "FF-FF-FF"):
+        # A5-14-01 left this list in v2.2 because a decoder now exists for it.
+        # A5-10-12 is a Cositherm RX profile that is still not implemented, so
+        # the matrix stays narrower than the catalog.
+        for eep in ("D2-34-10", "A5-10-12", "FF-FF-FF"):
             metadata = apply_manual_eep(None, eep.lower())
             self.assertEqual(metadata["eep"], eep, eep)
             self.assertEqual(metadata["evidence"], Evidence.MANUAL.value, eep)
@@ -502,7 +507,9 @@ class ManualEepOptionsFlowTests(unittest.IsolatedAsyncioTestCase):
     """The device_form exposes the assertion without weakening any proof."""
 
     UNKNOWN_QR = "30S000001020304+1P0123AABBCCDD"
-    CATALOGED_QR = "30S000001020304+1P002D00000004"
+    # The gateway variant is the one whose DDF declares a single TX D2-34-10;
+    # 002D00000004 transmits GP B0-00-00 instead.
+    CATALOGED_QR = "30S000001020304+1P002D0000000A"
 
     async def asyncSetUp(self) -> None:
         """Create the minimal registries an options flow touches."""
@@ -848,7 +855,7 @@ class FlowPlaceholderTests(unittest.TestCase):
         self.assertEqual(placeholders["radio_manufacturer"], "Afriso")
         self.assertEqual(placeholders["radio_manufacturer_id"], "02D")
         self.assertEqual(placeholders["radio_model"], "Cositherm 2-Channel")
-        self.assertEqual(placeholders["radio_eep"], "D2-34-10")
+        self.assertEqual(placeholders["radio_eep"], "B0-00-00")
         self.assertEqual(placeholders["radio_support"], "unsupported")
         for value in placeholders.values():
             self.assertIsInstance(value, str)
@@ -888,11 +895,15 @@ class TranslationTests(unittest.TestCase):
             "captured_id",
             "radio_eep",
             "radio_manufacturer",
+            "radio_manufacturer_name",
             "radio_manufacturer_id",
             "radio_model",
             "radio_evidence",
             "radio_support",
             "radio_conflict",
+            "radio_last_seen",
+            "radio_rssi",
+            "radio_repeater",
         }
         for name in ("strings.json", "translations/en.json", "translations/fr.json"):
             steps = self._load(name)["options"]["step"]
@@ -902,7 +913,13 @@ class TranslationTests(unittest.TestCase):
 
     @unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
     def test_the_flow_supplies_every_declared_placeholder(self):
-        supplied = {"captured_id", *flow_placeholders(None)}
+        supplied = {
+            "captured_id",
+            "radio_last_seen",
+            "radio_rssi",
+            "radio_repeater",
+            *flow_placeholders(None),
+        }
         steps = self._load("strings.json")["options"]["step"]
         for step in _DI_STEPS:
             self.assertTrue(

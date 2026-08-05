@@ -1323,7 +1323,10 @@ async def _assert_device_intelligence_flow_and_device_registry() -> None:
             # -- A cataloged Alliance label identifies the product; the raw
             # payload and its security containers never survive parsing.
             flow = _bind_options_flow(hass, entry)
-            label = "30S000010203040+1P002D00000004+10ZSECRETPAYLOAD"
+            # The gateway variant is the Cositherm whose DDF declares a
+            # single transmitted D2-34-10; 002D00000004 transmits GP
+            # B0-00-00 and only receives A5-10 profiles.
+            label = "30S000010203040+1P002D0000000A+10ZSECRETPAYLOAD"
             result = await flow.async_step_qr_code({"qr_code": label})
             if result["step_id"] != "device_form":
                 raise AssertionError(f"cataloged label was refused: {result}")
@@ -1370,7 +1373,7 @@ async def _assert_device_intelligence_flow_and_device_registry() -> None:
                 raise AssertionError(f"device_details did not create: {details}")
             row = created["data"][CONF_UI_DEVICES][0]
             metadata = row["radio_metadata"]
-            if metadata["product_id"] != "002D00000004":
+            if metadata["product_id"] != "002D0000000A":
                 raise AssertionError("the Product ID was not persisted")
             if (
                 metadata["eep"] != "D2-34-10"
@@ -1403,7 +1406,7 @@ async def _assert_device_intelligence_flow_and_device_registry() -> None:
             if (
                 device.manufacturer != "Afriso"
                 or device.model != "Cositherm 2-Channel"
-                or device.model_id != "002D00000004"
+                or device.model_id != "002D0000000A"
             ):
                 raise AssertionError(f"registry product identity is wrong: {device}")
 

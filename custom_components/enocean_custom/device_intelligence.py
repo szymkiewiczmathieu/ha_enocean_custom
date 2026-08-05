@@ -17,10 +17,12 @@ manufacturer/model string, and no entry in this module certifies hardware.
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
@@ -112,8 +114,14 @@ class ProductDefinition:
     manufacturer: str
     model: str
     model_id: str
-    eep: str | None
+    tx_eeps: tuple[str, ...]
+    rx_eeps: tuple[str, ...]
     source: str
+
+    @property
+    def eep(self) -> str | None:
+        """Return a single transmitted EEP only when the DDF is unambiguous."""
+        return self.tx_eeps[0] if len(self.tx_eeps) == 1 else None
 
 
 # Auditable implementation matrix. Every entry maps to code that exists in this
@@ -134,6 +142,9 @@ EEP_IMPLEMENTATIONS: Mapping[str, EEPImplementation] = MappingProxyType(
         "A5-10-06": EEPImplementation(("sensor",), ConfigMode.MANUAL),
         # sensor.EnOceanPowerSensor/EnOceanEnergySensor via parse_eep(0x12, 0x01).
         "A5-12-01": EEPImplementation(("sensor",), ConfigMode.ASSISTED),
+        # binary_sensor.EnOceanA514Contact plus the diagnostic voltage sensor;
+        # both use the existing EEP.xml mapping and are covered by real-frame tests.
+        "A5-14-01": EEPImplementation(("binary_sensor",), ConfigMode.AUTOMATIC),
         # climate.EnOceanClimate; the options flow only persists SRC-D08 today.
         "A5-20-04": EEPImplementation(("climate",), ConfigMode.YAML_ONLY),
         # light.EnOceanLight transmits only; a sender identity must be chosen.
@@ -150,31 +161,185 @@ EEP_IMPLEMENTATIONS: Mapping[str, EEPImplementation] = MappingProxyType(
 # files in total, so anything absent here must stay unknown.
 DDF_SOURCE = "EnOcean-Alliance/enocean-alliance-ddf (audited 2026-08-05)"
 
+# Shape validators. They are declared before the catalog because the generated
+# DDF artifact is validated with them while this module is being imported.
+_TYPED_ID = re.compile(r"^[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){3}$")
+_HEX_12 = re.compile(r"^[0-9A-Fa-f]{12}$")
+_LABEL = re.compile(r"^[0-9A-Za-z+]+$")
+_EEP = re.compile(r"^[0-9A-Fa-f]{2}-[0-9A-Fa-f]{2}-[0-9A-Fa-f]{2}$")
+
 # Product IDs confirmed by an official DDF. Entries identify hardware; they do
 # not promise that this repository can decode it -- see support_for().
+_BUILTIN_PRODUCT_CATALOG: dict[str, ProductDefinition] = {
+    "002D00000004": ProductDefinition(
+        "Afriso",
+        "Cositherm 2-Channel",
+        "002D00000004",
+        ("B0-00-00",),
+        (
+            "A5-10-01",
+            "A5-10-02",
+            "A5-10-03",
+            "A5-10-04",
+            "A5-10-05",
+            "A5-10-06",
+            "A5-10-10",
+            "A5-10-11",
+            "A5-10-12",
+            "A5-10-22",
+            "A5-10-23",
+        ),
+        DDF_SOURCE,
+    ),
+    "002D0000000A": ProductDefinition(
+        "Afriso",
+        "Cositherm 2-Channel",
+        "002D0000000A",
+        ("D2-34-10",),
+        (
+            "D2-34-10",
+            "A5-10-01",
+            "A5-10-02",
+            "A5-10-03",
+            "A5-10-04",
+            "A5-10-05",
+            "A5-10-06",
+            "A5-10-10",
+            "A5-10-11",
+            "A5-10-12",
+            "A5-10-22",
+            "A5-10-23",
+        ),
+        DDF_SOURCE,
+    ),
+    "002D00000005": ProductDefinition(
+        "Afriso",
+        "Cositherm 6-Channel",
+        "002D00000005",
+        ("B0-00-00",),
+        (
+            "A5-10-01",
+            "A5-10-02",
+            "A5-10-03",
+            "A5-10-04",
+            "A5-10-05",
+            "A5-10-06",
+            "A5-10-10",
+            "A5-10-11",
+            "A5-10-12",
+            "A5-10-22",
+            "A5-10-23",
+        ),
+        DDF_SOURCE,
+    ),
+    "002D0000000B": ProductDefinition(
+        "Afriso",
+        "Cositherm 6-Channel",
+        "002D0000000B",
+        ("D2-34-10",),
+        (
+            "D2-34-10",
+            "A5-10-01",
+            "A5-10-02",
+            "A5-10-03",
+            "A5-10-04",
+            "A5-10-05",
+            "A5-10-06",
+            "A5-10-10",
+            "A5-10-11",
+            "A5-10-12",
+            "A5-10-22",
+            "A5-10-23",
+        ),
+        DDF_SOURCE,
+    ),
+    "001600013045": ProductDefinition(
+        "BSC Computer",
+        "eTronic window/door contact",
+        "001600013045",
+        ("A5-14-01",),
+        (),
+        DDF_SOURCE,
+    ),
+}
+
+
+def _load_ddf_catalog() -> dict[str, ProductDefinition]:
+    """Load the versioned local DDF artifact; runtime never uses the network."""
+    path = Path(__file__).with_name("data") / "ddf_catalog.json"
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        products = raw["products"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return {}
+    result: dict[str, ProductDefinition] = {}
+    for product_id, row in products.items():
+        try:
+            if not re.fullmatch(r"[0-9A-F]{12}", product_id):
+                continue
+            manufacturer = row["manufacturer"]
+            model = row["model"]
+            tx_eeps = _catalog_eeps(row["tx_eeps"])
+            rx_eeps = _catalog_eeps(row["rx_eeps"])
+        except (KeyError, TypeError):
+            continue
+        # A malformed artifact row must vanish rather than degrade into a
+        # partial identity: unknown outranks wrong everywhere in this module.
+        if tx_eeps is None or rx_eeps is None:
+            continue
+        if not isinstance(manufacturer, str) or not isinstance(model, str):
+            continue
+        if not manufacturer.strip() or not model.strip():
+            continue
+        result[product_id] = ProductDefinition(
+            manufacturer=manufacturer,
+            model=model,
+            model_id=product_id,
+            tx_eeps=tx_eeps,
+            rx_eeps=rx_eeps,
+            source=DDF_SOURCE,
+        )
+    return result
+
+
+def _catalog_eeps(values: Any) -> tuple[str, ...] | None:
+    """Accept only a list of canonical ``XX-XX-XX`` profiles, or nothing."""
+    if not isinstance(values, list):
+        return None
+    profiles: list[str] = []
+    for value in values:
+        if not isinstance(value, str) or not _EEP.fullmatch(value):
+            return None
+        profiles.append(value.upper())
+    return tuple(profiles)
+
+
+# Exact Product ID is the merge key. The generated official DDF artifact is
+# applied last, so it corrects a stale built-in assertion but can never attach
+# manufacturer/model data to a merely similar or truncated identifier.
 PRODUCT_CATALOG: Mapping[str, ProductDefinition] = MappingProxyType(
-    {
-        "002D00000004": ProductDefinition(
-            "Afriso", "Cositherm 2-Channel", "002D00000004", "D2-34-10", DDF_SOURCE
-        ),
-        "002D0000000A": ProductDefinition(
-            "Afriso", "Cositherm 2-Channel", "002D0000000A", "D2-34-10", DDF_SOURCE
-        ),
-        "002D00000005": ProductDefinition(
-            "Afriso", "Cositherm 6-Channel", "002D00000005", "D2-34-10", DDF_SOURCE
-        ),
-        "002D0000000B": ProductDefinition(
-            "Afriso", "Cositherm 6-Channel", "002D0000000B", "D2-34-10", DDF_SOURCE
-        ),
-        "001600013045": ProductDefinition(
-            "BSC Computer",
-            "eTronic window/door contact",
-            "001600013045",
-            "A5-14-01",
-            DDF_SOURCE,
-        ),
-    }
+    {**_BUILTIN_PRODUCT_CATALOG, **_load_ddf_catalog()}
 )
+
+# EnOcean Equipment Profiles Specification v2.6.8, section 5.2,
+# "Manufacturer ID" table. Only IDs also corroborated by the official DDF
+# Product_ID prefix used in this repository are seeded here.
+MANUFACTURER_REGISTRY: Mapping[int, str] = MappingProxyType(
+    {0x016: "BSC Computer", 0x02D: "Afriso"}
+)
+
+
+def manufacturer_name(manufacturer_id: Any) -> str | None:
+    """Resolve an exact published 11-bit ID, never infer a manufacturer."""
+    return MANUFACTURER_REGISTRY.get(manufacturer_id)
+
+
+# Stable machine token, like ``manufacturer_conflict``: an ID was read but is
+# absent from the sourced registry. Saying nothing at all (UNKNOWN_PLACEHOLDER)
+# stays reserved for the case where no manufacturer ID was observed, because
+# "not registered" is an assertion and unknown must never be dressed as one.
+NOT_REGISTERED_TOKEN = "not_registered"
+
 
 # Fields safe to persist in the config entry options and to publish in events.
 # Manufacturer/model strings are deliberately absent: they are resolved from
@@ -201,11 +366,6 @@ UNKNOWN_PLACEHOLDER = "—"
 
 _EVIDENCE_TOKENS = frozenset(member.value for member in Evidence)
 _SUPPORT_TOKENS = frozenset(member.value for member in SupportVerdict)
-
-_TYPED_ID = re.compile(r"^[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){3}$")
-_HEX_12 = re.compile(r"^[0-9A-Fa-f]{12}$")
-_LABEL = re.compile(r"^[0-9A-Za-z+]+$")
-_EEP = re.compile(r"^[0-9A-Fa-f]{2}-[0-9A-Fa-f]{2}-[0-9A-Fa-f]{2}$")
 
 # Sources that constitute a profile *proof* rather than an operator claim. Any
 # other source, including a missing one on a hand-edited row, is treated as
@@ -555,6 +715,14 @@ def flow_placeholders(metadata: Mapping[str, Any] | None) -> dict[str, str]:
             f"{manufacturer_id:03X}"
             if manufacturer_id is not None
             else UNKNOWN_PLACEHOLDER
+        ),
+        "radio_manufacturer_name": (
+            manufacturer_name(manufacturer_id)
+            or (
+                NOT_REGISTERED_TOKEN
+                if manufacturer_id is not None
+                else UNKNOWN_PLACEHOLDER
+            )
         ),
         "radio_model": product.model if product else UNKNOWN_PLACEHOLDER,
         "radio_evidence": _token(evidence, _EVIDENCE_TOKENS, Evidence.PROFILE_UNKNOWN),

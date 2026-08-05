@@ -214,6 +214,20 @@ Binary sensors do not only trigger events but also have a state variable which m
 
 Add support for shutter contacts with EnOcean Equipment Profile EEP: D5-00-01. The sensor state can be `Open` or `Closed`.
 
+### Passive device inbox and A5-14-01
+
+The options flow keeps a receive-only, in-memory LRU of recently heard senders
+(64 unconfigured senders maximum) and shows last-seen UTC, RSSI and repeater
+count on the radio card. It is cleared on unload, never persisted, and exports
+only an aggregate count in diagnostics. No entity is created merely because a
+sender was observed.
+
+A declared `A5-14-01` maps to a door binary sensor. Its 0–5 V supply monitor is
+available as a disabled-by-default diagnostic voltage sensor; reserved EEP
+error values remain unknown. `D2-34-10` remains unsupported because its DDF
+contains no public bit-level decoder specification. A5-10 profiles remain out
+of the implementation matrix unless a documented real-frame test proves them.
+
 ### Power and energy sensors
 
 `device_class: powersensor` exposes separate power and energy entities. It

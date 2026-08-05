@@ -47,6 +47,7 @@ from .const import (
     UI_DEVICE_PLATFORMS,
 )
 from .device_intelligence import (
+    UNKNOWN_PLACEHOLDER,
     apply_manual_eep,
     flow_placeholders,
     metadata_declares_eep,
@@ -57,6 +58,7 @@ from .device_intelligence import (
 )
 from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
 from .enocean_library.utils import combine_hex, to_hex_string
+from .inbox import get_device_inbox
 from .learn import get_known_ids, get_learn_manager
 from .light import CONF_SENDER_ID
 from .schema import (
@@ -218,10 +220,30 @@ class EnOceanOptionsFlow(OptionsFlow):
 
     def _radio_placeholders(self) -> dict[str, str]:
         """Return the captured ID plus the translated radio-card placeholders."""
-        return {
+        placeholders = {
             "captured_id": to_hex_string(self._captured_id),
             **flow_placeholders(self._radio_metadata),
         }
+        inbox = get_device_inbox(self.hass)
+        observation = (
+            inbox.get(combine_hex(self._captured_id))
+            if inbox is not None and self._captured_id
+            else None
+        )
+        placeholders.update(
+            {
+                "radio_last_seen": observation.last_seen.isoformat()
+                if observation
+                else UNKNOWN_PLACEHOLDER,
+                "radio_rssi": str(observation.last_rssi_dbm)
+                if observation and observation.last_rssi_dbm is not None
+                else UNKNOWN_PLACEHOLDER,
+                "radio_repeater": str(observation.last_repeater_count)
+                if observation and observation.last_repeater_count is not None
+                else UNKNOWN_PLACEHOLDER,
+            }
+        )
+        return placeholders
 
     @callback
     def async_remove(self) -> None:

@@ -73,6 +73,7 @@ Alliance certification nor tested hardware.
 | `D5-00-01` | `sensor.EnOceanShutterContact` | `sensor` | `assisted` (device class) | `supported` |
 | `A5-10-06` | `sensor.EnOceanTemperatureSensor`, a *generic* linear 8-bit A5 decoder | `sensor` | `manual` (scale and raw range must be supplied) | `manual` |
 | `A5-12-01` | `sensor.EnOceanPowerSensor` / `EnOceanEnergySensor` via `parse_eep(0x12, 0x01)` | `sensor` | `assisted` | `supported` |
+| `A5-14-01` | `binary_sensor.EnOceanA514Contact`; optional disabled-by-default diagnostic `sensor.EnOceanA514Voltage` | `binary_sensor` | `automatic` | `supported` |
 | `A5-20-04` | `climate.EnOceanClimate` valve control | `climate` | `yaml_only` (the options flow persists SRC-D08 only) | `manual` |
 | `A5-38-08` | `light.EnOceanLight` commands and teach-in (transmit only) | `light` | `assisted` (a sender identity is required) | `supported` |
 | `D2-01-0B` | `sensor._decode_d2_measurement` for D2-01 CMD `0x7` | `sensor` | `assisted` | `supported` |
@@ -130,18 +131,40 @@ Remote Commissioning associates a Product ID with a Device Description File
 a world catalog: the 2026-08-05 audit found seven XML files in total. Entries
 from its `Examples/` folder are deliberately excluded.
 
-| Product ID | Manufacturer | Model | DDF TX EEP | Support here |
-| --- | --- | --- | --- | --- |
-| `002D00000004` | Afriso | Cositherm 2-Channel | `D2-34-10` | `unsupported` |
-| `002D0000000A` | Afriso | Cositherm 2-Channel | `D2-34-10` | `unsupported` |
-| `002D00000005` | Afriso | Cositherm 6-Channel | `D2-34-10` | `unsupported` |
-| `002D0000000B` | Afriso | Cositherm 6-Channel | `D2-34-10` | `unsupported` |
-| `001600013045` | BSC Computer | eTronic window/door contact | `A5-14-01` | `unsupported` |
+| Product ID | Manufacturer | Model | DDF TX EEP | DDF RX EEP | Support here |
+| --- | --- | --- | --- | --- | --- |
+| `002D00000004` | Afriso | Cositherm 2-Channel | `B0-00-00` | 11 × `A5-10-xx` | `unsupported` |
+| `002D0000000A` | Afriso | Cositherm 2-Channel | `D2-34-10` | `D2-34-10` + 11 × `A5-10-xx` | `unsupported` |
+| `002D00000005` | Afriso | Cositherm 6-Channel | `B0-00-00` | 11 × `A5-10-xx` | `unsupported` |
+| `002D0000000B` | Afriso | Cositherm 6-Channel | `D2-34-10` | `D2-34-10` + 11 × `A5-10-xx` | `unsupported` |
+| `001600013045` | BSC Computer | eTronic window/door contact | `A5-14-01` | — | `supported` |
 
-Source: `EnOcean-Alliance/enocean-alliance-ddf`, audited 2026-08-05. These
-devices are *identified* but remain `unsupported`, because no exact decoder for
-`D2-34-10` or `A5-14-01` exists in this repository. Being cataloged never
-overrides the decoder verdict.
+Source: `EnOcean-Alliance/enocean-alliance-ddf`, audited 2026-08-05. Being
+cataloged identifies hardware; it never overrides the decoder verdict, which is
+why four of these five products stay `unsupported`.
+
+The versioned `data/ddf_catalog.json` is generated deterministically by
+`scripts/import_ddf.py`; it separates TX and RX profiles per exact Product ID.
+`D2-34-10` remains unsupported: the DDF names the profile but publishes no
+bit-level payload specification, so no decoder is invented. A5-10 profiles are
+not added to the implementation matrix without a documented real-frame test.
+
+## Passive device inbox
+
+Every received radio telegram updates an entry-owned in-memory observation:
+UTC last-seen time, packet count, latest RSSI, repeater count for RPS/1BS/4BS,
+and observed RORGs. The unknown-sender LRU is capped at 64; configured YAML/UI
+senders may be enriched beyond that cap. Nothing is written to `.storage`, and
+unload clears the registry. The learn/QR radio card shows the latest signal
+facts when present. Exportable diagnostics expose only
+`observed_senders_count`, never sender rows.
+
+The radio card also resolves the 11-bit manufacturer ID against a short
+registry sourced from the EEP specification. Placeholders stay language
+neutral: a resolved ID shows the published vendor name, an observed but
+unlisted ID shows the `not_registered` token, and an ID that was never observed
+shows `—`. The distinction matters because "not registered" is an assertion
+about the registry, which cannot be made without having read an ID.
 
 ## Privacy and integrity boundaries
 

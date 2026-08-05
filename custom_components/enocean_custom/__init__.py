@@ -11,9 +11,18 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
-from .const import DATA_ENOCEAN, DOMAIN, ENOCEAN_DONGLE, UI_DEVICE_PLATFORMS
+from .const import (
+    DATA_DEVICE_INBOX,
+    DATA_ENOCEAN,
+    DOMAIN,
+    ENOCEAN_DONGLE,
+    UI_DEVICE_PLATFORMS,
+)
 from .dongle import EnOceanDongle
-from .learn import async_register_learn_service
+from .enocean_library.utils import combine_hex
+from .inbox import DeviceInbox
+from .learn import async_register_learn_service, get_known_ids
+from .schema import CONF_UI_DEVICES, valid_ui_devices
 
 CONFIG_SCHEMA = vol.Schema(
     {DOMAIN: vol.Schema({vol.Required(CONF_DEVICE): cv.string})},
@@ -53,6 +62,16 @@ async def async_setup_entry(
         ) from None
 
     integration_data[ENOCEAN_DONGLE] = gateway
+
+    def _configured_ids() -> set[int]:
+        configured = set(get_known_ids(hass))
+        for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, [])):
+            configured.add(combine_hex(row["id"]))
+        return configured
+
+    inbox = DeviceInbox(_configured_ids)
+    integration_data[DATA_DEVICE_INBOX] = inbox
+    gateway.set_inbox(inbox)
     entry.runtime_data = gateway
     await gateway.async_setup()
     async_register_learn_service(hass)
@@ -63,8 +82,11 @@ async def async_setup_entry(
             UI_DEVICE_PLATFORMS,
         )
     except Exception:
+        gateway.set_inbox(None)
         await gateway.async_unload()
         integration_data.pop(ENOCEAN_DONGLE, None)
+        integration_data.pop(DATA_DEVICE_INBOX, None)
+        inbox.clear()
         entry.runtime_data = None
         raise
 
@@ -95,8 +117,14 @@ async def async_unload_entry(
     # A teach-in window is intentionally not entry-scoped. It remains active
     # across an options-triggered reload and closes on its own bounded timeout.
     gateway = entry.runtime_data
+    inbox = hass.data.get(DATA_ENOCEAN, {}).get(DATA_DEVICE_INBOX)
+    gateway.set_inbox(None)
     if not await gateway.async_unload():
+        gateway.set_inbox(inbox)
         return False
 
     hass.data.get(DATA_ENOCEAN, {}).pop(ENOCEAN_DONGLE, None)
+    if inbox is not None:
+        inbox.clear()
+    hass.data.get(DATA_ENOCEAN, {}).pop(DATA_DEVICE_INBOX, None)
     return True

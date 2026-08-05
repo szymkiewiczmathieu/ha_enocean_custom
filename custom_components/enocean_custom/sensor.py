@@ -23,12 +23,14 @@ from homeassistant.const import (
     PERCENTAGE,
     STATE_CLOSED,
     STATE_OPEN,
+    UnitOfElectricPotential,
     UnitOfEnergy,
     UnitOfPower,
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
@@ -87,6 +89,15 @@ SENSOR_DESC_ENERGY = EnOceanSensorEntityDescription(
     native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
     device_class=SensorDeviceClass.ENERGY,
     state_class=SensorStateClass.TOTAL_INCREASING,
+)
+SENSOR_DESC_SUPPLY_VOLTAGE = EnOceanSensorEntityDescription(
+    key="a5_14_01_supply_voltage",
+    name="Supply voltage",
+    native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+    device_class=SensorDeviceClass.VOLTAGE,
+    state_class=SensorStateClass.MEASUREMENT,
+    entity_category=EntityCategory.DIAGNOSTIC,
+    entity_registry_enabled_default=False,
 )
 SENSOR_DESC_WINDOWHANDLE = EnOceanSensorEntityDescription(
     key=SENSOR_TYPE_WINDOWHANDLE,
@@ -170,6 +181,16 @@ async def async_setup_entry(
     """Create measurement entities stored in the entry options."""
     entities: list[EnOceanSensor] = []
     for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, [])):
+        if (
+            row["platform"] == "binary_sensor"
+            and (row.get("radio_metadata") or {}).get("eep") == "A5-14-01"
+        ):
+            entities.append(
+                EnOceanA514Voltage(
+                    row["id"], row["name"], SENSOR_DESC_SUPPLY_VOLTAGE
+                ).set_radio_metadata(row.get("radio_metadata"))
+            )
+            continue
         if row["platform"] != "sensor":
             continue
         config = PLATFORM_SCHEMA(
@@ -426,4 +447,23 @@ class EnOceanShutterContact(EnOceanSensor):  # D5-00-01
             LOGGER.debug("Ignoring unsupported D5 contact value")
             return
         self._attr_native_value = contact_state
+        self.schedule_update_ha_state()
+
+
+class EnOceanA514Voltage(EnOceanSensor):
+    """Expose the optional diagnostic supply voltage of A5-14-01."""
+
+    @override
+    def value_changed(self, packet) -> None:
+        """Decode SVC=0..250 linearly as 0..5 V; reject reserved errors."""
+        if packet.rorg != RORG.BS4 or len(packet.data) < 5:
+            return
+        # DB0 bit 3 is the 4BS LRN bit: on a teach-in telegram DB3 holds
+        # FUNC/TYPE, not a supply voltage.
+        if not packet.data[4] & 0x08:
+            return
+        raw_voltage = packet.data[1]
+        if not 0 <= raw_voltage <= 250:
+            return
+        self._attr_native_value = round(raw_voltage / 50, 2)
         self.schedule_update_ha_state()

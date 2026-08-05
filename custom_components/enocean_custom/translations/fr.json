@@ -84,7 +84,7 @@
       },
       "pair_actuator_type": {
         "title": "Choisir le type d'actionneur",
-        "description": "ID de l'actionneur : {captured_id}\n\nProfil EEP : {radio_eep}\nFabricant : {radio_manufacturer}\nIdentifiant fabricant : {radio_manufacturer_id}\nModèle : {radio_model}\nNiveau de preuve : {radio_evidence}\nPrise en charge : {radio_support}\nConflit : {radio_conflict}",
+        "description": "ID de l'actionneur : {captured_id}\n\nProfil EEP : {radio_eep}\nFabricant : {radio_manufacturer}\nRegistre fabricant : {radio_manufacturer_name}\nIdentifiant fabricant : {radio_manufacturer_id}\nModèle : {radio_model}\nNiveau de preuve : {radio_evidence}\nPrise en charge : {radio_support}\nConflit : {radio_conflict}\nDernière réception (UTC) : {radio_last_seen}\nRSSI : {radio_rssi} dBm\nNombre de répéteurs : {radio_repeater}",
         "data": {
           "name": "Nom",
           "actuator_type": "Type d'actionneur"
@@ -126,7 +126,7 @@
       },
       "device_form": {
         "title": "Nommer l'équipement capturé",
-        "description": "ID EnOcean capturé : {captured_id}\n\nProfil EEP : {radio_eep}\nFabricant : {radio_manufacturer}\nIdentifiant fabricant : {radio_manufacturer_id}\nModèle : {radio_model}\nNiveau de preuve : {radio_evidence}\nPrise en charge : {radio_support}\nConflit : {radio_conflict}",
+        "description": "ID EnOcean capturé : {captured_id}\n\nProfil EEP : {radio_eep}\nFabricant : {radio_manufacturer}\nRegistre fabricant : {radio_manufacturer_name}\nIdentifiant fabricant : {radio_manufacturer_id}\nModèle : {radio_model}\nNiveau de preuve : {radio_evidence}\nPrise en charge : {radio_support}\nConflit : {radio_conflict}\nDernière réception (UTC) : {radio_last_seen}\nRSSI : {radio_rssi} dBm\nNombre de répéteurs : {radio_repeater}",
         "data": {
           "platform": "Type",
           "name": "Nom",

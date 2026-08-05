@@ -84,7 +84,7 @@
       },
       "pair_actuator_type": {
         "title": "Choose the actuator type",
-        "description": "Actuator ID: {captured_id}\n\nEEP profile: {radio_eep}\nManufacturer: {radio_manufacturer}\nManufacturer ID: {radio_manufacturer_id}\nModel: {radio_model}\nEvidence: {radio_evidence}\nSupport: {radio_support}\nConflict: {radio_conflict}",
+        "description": "Actuator ID: {captured_id}\n\nEEP profile: {radio_eep}\nManufacturer: {radio_manufacturer}\nManufacturer registry: {radio_manufacturer_name}\nManufacturer ID: {radio_manufacturer_id}\nModel: {radio_model}\nEvidence: {radio_evidence}\nSupport: {radio_support}\nConflict: {radio_conflict}\nLast seen (UTC): {radio_last_seen}\nRSSI: {radio_rssi} dBm\nRepeater count: {radio_repeater}",
         "data": {
           "name": "Name",
           "actuator_type": "Actuator type"
@@ -126,7 +126,7 @@
       },
       "device_form": {
         "title": "Name the captured device",
-        "description": "Captured EnOcean ID: {captured_id}\n\nEEP profile: {radio_eep}\nManufacturer: {radio_manufacturer}\nManufacturer ID: {radio_manufacturer_id}\nModel: {radio_model}\nEvidence: {radio_evidence}\nSupport: {radio_support}\nConflict: {radio_conflict}",
+        "description": "Captured EnOcean ID: {captured_id}\n\nEEP profile: {radio_eep}\nManufacturer: {radio_manufacturer}\nManufacturer registry: {radio_manufacturer_name}\nManufacturer ID: {radio_manufacturer_id}\nModel: {radio_model}\nEvidence: {radio_evidence}\nSupport: {radio_support}\nConflict: {radio_conflict}\nLast seen (UTC): {radio_last_seen}\nRSSI: {radio_rssi} dBm\nRepeater count: {radio_repeater}",
         "data": {
           "platform": "Type",
           "name": "Name",

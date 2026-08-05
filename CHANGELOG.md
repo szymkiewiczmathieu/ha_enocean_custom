@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.2.0 - Unreleased
+
+- Add a strictly passive, entry-owned in-memory radio inbox with a 64-entry
+  unknown-sender LRU, UTC last-seen, packet count, RSSI, repeater count and
+  observed RORGs. The options radio card shows available signal facts; unload
+  clears the registry and diagnostics expose only an aggregate sender count.
+- Add deterministic local DDF import (`scripts/import_ddf.py`) and the versioned
+  `data/ddf_catalog.json`. Runtime merges by exact Product ID without network
+  access or forgeable identity strings.
+- Correct Cositherm DDF evidence per exact variant: non-GW products transmit GP
+  `B0-00-00` and receive eleven A5-10 profiles; GW products transmit/receive
+  `D2-34-10`. No D2-34-10 decoder is invented without a public bit-level spec.
+- Add a short sourced manufacturer-ID registry. An observed ID that is absent
+  from it renders as the stable `not_registered` token, while an ID that was
+  never observed stays `—`; neither is ever guessed from adjacent evidence.
+- Support A5-14-01 contact and supply voltage decoding. The contact is a door
+  binary sensor; voltage is a disabled-by-default diagnostic entity and EEP
+  reserved error codes remain unknown. A5-10 is not broadened without proven
+  real-frame tests.
+
 ## 2.1.0 - 2026-08-05
 
 - Disable automatic UTE acknowledgement outside an explicitly opened session.

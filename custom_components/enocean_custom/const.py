@@ -11,6 +11,7 @@ MANUFACTURER = "EnOcean"
 DATA_ENOCEAN = DOMAIN
 DATA_KNOWN_IDS = "known_ids"
 DATA_LEARN_MANAGER = "learn_manager"
+DATA_DEVICE_INBOX = "device_inbox"
 ENOCEAN_DONGLE = "dongle"
 
 ERROR_INVALID_DONGLE_PATH = "invalid_dongle_path"

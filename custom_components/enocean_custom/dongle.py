@@ -24,6 +24,7 @@ from .const import (
 from .enocean_library.communicators import SerialCommunicator
 from .enocean_library.protocol.constants import RETURN_CODE
 from .enocean_library.protocol.packet import RadioPacket, ResponsePacket
+from .inbox import DeviceInbox, packet_observation
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ class EnOceanDongle:
         self._last_response_at: datetime | None = None
         self._last_response_code: str | None = None
         self._response_lock = Lock()
+        self._inbox: DeviceInbox | None = None
         self._queued_response_callbacks: dict[int, Callable[[bool], None] | None] = {}
         self._pending_response_callbacks: deque[Callable[[bool], None] | None] = deque()
         # teach_in=False is explicit and load-bearing: the runtime worker must
@@ -79,6 +81,10 @@ class EnOceanDongle:
         self._communicator.request_base_id()
         ir.async_delete_issue(self.hass, DOMAIN, ISSUE_SERIAL_STOPPED)
         dispatcher_send(self.hass, SIGNAL_DONGLE_STATUS, self.available)
+
+    def set_inbox(self, inbox: DeviceInbox | None) -> None:
+        """Attach the passive registry owned by the current config entry."""
+        self._inbox = inbox
 
     async def async_unload(self) -> bool:
         """Stop the sole serial owner before allowing config-entry reload."""
@@ -166,6 +172,11 @@ class EnOceanDongle:
         self._received_packets += 1
         self._last_packet_at = datetime.now(UTC)
         _LOGGER.debug("Received EnOcean packet type=%s", packet.packet_type)
+        if self._inbox is not None and (observation := packet_observation(packet)):
+            try:
+                self.hass.loop.call_soon_threadsafe(self._inbox.observe, observation)
+            except RuntimeError:
+                _LOGGER.debug("Home Assistant loop closed before inbox update")
         dispatcher_send(self.hass, SIGNAL_RECEIVE_MESSAGE, packet)
 
     def _communicator_stopped(self, error: str | None) -> None:

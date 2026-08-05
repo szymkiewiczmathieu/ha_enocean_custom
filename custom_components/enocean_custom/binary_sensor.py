@@ -71,10 +71,10 @@ async def async_setup_entry(
 ) -> None:
     """Create rocker sensors stored in the entry options."""
     configured = (
-        EnOceanBinarySensor(
-            row["id"],
-            row["name"],
-            row["device_class"],
+        (
+            EnOceanA514Contact(row["id"], row["name"])
+            if (row.get("radio_metadata") or {}).get("eep") == "A5-14-01"
+            else EnOceanBinarySensor(row["id"], row["name"], row["device_class"])
         ).set_radio_metadata(row.get("radio_metadata"))
         for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
         if row["platform"] == "binary_sensor"
@@ -146,3 +146,28 @@ class EnOceanBinarySensor(EnOceanEntity, BinarySensorEntity):
             "repeated_telegram": int(self.repeated_telegram),
         }
         self.hass.bus.fire(EVENT_BUTTON_PRESSED, event_data)
+
+
+class EnOceanA514Contact(EnOceanEntity, BinarySensorEntity):
+    """Expose the contact bit of an A5-14-01 window/door sender."""
+
+    _attr_device_class = BinarySensorDeviceClass.DOOR
+
+    def __init__(self, dev_id: list[int], dev_name: str) -> None:
+        """Initialize an automatically mapped contact."""
+        super().__init__(dev_id, dev_name)
+        self._attr_name = dev_name
+        self._attr_unique_id = f"{combine_hex(dev_id)}-a5-14-01-contact"
+
+    @override
+    def value_changed(self, packet) -> None:
+        """Decode CT at EEP bit offset 31 (DB0 bit 0)."""
+        if packet.rorg != RORG.BS4 or len(packet.data) < 5:
+            return
+        # DB0 bit 3 is the 4BS LRN bit (RadioPacket.learn is its inverse). A
+        # teach-in telegram carries FUNC/TYPE/manufacturer in DB3..DB1 and no
+        # contact state at all, so it must never move the entity.
+        if not packet.data[4] & 0x08:
+            return
+        self._attr_is_on = bool(packet.data[4] & 0x01)
+        self.schedule_update_ha_state()
