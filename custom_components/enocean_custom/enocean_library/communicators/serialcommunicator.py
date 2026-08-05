@@ -20,8 +20,11 @@ class SerialCommunicator(Communicator):
         callback=None,
         stopped_callback=None,
         written_callback=None,
+        teach_in=False,
     ):
-        super().__init__(callback)
+        # teach_in stays opt-in: a worker started for normal operation must
+        # never acknowledge a UTE telegram it did not solicit.
+        super().__init__(callback, teach_in=teach_in)
         self.name = "EnOceanSerialCommunicator"
         self.daemon = True
         # Linearization gate shared by send(), stop() and the physical write.

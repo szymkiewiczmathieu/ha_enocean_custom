@@ -541,6 +541,70 @@ def _assert_ute_does_not_corrupt_following_frame() -> None:
         )
 
 
+def _assert_unsolicited_ute_is_never_acknowledged() -> None:
+    """The runtime worker must never answer a UTE it did not solicit."""
+    ute_frame = bytearray(
+        [
+            0x55,
+            0x00,
+            0x0D,
+            0x07,
+            0x01,
+            0xFD,
+            0xD4,
+            0xA0,
+            0xFF,
+            0x3E,
+            0x00,
+            0x01,
+            0x01,
+            0xD2,
+            0x01,
+            0x94,
+            0xE3,
+            0xB9,
+            0x00,
+            0x01,
+            0xFF,
+            0xFF,
+            0xFF,
+            0xFF,
+            0x40,
+            0x00,
+            0xAB,
+        ]
+    )
+
+    received: list[Any] = []
+    communicator = Communicator(callback=received.append)
+    communicator._buffer = list(ute_frame)
+    communicator.parse()
+    if len(received) != 1 or communicator.transmit.qsize():
+        raise AssertionError("an unsolicited UTE teach-in was acknowledged")
+    if communicator._pending_ute_packets or communicator._base_id_requested:
+        raise AssertionError(
+            "an unsolicited UTE teach-in was queued for a later answer"
+        )
+
+    # A UTE arriving after the Base ID is already known must be just as silent.
+    known_base_id = Communicator(callback=[].append)
+    known_base_id.base_id = [0xFF, 0x87, 0xCA, 0x00]
+    known_base_id._buffer = list(ute_frame)
+    known_base_id.parse()
+    if known_base_id.transmit.qsize():
+        raise AssertionError("a known Base ID re-enabled automatic UTE acknowledgement")
+
+    # The worker the integration actually starts carries the same policy.
+    original_serial = serialcommunicator.serial.Serial
+    serialcommunicator.serial.Serial = lambda *args, **kwargs: Mock()
+    try:
+        runtime_dongle = dongle.EnOceanDongle(None, "/dev/test-ute-policy")
+    finally:
+        serialcommunicator.serial.Serial = original_serial
+    if runtime_dongle._communicator.teach_in:
+        raise AssertionError("the runtime dongle enabled automatic UTE acknowledgement")
+
+
 def _assert_corrupt_header_resyncs_following_frame() -> None:
     """A bogus declared length must not strand the next valid ESP3 frame."""
     received = []
@@ -710,7 +774,9 @@ def _assert_transmit_queue_is_bounded() -> None:
 
 def _assert_base_id_retry_paths() -> None:
     """Refusal and timeout must release the asynchronous Base-ID latch."""
-    ute_communicator = Communicator()
+    # Deferred UTE handling only ever runs inside an explicitly opened
+    # teach-in session, so the session flag is what this path is exercised on.
+    ute_communicator = Communicator(teach_in=True)
     ute_communicator._pending_ute_packets.append(object())
     if not ute_communicator.request_base_id():
         raise AssertionError("UTE Base-ID request was rejected")
@@ -1834,6 +1900,7 @@ def main() -> None:
         raise AssertionError(f"Dongle diagnostics were lost: {diagnostic}")
 
     _assert_ute_does_not_corrupt_following_frame()
+    _assert_unsolicited_ute_is_never_acknowledged()
     _assert_corrupt_header_resyncs_following_frame()
     _assert_incomplete_frames_preserve_following_frame()
     _assert_generic_frame_timeout_resyncs_following_frame()
@@ -1859,7 +1926,8 @@ def main() -> None:
         f"malformed_packets_dropped={len(malformed_packets)} "
         "brightness_mapping=exact rejected_commands=no_state_change "
         "esp3_optional=valid esp3_rejections=correlated actuator_initial=unknown "
-        "ute_resync=valid diagnostics=redacted off_without_sensor=sent "
+        "ute_resync=valid ute_auto_ack=disabled "
+        "diagnostics=redacted off_without_sensor=sent "
         "climate_responses=transactional climate_send_chain=real base_id_retry=valid "
         "teach_in=captured options_flow=add_collide_delete "
         "learn_service=idempotent_registration "

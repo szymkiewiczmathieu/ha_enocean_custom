@@ -18,7 +18,7 @@ class Communicator(threading.Thread):
     BASE_ID_MAX_AUTO_RETRIES = 1
     TRANSMIT_QUEUE_MAXSIZE = 256
 
-    def __init__(self, callback=None, teach_in=True):
+    def __init__(self, callback=None, teach_in=False):
         super().__init__()
         # Create an event to stop the thread
         self._stop_flag = threading.Event()
@@ -36,8 +36,10 @@ class Communicator(threading.Thread):
         self._base_id_in_flight = False
         self._base_id_retry_count = 0
         self._pending_ute_packets = deque(maxlen=8)
-        # Should new messages be learned automatically? Defaults to True.
-        # TODO: Not sure if we should use CO_WR_LEARNMODE??
+        # Acknowledging a UTE teach-in is an unsolicited radio transmission:
+        # it answers whichever device asks, whether or not an operator opened
+        # a pairing session. It therefore defaults to off and must be enabled
+        # explicitly, for the duration of an explicitly opened session only.
         self.teach_in = teach_in
 
     def _get_from_send_queue(self):
@@ -93,6 +95,12 @@ class Communicator(threading.Thread):
         if packet.response == RETURN_CODE.OK and len(packet.response_data) == 4:
             self._base_id = packet.response_data
         self._reset_base_id_request()
+        if not self.teach_in:
+            # A teach-in session can close while the Base-ID command is still
+            # in flight. Answering afterwards would be exactly the unsolicited
+            # transmission the session bounds, so the deferred teach-ins are
+            # dropped instead of being acknowledged late.
+            self._pending_ute_packets.clear()
         if self._base_id is None:
             if (
                 self._pending_ute_packets
@@ -119,6 +127,8 @@ class Communicator(threading.Thread):
         self._stop_flag.set()
         self._reset_base_id_request()
         self._base_id_retry_count = 0
+        # A stopped worker owns no teach-in session any more.
+        self._pending_ute_packets.clear()
 
     def parse(self):
         """Parses messages and puts them to receive queue"""
@@ -136,6 +146,9 @@ class Communicator(threading.Thread):
                 if isinstance(packet, ResponsePacket):
                     self._response_received(packet)
 
+                # Outside an explicitly opened teach-in session the telegram is
+                # still parsed and dispatched, but never answered: passive
+                # observation costs no radio transmission.
                 if isinstance(packet, UTETeachInPacket) and self.teach_in:
                     if self._base_id is None:
                         self.logger.warning(

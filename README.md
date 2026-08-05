@@ -154,8 +154,15 @@ UI; this deletes both its config-entry option entry and its exact entity
 registry row. If the same radio ID is also configured in YAML, removal is
 refused until the YAML configuration is removed.
 
-Two things worth knowing:
+Three things worth knowing:
 
+- The integration never acknowledges a UTE teach-in in the background. A UTE
+  telegram received outside an explicitly opened session is observed — its
+  EEP is extracted as evidence — but never answered on the radio, so no
+  neighbouring device can pair itself with your dongle unsolicited. Pairing an
+  actuator stays an explicit action: the guided pairing flow, the
+  `enocean_custom.send_teach_in` service, or the `climate_teach_in_actor`
+  services, each of which transmits only when you trigger it.
 - Only one teach-in window can be open at a time, whoever started it (the UI
   flow or the `enocean_custom.learn` service): a second start is refused until
   the first window closes. Deleting a UI device makes its EnOcean ID teachable

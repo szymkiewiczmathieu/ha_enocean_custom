@@ -52,11 +52,18 @@ class EnOceanDongle:
         self._response_lock = Lock()
         self._queued_response_callbacks: dict[int, Callable[[bool], None] | None] = {}
         self._pending_response_callbacks: deque[Callable[[bool], None] | None] = deque()
+        # teach_in=False is explicit and load-bearing: the runtime worker must
+        # never acknowledge a UTE teach-in on its own. Answering one is an
+        # unsolicited radio transmission that pairs whatever device asks,
+        # outside any operator-opened window. Pairing stays operator-driven
+        # through the existing teach-in services and the guided flows, which
+        # only ever transmit on an explicit user action.
         self._communicator = SerialCommunicator(
             port=serial_path,
             callback=self.callback,
             stopped_callback=self._communicator_stopped,
             written_callback=self._packet_written,
+            teach_in=False,
         )
 
     @property

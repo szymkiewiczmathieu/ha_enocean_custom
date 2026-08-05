@@ -158,6 +158,13 @@ overrides the decoder verdict.
 - **Diagnostics.** Exportable diagnostics contain aggregates only. No sender
   ID, Product ID, product reference, device name, `radio_metadata` or
   `ui_devices` is included.
+- **No background UTE acknowledgement.** v2.1 does not accept UTE teach-ins in
+  the background. A UTE telegram is read as evidence — that passive extraction
+  is exactly what feeds `evidence=exact` — but it is never answered on the
+  radio. The serial worker is started with automatic acknowledgement disabled,
+  so no device can pair itself with your dongle by asking. Pairing stays an
+  operator action, through the guided pairing flow and the existing teach-in
+  services, which transmit only when you trigger them.
 
 ## Home Assistant Device Registry
 

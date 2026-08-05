@@ -2,6 +2,16 @@
 
 ## 2.1.0 - 2026-08-05
 
+- Disable automatic UTE acknowledgement outside an explicitly opened session.
+  The vendored communicator used to answer `TEACHIN_ACCEPTED` to every UTE
+  request it received, and the serial worker was started in that mode, so a
+  neighbouring device could pair itself with the dongle without any operator
+  action. The worker is now started with acknowledgement off, the vendored
+  default is off, and a teach-in deferred while the Base ID is resolved is
+  dropped if the session closes meanwhile. A UTE telegram is still parsed and
+  dispatched, so the v2.1 passive UTE/EEP extraction is unchanged; only the
+  unsolicited radio answer is removed. Pairing stays operator-driven through
+  the guided flows and the existing teach-in services.
 - Add local Device Intelligence for exact UTE and enriched 4BS teach-in
   identities, strict Alliance QR Product ID parsing, and safe bounded
   `radio_metadata` persistence. Security containers and raw QR data are never

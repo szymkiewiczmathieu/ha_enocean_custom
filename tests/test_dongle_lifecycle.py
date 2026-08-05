@@ -121,11 +121,12 @@ def _load_serial_class(serial_port=None):
     ast.fix_missing_locations(isolated)
 
     class Communicator(threading.Thread):
-        def __init__(self, callback=None):
+        def __init__(self, callback=None, teach_in=False):
             super().__init__()
             self._stop_flag = threading.Event()
             self.transmit = queue.Queue()
             self._buffer = bytearray()
+            self.teach_in = teach_in
 
         def _get_from_send_queue(self):
             try:
