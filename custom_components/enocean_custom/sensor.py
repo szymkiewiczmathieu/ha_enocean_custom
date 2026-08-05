@@ -40,6 +40,7 @@ from .enocean_library.protocol.constants import RORG
 from .enocean_library.utils import combine_hex
 from .learn import register_known_id
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devices
+from .yaml_import import track_yaml_device
 
 CONF_MAX_TEMP = "max_temp"
 CONF_MIN_TEMP = "min_temp"
@@ -169,6 +170,7 @@ def setup_platform(
     discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
     """Create YAML-configured measurement entities."""
+    track_yaml_device(hass, "sensor", config)
     register_known_id(hass, config[CONF_ID])
     add_entities(_entities_from_config(config))
 

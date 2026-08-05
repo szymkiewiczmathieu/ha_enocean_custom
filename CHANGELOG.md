@@ -1,6 +1,19 @@
 # Changelog
 
-## 2.2.0 - Unreleased
+## 2.3.0 - Unreleased
+
+- Add an explicit options-flow import for legacy YAML `binary_sensor` and
+  `switch` devices. It preserves their exact unique IDs, skips existing UI
+  identities, reports invalid and non-importable YAML rows, and never invents
+  radio metadata.
+- Keep the YAML inventory memory-only and clear it on integration unload. The
+  confirmation and result screens document the safe order: import, remove the
+  imported YAML blocks, restart, then verify entity IDs and automations.
+- Add English and French options-flow translations plus unit coverage for
+  identity parity, defaults, confirmation, visibility, duplicates, invalid
+  rows, restart absence, and inventory cleanup.
+
+## 2.2.0 - 2026-08-05
 
 - Add a strictly passive, entry-owned in-memory radio inbox with a 64-entry
   unknown-sender LRU, UTC last-seen, packet count, RSSI, repeater count and

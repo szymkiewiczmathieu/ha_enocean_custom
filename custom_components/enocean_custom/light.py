@@ -39,6 +39,7 @@ from .schema import (
     optional_enocean_id,
     valid_ui_devices,
 )
+from .yaml_import import track_yaml_device
 
 CONF_CHANNEL = "channel"
 CONF_SENDER_ID = "sender_id"
@@ -66,6 +67,7 @@ async def async_setup_platform(
     discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
     """Create one YAML-configured gateway dimmer."""
+    track_yaml_device(hass, "light", config)
     sender_id: list[int] = config[CONF_SENDER_ID]
     device_id: list[int] = config[CONF_ID]
     entity = EnOceanLight(

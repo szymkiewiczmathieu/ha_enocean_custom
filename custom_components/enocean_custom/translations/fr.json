@@ -72,7 +72,8 @@
           "learn": "Ajouter un équipement",
           "qr_code": "Ajouter par code QR",
           "pair_actuator": "Appairer un actionneur (guidé)",
-          "manage": "Gérer les équipements de l'interface"
+          "manage": "Gérer les équipements de l'interface",
+          "import_yaml": "Importer les équipements YAML"
         }
       },
       "pair_actuator": {
@@ -161,6 +162,15 @@
           "range_to": "Fin de la plage brute"
         }
       },
+      "import_yaml": {
+        "title": "Importer les équipements YAML",
+        "description": "Prêts à importer : {binary_sensors} capteurs binaires et {switches} switches. {non_importable} équipements utilisent des plateformes YAML non importables et resteront en YAML ; {invalid} lignes invalides ou partielles seront ignorées.\n\nNe retirez pas le YAML avant l'import. Après l'import, retirez les blocs YAML importés, redémarrez Home Assistant, puis vérifiez les entités. Les entity_id et automatisations sont conservés.",
+        "data": {"confirm": "Je comprends et je confirme l'import"}
+      },
+      "import_yaml_success": {
+        "title": "Équipements YAML importés",
+        "description": "Importés : {imported}. Doublons ignorés : {skipped}.\n\nRetirez maintenant les blocs YAML importés, redémarrez Home Assistant, puis vérifiez les entités et automatisations."
+      },
       "manage": {
         "title": "Gérer les équipements de l'interface",
         "data": {
@@ -199,7 +209,9 @@
       "delete_cancelled": "Suppression annulée.",
       "learn_in_progress": "Une fenêtre d'apprentissage est déjà en cours.",
       "device_form_missing": "La session du formulaire a expiré ; recommencez.",
-      "yaml_managed": "Cet ID EnOcean est aussi configuré en YAML. Supprimez la configuration YAML avant de supprimer son équipement de l'interface."
+      "yaml_managed": "Cet ID EnOcean est aussi configuré en YAML. Supprimez la configuration YAML avant de supprimer son équipement de l'interface.",
+      "no_yaml_devices_to_import": "Aucun équipement YAML ne reste à importer.",
+      "yaml_import_cancelled": "Import YAML annulé. Aucun équipement n'a été modifié."
     }
   },
   "services": {

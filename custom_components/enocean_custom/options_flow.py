@@ -76,6 +76,7 @@ from .sensor import (
     SENSOR_TYPES,
 )
 from .switch import CONF_CHANNEL, CONF_SWITCH_TYPE, SWITCH_TYPES
+from .yaml_import import yaml_inventory
 
 _FLOW_OWNER = "options_flow"
 _HEX_BYTE = re.compile(r"^[0-9A-Fa-f]{2}$")
@@ -217,6 +218,22 @@ class EnOceanOptionsFlow(OptionsFlow):
         self._pairing_outcome: str | None = None
         self._pairing_status_event: asyncio.Event | None = None
         self._pairing_unsubscribe = None
+        self._yaml_import_result: dict[str, int] | None = None
+
+    def _pending_yaml_rows(self) -> list[dict[str, Any]]:
+        """Return tracked YAML rows whose entity identity is not in options."""
+        rows, _non_importable, _invalid = yaml_inventory(self.hass)
+        existing = {
+            (row["platform"], _unique_id_for(row))
+            for row in valid_ui_devices(
+                self.config_entry.options.get(CONF_UI_DEVICES, [])
+            )
+        }
+        return [
+            row
+            for row in rows
+            if (row["platform"], _unique_id_for(row)) not in existing
+        ]
 
     def _radio_placeholders(self) -> dict[str, str]:
         """Return the captured ID plus the translated radio-card placeholders."""
@@ -258,9 +275,81 @@ class EnOceanOptionsFlow(OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         """Offer to add a new device or manage existing UI devices."""
+        menu_options = ["learn", "qr_code", "pair_actuator", "manage"]
+        if self._pending_yaml_rows():
+            menu_options.append("import_yaml")
         return self.async_show_menu(
             step_id="init",
-            menu_options=["learn", "qr_code", "pair_actuator", "manage"],
+            menu_options=menu_options,
+        )
+
+    async def async_step_import_yaml(self, user_input=None):
+        """Confirm and import YAML identities into config-entry options."""
+        pending = self._pending_yaml_rows()
+        if not pending:
+            return self.async_abort(reason="no_yaml_devices_to_import")
+        rows, non_importable, invalid = yaml_inventory(self.hass)
+        if user_input is None:
+            counts = {
+                "binary_sensors": sum(
+                    row["platform"] == "binary_sensor" for row in pending
+                ),
+                "switches": sum(row["platform"] == "switch" for row in pending),
+                "non_importable": sum(non_importable.values()),
+                "invalid": invalid,
+            }
+            return self.async_show_form(
+                step_id="import_yaml",
+                data_schema=vol.Schema({vol.Required("confirm", default=False): bool}),
+                description_placeholders={
+                    key: str(value) for key, value in counts.items()
+                },
+            )
+        if not user_input["confirm"]:
+            return self.async_abort(reason="yaml_import_cancelled")
+
+        # Read the options here, with no await before the write below, so a
+        # concurrent flow (learn, pairing) can neither be clobbered nor clobber
+        # this import. Malformed hand-edited rows are carried over untouched.
+        raw_devices = list(self.config_entry.options.get(CONF_UI_DEVICES, []))
+        identities = {
+            (row["platform"], _unique_id_for(row))
+            for row in valid_ui_devices(raw_devices)
+        }
+        imported = 0
+        skipped = 0
+        for row in rows:
+            identity = (row["platform"], _unique_id_for(row))
+            if identity in identities:
+                skipped += 1
+                continue
+            # Already validated by UI_DEVICE_SCHEMA when it was tracked, so the
+            # whole batch is appended or nothing is: no partial import.
+            raw_devices.append(row)
+            identities.add(identity)
+            imported += 1
+        updated_options = dict(self.config_entry.options)
+        updated_options[CONF_UI_DEVICES] = raw_devices
+        self.hass.config_entries.async_update_entry(
+            self.config_entry, options=updated_options
+        )
+        self._yaml_import_result = {"imported": imported, "skipped": skipped}
+        return await self.async_step_import_yaml_success()
+
+    async def async_step_import_yaml_success(self, user_input=None):
+        """Show migration results and the required YAML removal sequence."""
+        if self._yaml_import_result is None:
+            return self.async_abort(reason="no_yaml_devices_to_import")
+        if user_input is not None:
+            return self.async_create_entry(
+                title="", data=dict(self.config_entry.options)
+            )
+        return self.async_show_form(
+            step_id="import_yaml_success",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                key: str(value) for key, value in self._yaml_import_result.items()
+            },
         )
 
     async def async_step_pair_actuator(self, user_input=None):

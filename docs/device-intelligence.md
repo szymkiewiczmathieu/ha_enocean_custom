@@ -208,6 +208,19 @@ teach-in, a standardized QR label, or the manual EEP entry described above —
 which stays an operator assertion and is labeled as such. Historical YAML
 configuration and `ui_devices` rows without `radio_metadata` stay valid.
 
+### YAML-to-UI migration boundary
+
+The v2.3 options flow inventories YAML configuration in memory only. It imports
+only `binary_sensor` and `switch`, because those platforms share their exact
+legacy unique-ID formulas with `_unique_id_for`. In particular, a binary sensor
+without `device_class` deliberately remains `<decimal-id>-None`. Sensor, light,
+and climate YAML entries are reported as non-importable and remain untouched.
+
+Imported rows carry no `radio_metadata`: migration is configuration transport,
+not new evidence. It cannot manufacture an EEP, Product ID, sender identity, or
+manufacturer. The required sequence is **import in the UI → remove the imported
+YAML blocks → restart Home Assistant → verify entities and automations**.
+
 ## Sources
 
 - EnOcean Alliance, EEP database: <https://www.enocean-alliance.org/products/eeps>

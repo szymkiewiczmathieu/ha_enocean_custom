@@ -60,6 +60,7 @@ from .enocean_library.protocol.constants import RORG
 from .enocean_library.utils import combine_hex
 from .learn import register_known_id
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devices
+from .yaml_import import track_yaml_device
 
 PROFILE_SRC_D08 = "SRC-D08"
 PROFILE_A5_20_04 = "A5-20-04"
@@ -238,6 +239,7 @@ async def async_setup_platform(
     discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
     """Create a YAML-configured heating controller."""
+    track_yaml_device(hass, "climate", config)
     climate_platforms = [Platform.CLIMATE]
     await async_setup_reload_service(hass, DOMAIN, climate_platforms)
     device_id = config[CONF_ID]

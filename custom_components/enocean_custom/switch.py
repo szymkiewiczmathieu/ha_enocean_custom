@@ -26,6 +26,7 @@ from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
 from .enocean_library.utils import combine_hex
 from .learn import register_known_id
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devices
+from .yaml_import import track_yaml_device
 
 CONF_CHANNEL, CONF_SWITCH_TYPE = "channel", "switch_type"
 DEFAULT_NAME = "EnOcean Switch"
@@ -92,6 +93,7 @@ async def async_setup_platform(
     discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
     """Create a YAML-configured EnOcean switch."""
+    track_yaml_device(hass, "switch", config)
     device_id: list[int] = config[CONF_ID]
     channel: int = config[CONF_CHANNEL]
     _migrate_to_new_unique_id(hass, device_id, channel)

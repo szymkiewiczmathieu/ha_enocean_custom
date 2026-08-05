@@ -23,6 +23,7 @@ from .enocean_library.utils import combine_hex
 from .inbox import DeviceInbox
 from .learn import async_register_learn_service, get_known_ids
 from .schema import CONF_UI_DEVICES, valid_ui_devices
+from .yaml_import import purge_yaml_inventory
 
 CONFIG_SCHEMA = vol.Schema(
     {DOMAIN: vol.Schema({vol.Required(CONF_DEVICE): cv.string})},
@@ -127,4 +128,5 @@ async def async_unload_entry(
     if inbox is not None:
         inbox.clear()
     hass.data.get(DATA_ENOCEAN, {}).pop(DATA_DEVICE_INBOX, None)
+    purge_yaml_inventory(hass)
     return True

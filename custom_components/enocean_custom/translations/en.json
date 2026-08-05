@@ -72,7 +72,8 @@
           "learn": "Add a device",
           "qr_code": "Add via QR code",
           "pair_actuator": "Pair an actuator (guided)",
-          "manage": "Manage UI devices"
+          "manage": "Manage UI devices",
+          "import_yaml": "Import YAML devices"
         }
       },
       "pair_actuator": {
@@ -161,6 +162,15 @@
           "range_to": "Raw range end"
         }
       },
+      "import_yaml": {
+        "title": "Import YAML devices",
+        "description": "Ready to import: {binary_sensors} binary sensors and {switches} switches. {non_importable} devices use unsupported YAML platforms and will remain in YAML; {invalid} invalid or partial rows will be ignored.\n\nDo not remove YAML before importing. After importing, remove the imported YAML blocks, restart Home Assistant, and verify the entities. Entity IDs and automations are preserved.",
+        "data": {"confirm": "I understand and want to import"}
+      },
+      "import_yaml_success": {
+        "title": "YAML devices imported",
+        "description": "Imported: {imported}. Skipped as duplicates: {skipped}.\n\nNow remove the imported YAML blocks, restart Home Assistant, and verify the entities and automations."
+      },
       "manage": {
         "title": "Manage UI devices",
         "data": {
@@ -199,7 +209,9 @@
       "delete_cancelled": "Removal cancelled.",
       "learn_in_progress": "A teach-in window is already in progress.",
       "device_form_missing": "The device form session expired; start again.",
-      "yaml_managed": "This EnOcean ID is also configured in YAML. Remove the YAML configuration before deleting its UI device."
+      "yaml_managed": "This EnOcean ID is also configured in YAML. Remove the YAML configuration before deleting its UI device.",
+      "no_yaml_devices_to_import": "No YAML devices remain to import.",
+      "yaml_import_cancelled": "YAML import cancelled. No devices were changed."
     }
   },
   "services": {

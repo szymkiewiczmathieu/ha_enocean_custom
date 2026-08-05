@@ -25,6 +25,7 @@ from .enocean_library.protocol.constants import RORG
 from .enocean_library.utils import combine_hex
 from .learn import register_known_id
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, valid_ui_devices
+from .yaml_import import track_yaml_device
 
 DEFAULT_NAME = "EnOcean binary sensor"
 EVENT_BUTTON_PRESSED = "button_pressed"
@@ -51,6 +52,7 @@ def setup_platform(
     discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
     """Create a YAML-configured rocker sensor."""
+    track_yaml_device(hass, "binary_sensor", config)
     device_id: list[int] = config[CONF_ID]
     register_known_id(hass, device_id)
     add_entities(

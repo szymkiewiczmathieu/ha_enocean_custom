@@ -121,7 +121,7 @@ Since `v1.3.0`, devices can also be
 added and removed entirely from **Settings > Devices & services > EnOcean
 Custom > Configure**, without editing `configuration.yaml`. YAML configuration
 keeps working unchanged and cohabits with UI-managed devices on the same
-platform; there is no automatic YAML-to-UI migration.
+platform. Migration is always explicit; no YAML device is imported automatically.
 
 1. Open **Configure > Add a device**.
 2. Put the physical device into learning mode and press its button. The
@@ -153,6 +153,31 @@ Use **Configure > Manage UI devices** to remove a device you added from the
 UI; this deletes both its config-entry option entry and its exact entity
 registry row. If the same radio ID is also configured in YAML, removal is
 refused until the YAML configuration is removed.
+
+#### Migrating YAML devices to the UI
+
+Version 2.3 can import legacy `binary_sensor` and `switch` YAML devices while
+preserving their existing `unique_id`, and therefore their entity IDs and
+automations. `sensor`, `light`, and `climate` entries are counted on the import
+screen but remain in YAML. Invalid or partial entries are also counted and
+ignored rather than being imported silently.
+
+Follow this order exactly:
+
+1. Keep the YAML in place and choose **Configure > Import YAML devices**.
+2. Review the per-platform counts and explicitly confirm the import.
+3. Only after the success screen, remove the imported `binary_sensor` and
+   `switch` blocks from YAML. Leave the reported non-importable blocks intact.
+4. Restart Home Assistant.
+5. Verify the entity IDs, entity states, and their automations.
+
+During the overlap Home Assistant can warn about duplicate unique IDs and keep
+the YAML entity active. This is expected. After YAML removal and restart, the
+UI-backed entity takes over the same registry identity. The migration inventory
+is memory-only: it is built when Home Assistant loads your YAML platforms and
+is dropped when the integration unloads, so if you reload or reconfigure the
+entry before importing, restart Home Assistant to see the import entry again.
+It contains no inferred radio metadata.
 
 Three things worth knowing:
 
