@@ -1452,13 +1452,14 @@ def _assert_options_schemas_are_ws_serializable() -> None:
         options_flow._qr_code_schema(),
         options_flow._pair_actuator_type_schema(),
         options_flow._pairing_failure_schema(),
+        options_flow._commission_existing_schema({"0": "Existing relay"}),
         vol.Schema({}),  # instructions and both terminal success forms
     ]
     schemas.extend(
         flow._device_details_schema(platform)
         for platform in ("binary_sensor", "switch", "light", "climate", "sensor")
     )
-    flow._pairing_actuator_type = "relay_rps"
+    flow._pairing_actuator_type = "relay_d2"
     schemas.append(flow._pair_actuator_details_schema())
     flow._pairing_actuator_type = "dimmer_4bs"
     schemas.append(flow._pair_actuator_details_schema())

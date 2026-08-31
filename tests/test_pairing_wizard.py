@@ -1,4 +1,4 @@
-"""Tests for the guided actuator pairing options flow."""
+"""Safety regression tests for guided actuator commissioning."""
 
 from __future__ import annotations
 
@@ -14,38 +14,62 @@ from unittest.mock import patch
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
-try:  # The bare CI lifecycle environment has no Home Assistant installed.
+try:  # Bare unittest collection intentionally has no Home Assistant dependency.
+    import voluptuous as vol
     from homeassistant.config_entries import ConfigEntries, ConfigEntry
     from homeassistant.const import CONF_ENTITY_ID
     from homeassistant.core import HomeAssistant
     from homeassistant.data_entry_flow import FlowResultType
+    from homeassistant.exceptions import HomeAssistantError
     from homeassistant.helpers import area_registry as ar
     from homeassistant.helpers import device_registry as dr
     from homeassistant.helpers import entity_registry as er
     from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-    from custom_components.enocean_custom import options_flow
+    from custom_components.enocean_custom import options_flow, switch
     from custom_components.enocean_custom.const import (
+        DATA_ENOCEAN,
         DOMAIN,
+        ENOCEAN_DONGLE,
         SERVICE_SEND_TEACH_IN,
         SIGNAL_RECEIVE_MESSAGE,
     )
     from custom_components.enocean_custom.enocean_library.protocol.constants import (
+        PACKET,
         RORG,
     )
-    from custom_components.enocean_custom.schema import CONF_UI_DEVICES
+    from custom_components.enocean_custom.schema import (
+        CONF_RADIO_METADATA,
+        CONF_UI_DEVICES,
+        UI_DEVICE_SCHEMA,
+    )
+    from custom_components.enocean_custom.switch import EnOceanSwitch
 
     HA_AVAILABLE = True
-except ModuleNotFoundError:  # pragma: no cover - exercised by bare CI env
+except ModuleNotFoundError:  # pragma: no cover - bare CI environment
     HA_AVAILABLE = False
+
+
+class FakeDongle:
+    """Capture packets and expose response callbacks under test control."""
+
+    def __init__(self) -> None:
+        self.sent = []
+        self.callbacks = []
+        self.queue_result = True
+        self.base_id = [0xA1, 0xB2, 0xC3, 0xD4]
+
+    def send(self, packet, response_callback=None):
+        self.sent.append(packet)
+        self.callbacks.append(response_callback)
+        return self.queue_result
 
 
 @unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
 class PairingWizardTests(unittest.IsolatedAsyncioTestCase):
-    """Exercise persistence, progress, outcomes, and cleanup."""
+    """Prove the D2 flow's radio, causality, persistence, and cleanup gates."""
 
     async def asyncSetUp(self) -> None:
-        """Create the minimal registries and services used by an options flow."""
         self._config_dir = TemporaryDirectory()
         self.hass = HomeAssistant(self._config_dir.name)
         await ar.async_load(self.hass, load_empty=True)
@@ -53,181 +77,350 @@ class PairingWizardTests(unittest.IsolatedAsyncioTestCase):
         await dr.async_load(self.hass, load_empty=True)
         await er.async_load(self.hass, load_empty=True)
         self.hass.config_entries = ConfigEntries(self.hass, {})
-        self.toggle_calls: list[str] = []
-        self.teach_in_calls: list[str] = []
-
-        async def _toggle(call) -> None:
-            self.toggle_calls.append(call.data[CONF_ENTITY_ID])
-
-        async def _send_teach_in(call) -> None:
-            self.teach_in_calls.append(call.data[CONF_ENTITY_ID])
-
-        self.hass.services.async_register("switch", "toggle", _toggle)
-        self.hass.services.async_register(DOMAIN, SERVICE_SEND_TEACH_IN, _send_teach_in)
+        self._flows = []
 
     async def asyncTearDown(self) -> None:
-        """Stop Home Assistant and discard its temporary config directory."""
+        for flow in self._flows:
+            flow.async_remove()
+            task = flow._pairing_task
+            if task is not None:
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
         await self.hass.async_stop(force=True)
         self._config_dir.cleanup()
 
-    def _new_entry(self) -> ConfigEntry:
-        """Add and return a minimal config entry."""
+    def _entry(self, rows=()):
         entry = ConfigEntry(
             data={"device": "/dev/test-pairing"},
             discovery_keys=MappingProxyType({}),
             domain=DOMAIN,
             minor_version=1,
-            options={},
+            options={CONF_UI_DEVICES: list(rows)},
             source="user",
             subentries_data=None,
             title="EnOcean",
             unique_id=None,
             version=1,
         )
+        entry.runtime_data = FakeDongle()
         self.hass.config_entries._entries[entry.entry_id] = entry
         return entry
 
-    def _bind_flow(self, entry: ConfigEntry):
-        """Bind a real options flow without the flow manager."""
+    def _flow(self, entry):
         flow = options_flow.EnOceanOptionsFlow()
         flow.hass = self.hass
         flow.handler = entry.entry_id
+        self._flows.append(flow)
         return flow
 
-    async def _create_actuator(
-        self,
-        *,
-        actuator_id: str,
-        actuator_type: str,
-        sender_id: str | None = None,
-    ):
-        """Drive identification through persistence and register its entity."""
-        entry = self._new_entry()
-        flow = self._bind_flow(entry)
-        type_step = await flow.async_step_pair_actuator({"qr_code": actuator_id})
-        self.assertEqual(type_step["step_id"], "pair_actuator_type")
-        details_step = await flow.async_step_pair_actuator_type(
-            {"name": f"Actuator {actuator_id}", "actuator_type": actuator_type}
+    @staticmethod
+    def _row(sender="11:22:33:44", channel=0, name="Relay"):
+        sender_bytes = [int(part, 16) for part in sender.split(":")]
+        return UI_DEVICE_SCHEMA(
+            {
+                "id": sender_bytes,
+                "platform": "switch",
+                "name": name,
+                "channel": channel,
+                "switch_type": "default",
+                CONF_RADIO_METADATA: {
+                    "sender_id": sender_bytes,
+                    "eep": "D2-01-12",
+                    "eep_source": "radio_declared",
+                    "evidence": "exact",
+                },
+            }
         )
-        self.assertEqual(details_step["step_id"], "pair_actuator_details")
-        details = {"channel": 0}
-        if sender_id is not None:
-            details["sender_id"] = sender_id
-        instructions = await flow.async_step_pair_actuator_details(details)
-        self.assertEqual(instructions["step_id"], "pair_actuator_instructions")
-        self.assertEqual(len(entry.options[CONF_UI_DEVICES]), 1)
-
-        device = entry.options[CONF_UI_DEVICES][0]
-        registry_entry = er.async_get(self.hass).async_get_or_create(
-            device["platform"],
-            DOMAIN,
-            options_flow._unique_id_for(device),
-        )
-        return flow, entry, registry_entry.entity_id
 
     @staticmethod
-    def _d2_status(sender_id: str, channel: int = 0):
-        """Build a valid synthetic D2-01 actuator status response."""
-        sender = [int(part, 16) for part in sender_id.split(":")]
+    def _status(sender="11:22:33:44", channel=0, output=100):
+        sender_bytes = [int(part, 16) for part in sender.split(":")]
         return SimpleNamespace(
-            sender_int=int(sender_id.replace(":", ""), 16),
-            data=[RORG.VLD, 0x04, channel, 50, *sender, 0x00],
+            sender_int=int(sender.replace(":", ""), 16),
+            data=[RORG.VLD, 0x04, channel, output, *sender_bytes, 0],
         )
 
-    async def test_relay_creation_toggle_d2_status_and_success(self) -> None:
-        """A valid module status confirms the complete relay flow."""
-        actuator_id = "11:22:33:44"
-        flow, _entry, entity_id = await self._create_actuator(
-            actuator_id=actuator_id,
-            actuator_type="relay_rps",
+    async def _new_relay(self, channel=0):
+        entry = self._entry()
+        flow = self._flow(entry)
+        await flow.async_step_pair_actuator({"qr_code": "11:22:33:44"})
+        await flow.async_step_pair_actuator_type(
+            {"name": "Relay", "actuator_type": "relay_d2"}
         )
-        with (
-            patch.object(options_flow, "PAIRING_TIMEOUT", 0.5),
-            patch.object(options_flow, "PAIRING_RELAY_INTERVAL", 0.01),
+        result = await flow.async_step_pair_actuator_details({"channel": channel})
+        self.assertEqual(result["step_id"], "pair_actuator_instructions")
+        return flow, entry
+
+    async def _new_dimmer(self):
+        entry = self._entry()
+        flow = self._flow(entry)
+        await flow.async_step_pair_actuator({"qr_code": "31:32:33:34"})
+        await flow.async_step_pair_actuator_type(
+            {"name": "Dimmer", "actuator_type": "dimmer_4bs"}
+        )
+
+        def _store_options(config_entry, *, options):
+            object.__setattr__(config_entry, "options", MappingProxyType(options))
+
+        with patch.object(
+            self.hass.config_entries,
+            "async_update_entry",
+            side_effect=_store_options,
         ):
-            progress = await flow.async_step_pair_actuator_instructions({})
-            self.assertEqual(progress["type"], FlowResultType.SHOW_PROGRESS)
-            while not self.toggle_calls:
-                await asyncio.sleep(0)
-            self.assertEqual(self.toggle_calls, [entity_id])
-            async_dispatcher_send(
-                self.hass,
-                SIGNAL_RECEIVE_MESSAGE,
-                SimpleNamespace(sender_int=0x11223344, data=None),
+            result = await flow.async_step_pair_actuator_details(
+                {"channel": 0, "sender_id": "05:9F:89:34"}
             )
-            async_dispatcher_send(
-                self.hass,
-                SIGNAL_RECEIVE_MESSAGE,
-                self._d2_status("AA:BB:CC:DD"),
+        self.assertEqual(result["step_id"], "pair_actuator_instructions")
+        device = entry.options[CONF_UI_DEVICES][0]
+        entity = er.async_get(self.hass).async_get_or_create(
+            device["platform"], DOMAIN, options_flow._unique_id_for(device)
+        )
+        return flow, entity.entity_id
+
+    async def test_direct_qr_identification_is_radio_silent(self):
+        entry = self._entry()
+        flow = self._flow(entry)
+
+        result = await flow.async_step_qr_code({"qr_code": "11:22:33:44"})
+
+        self.assertEqual(result["step_id"], "device_form")
+        self.assertEqual(entry.runtime_data.sent, [])
+
+    async def _start(self, flow):
+        with (
+            patch.object(options_flow, "PAIRING_TIMEOUT", 0.3),
+            patch.object(options_flow, "PAIRING_RELAY_INTERVAL", 0.03),
+        ):
+            result = await flow.async_step_pair_actuator_instructions({})
+            await asyncio.sleep(0)
+        self.assertEqual(result["type"], FlowResultType.SHOW_PROGRESS)
+
+    async def test_exact_directed_d2_bytes_and_no_early_options_write(self):
+        flow, entry = await self._new_relay(channel=1)
+        self.assertEqual(entry.options[CONF_UI_DEVICES], [])
+        with patch.object(
+            self.hass.config_entries,
+            "async_update_entry",
+            wraps=self.hass.config_entries.async_update_entry,
+        ) as update:
+            await self._start(flow)
+            packet = entry.runtime_data.sent[0]
+            self.assertEqual(packet.packet_type, PACKET.RADIO_ERP1)
+            self.assertEqual(
+                packet.data,
+                [RORG.VLD, 1, 1, 100, 0xA1, 0xB2, 0xC3, 0xD4, 0],
             )
-            self.assertFalse(flow._pairing_task.done())
-            async_dispatcher_send(
-                self.hass,
-                SIGNAL_RECEIVE_MESSAGE,
-                self._d2_status(actuator_id),
+            self.assertEqual(packet.optional, [3, 0x11, 0x22, 0x33, 0x44, 0xFF, 0])
+            update.assert_not_called()
+        flow.async_remove()
+
+    async def test_relay_refuses_to_transmit_without_a_resolved_dongle_base_id(self):
+        flow, entry = await self._new_relay()
+        entry.runtime_data.base_id = None
+        await self._start(flow)
+        await asyncio.wait_for(flow._pairing_task, 1)
+        self.assertEqual(flow._pairing_outcome, "base_id_unavailable")
+        self.assertEqual(entry.runtime_data.sent, [])
+
+    async def test_esp3_ok_then_later_matching_on_status_required(self):
+        flow, entry = await self._new_relay()
+        await self._start(flow)
+        async_dispatcher_send(self.hass, SIGNAL_RECEIVE_MESSAGE, self._status())
+        await asyncio.sleep(0)
+        self.assertFalse(flow._pairing_task.done())
+        entry.runtime_data.callbacks[0](True)
+        async_dispatcher_send(self.hass, SIGNAL_RECEIVE_MESSAGE, self._status())
+        await asyncio.wait_for(flow._pairing_task, 1)
+        self.assertEqual(flow._pairing_outcome, "success")
+
+    async def test_relay_feedback_output_must_match_the_directed_on_command(self):
+        flow, entry = await self._new_relay()
+        await self._start(flow)
+        entry.runtime_data.callbacks[0](True)
+        async_dispatcher_send(
+            self.hass, SIGNAL_RECEIVE_MESSAGE, self._status(output=50)
+        )
+        await asyncio.sleep(0)
+        self.assertFalse(flow._pairing_task.done())
+        async_dispatcher_send(self.hass, SIGNAL_RECEIVE_MESSAGE, self._status())
+        await asyncio.wait_for(flow._pairing_task, 1)
+        self.assertEqual(flow._pairing_outcome, "success")
+
+    async def test_existing_default_switch_uses_base_id_and_refuses_unknown_sender(
+        self,
+    ):
+        entry = self._entry()
+        self.hass.data[DATA_ENOCEAN] = {ENOCEAN_DONGLE: entry.runtime_data}
+        entity = EnOceanSwitch([0x11, 0x22, 0x33, 0x44], "Relay", 1, "default")
+        entity.hass = self.hass
+        entity.turn_on()
+        self.assertEqual(
+            entry.runtime_data.sent[0].data,
+            [RORG.VLD, 1, 1, 100, 0xA1, 0xB2, 0xC3, 0xD4, 0],
+        )
+        entry.runtime_data.base_id = None
+        entity.turn_off()
+        self.assertEqual(len(entry.runtime_data.sent), 1)
+
+    async def test_rejected_response_and_wrong_feedback_never_confirm(self):
+        flow, entry = await self._new_relay()
+        await self._start(flow)
+        entry.runtime_data.callbacks[0](False)
+        for packet in (
+            self._status("AA:BB:CC:DD"),
+            self._status(channel=1),
+            self._status(output=0),
+        ):
+            async_dispatcher_send(self.hass, SIGNAL_RECEIVE_MESSAGE, packet)
+        await asyncio.sleep(0.04)
+        self.assertNotEqual(flow._pairing_outcome, "success")
+        flow.async_remove()
+
+    async def test_success_adds_one_final_default_row_preserving_metadata(self):
+        flow, entry = await self._new_relay()
+        await self._start(flow)
+        entry.runtime_data.callbacks[0](True)
+        async_dispatcher_send(self.hass, SIGNAL_RECEIVE_MESSAGE, self._status())
+        await flow._pairing_task
+        await flow.async_step_pair_actuator_progress()
+        result = await flow.async_step_pair_relay_success({})
+        rows = result["data"][CONF_UI_DEVICES]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["switch_type"], "default")
+        self.assertEqual(
+            rows[0][CONF_RADIO_METADATA], flow._pairing_device[CONF_RADIO_METADATA]
+        )
+        self.assertEqual(entry.options[CONF_UI_DEVICES], [])
+
+    async def test_existing_commission_rejects_unproven_unbound_or_nonrelay_rows(self):
+        eligible = self._row()
+        invalid_channel = self._row(channel=2, name="Out of range")
+        unproven = self._row(sender="22:33:44:55", name="Unproven")
+        unproven[CONF_RADIO_METADATA] = {
+            **unproven[CONF_RADIO_METADATA],
+            "eep_source": "manual",
+            "evidence": "manual",
+        }
+        unbound = self._row(sender="33:44:55:66", name="Unbound evidence")
+        unbound[CONF_RADIO_METADATA].pop("sender_id")
+        entry = self._entry([eligible, invalid_channel, unproven, unbound])
+        flow = self._flow(entry)
+
+        for device in (invalid_channel, unproven, unbound):
+            result = await flow.async_step_commission_existing(
+                {"device": options_flow._unique_id_for(device)}
             )
-            await asyncio.wait_for(flow._pairing_task, 1)
-            calls_at_success = len(self.toggle_calls)
-            await asyncio.sleep(0.03)
-            self.assertEqual(len(self.toggle_calls), calls_at_success)
+            self.assertEqual(result["type"], FlowResultType.ABORT)
+            self.assertEqual(result["reason"], "no_commissionable_devices")
 
-        done = await flow.async_step_pair_actuator_progress()
-        self.assertEqual(done["type"], FlowResultType.SHOW_PROGRESS_DONE)
-        self.assertEqual(done["step_id"], "pair_relay_success")
-        success = await flow.async_step_pair_relay_success(None)
-        self.assertEqual(success["type"], FlowResultType.FORM)
-        finished = await flow.async_step_pair_relay_success({})
-        self.assertEqual(finished["type"], FlowResultType.CREATE_ENTRY)
+        selected = await flow.async_step_commission_existing(
+            {"device": options_flow._unique_id_for(eligible)}
+        )
+        self.assertEqual(selected["step_id"], "pair_actuator_instructions")
 
-    async def test_timeout_retry_keep_and_delete(self) -> None:
-        """All three timeout outcomes preserve their documented semantics."""
-        for offset, action in enumerate(("retry", "keep", "delete"), start=1):
-            with self.subTest(action=action):
-                actuator_id = f"21:22:33:{offset:02X}"
-                flow, entry, entity_id = await self._create_actuator(
-                    actuator_id=actuator_id,
-                    actuator_type="relay_rps",
-                )
-                before = len(self.toggle_calls)
-                with (
-                    patch.object(options_flow, "PAIRING_TIMEOUT", 0.03),
-                    patch.object(options_flow, "PAIRING_RELAY_INTERVAL", 0.005),
-                ):
-                    await flow.async_step_pair_actuator_instructions({})
-                    await asyncio.wait_for(flow._pairing_task, 1)
-                    calls_at_timeout = len(self.toggle_calls)
-                    await asyncio.sleep(0.02)
-                    self.assertGreater(calls_at_timeout, before)
-                    self.assertEqual(len(self.toggle_calls), calls_at_timeout)
+    async def test_existing_commission_preserves_options_and_registry_identity(self):
+        row = self._row()
+        entry = self._entry([row])
+        registry = er.async_get(self.hass)
+        entity = registry.async_get_or_create(
+            "switch",
+            DOMAIN,
+            options_flow._unique_id_for(row),
+            suggested_object_id="custom",
+        )
+        registry.async_update_entity(
+            entity.entity_id, name="My name", area_id="kitchen"
+        )
+        before = dict(entry.options)
+        flow = self._flow(entry)
+        selected = await flow.async_step_commission_existing(
+            {"device": options_flow._unique_id_for(row)}
+        )
+        self.assertEqual(selected["step_id"], "pair_actuator_instructions")
+        await self._start(flow)
+        entry.runtime_data.callbacks[0](True)
+        async_dispatcher_send(self.hass, SIGNAL_RECEIVE_MESSAGE, self._status())
+        await flow._pairing_task
+        result = await flow.async_step_pair_relay_success({})
+        self.assertEqual(result["data"], before)
+        current = registry.async_get(entity.entity_id)
+        self.assertEqual(
+            (current.entity_id, current.name, current.area_id),
+            (entity.entity_id, "My name", "kitchen"),
+        )
 
-                done = await flow.async_step_pair_actuator_progress()
-                self.assertEqual(done["step_id"], "pair_actuator_failure")
-                failure = await flow.async_step_pair_actuator_failure(None)
-                self.assertEqual(failure["type"], FlowResultType.FORM)
+    async def test_concurrent_existing_deletion_never_resurrects(self):
+        entry = self._entry([self._row()])
+        flow = self._flow(entry)
+        await flow.async_step_commission_existing(
+            {"device": options_flow._unique_id_for(entry.options[CONF_UI_DEVICES][0])}
+        )
+        object.__setattr__(entry, "options", MappingProxyType({CONF_UI_DEVICES: []}))
+        result = flow._finish_pairing()
+        self.assertEqual(result["type"], FlowResultType.ABORT)
+        self.assertEqual(entry.options[CONF_UI_DEVICES], [])
+
+    async def test_new_finalization_rechecks_concurrent_identity_collision(self):
+        flow, entry = await self._new_relay()
+        object.__setattr__(
+            entry,
+            "options",
+            MappingProxyType({CONF_UI_DEVICES: [self._row(name="Other flow")]}),
+        )
+        result = flow._finish_pairing()
+        self.assertEqual(result["type"], FlowResultType.ABORT)
+        self.assertEqual(entry.options[CONF_UI_DEVICES][0]["name"], "Other flow")
+
+    async def test_timeout_actions_new_and_existing(self):
+        for existing in (False, True):
+            for action in ("retry", "keep", "delete"):
+                entry = self._entry([self._row()] if existing else [])
+                flow = self._flow(entry)
+                if existing:
+                    await flow.async_step_commission_existing(
+                        {
+                            "device": options_flow._unique_id_for(
+                                entry.options[CONF_UI_DEVICES][0]
+                            )
+                        }
+                    )
+                else:
+                    await flow.async_step_pair_actuator({"qr_code": "11:22:33:44"})
+                    await flow.async_step_pair_actuator_type(
+                        {"name": "Relay", "actuator_type": "relay_d2"}
+                    )
+                    await flow.async_step_pair_actuator_details({"channel": 0})
                 result = await flow.async_step_pair_actuator_failure(
                     {"failure_action": action}
                 )
                 if action == "retry":
                     self.assertEqual(result["step_id"], "pair_actuator_instructions")
-                    self.assertIsNone(flow._pairing_task)
-                    self.assertEqual(len(entry.options[CONF_UI_DEVICES]), 1)
-                elif action == "keep":
-                    self.assertEqual(result["type"], FlowResultType.CREATE_ENTRY)
-                    self.assertEqual(len(entry.options[CONF_UI_DEVICES]), 1)
+                elif existing or action == "delete":
+                    self.assertEqual(result["data"], entry.options)
                 else:
-                    self.assertEqual(result["type"], FlowResultType.CREATE_ENTRY)
-                    self.assertEqual(entry.options[CONF_UI_DEVICES], [])
-                    self.assertIsNone(er.async_get(self.hass).async_get(entity_id))
+                    self.assertEqual(len(result["data"][CONF_UI_DEVICES]), 1)
 
-    async def test_dimmer_sends_existing_service_then_reports_honest_success(
-        self,
-    ) -> None:
-        """The 4BS flow calls send_teach_in N times and claims no feedback."""
-        flow, _entry, entity_id = await self._create_actuator(
-            actuator_id="31:32:33:34",
-            actuator_type="dimmer_4bs",
-            sender_id="05:9F:89:34",
-        )
+    async def test_flow_removal_cancels_listener_task_and_future_sends(self):
+        flow, entry = await self._new_relay()
+        await self._start(flow)
+        task = flow._pairing_task
+        flow.async_remove()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        count = len(entry.runtime_data.sent)
+        await asyncio.sleep(0.05)
+        self.assertTrue(task.cancelled())
+        self.assertEqual(len(entry.runtime_data.sent), count)
+        self.assertIsNone(flow._pairing_unsubscribe)
+
+    async def test_dimmer_three_accepted_teach_ins_end_only_in_honest_screen(self):
+        calls = []
+
+        async def _accept(call):
+            calls.append(call.data[CONF_ENTITY_ID])
+
+        self.hass.services.async_register(DOMAIN, SERVICE_SEND_TEACH_IN, _accept)
+        flow, entity_id = await self._new_dimmer()
         with (
             patch.object(options_flow, "PAIRING_TIMEOUT", 0.5),
             patch.object(options_flow, "PAIRING_DIMMER_INTERVAL", 0.005),
@@ -235,140 +428,130 @@ class PairingWizardTests(unittest.IsolatedAsyncioTestCase):
         ):
             await flow.async_step_pair_actuator_instructions({})
             await asyncio.wait_for(flow._pairing_task, 1)
-        self.assertEqual(self.teach_in_calls, [entity_id, entity_id, entity_id])
-        done = await flow.async_step_pair_actuator_progress()
+            done = await flow.async_step_pair_actuator_progress()
+            screen = await flow.async_step_pair_dimmer_success(None)
+        self.assertEqual(calls, [entity_id, entity_id, entity_id])
         self.assertEqual(done["step_id"], "pair_dimmer_success")
-        success = await flow.async_step_pair_dimmer_success(None)
-        self.assertEqual(success["type"], FlowResultType.FORM)
+        self.assertEqual(screen["type"], FlowResultType.FORM)
+        self.assertEqual(screen["step_id"], "pair_dimmer_success")
 
-    async def test_abandon_cancels_loop_without_zombie_commands(self) -> None:
-        """Discarding the flow stops its background task and future toggles."""
-        flow, _entry, _entity_id = await self._create_actuator(
-            actuator_id="41:42:43:44",
-            actuator_type="relay_rps",
-        )
+    async def test_dimmer_rejected_teach_in_never_counts_as_sent_or_success(self):
+        calls = 0
+
+        async def _reject(_call):
+            nonlocal calls
+            calls += 1
+            raise HomeAssistantError("rejected by dongle")
+
+        self.hass.services.async_register(DOMAIN, SERVICE_SEND_TEACH_IN, _reject)
+        flow, _entity_id = await self._new_dimmer()
         with (
-            patch.object(options_flow, "PAIRING_TIMEOUT", 1),
-            patch.object(options_flow, "PAIRING_RELAY_INTERVAL", 0.005),
-        ):
-            await flow.async_step_pair_actuator_instructions({})
-            while not self.toggle_calls:
-                await asyncio.sleep(0)
-            task = flow._pairing_task
-            flow.async_remove()
-            with contextlib.suppress(asyncio.CancelledError):
-                await task
-            calls_at_remove = len(self.toggle_calls)
-            await asyncio.sleep(0.02)
-        self.assertTrue(task.cancelled())
-        self.assertEqual(len(self.toggle_calls), calls_at_remove)
-
-    async def test_wrong_channel_status_does_not_confirm(self) -> None:
-        """Review P1-01: a valid status for another channel is not a success."""
-        actuator_id = "51:52:53:54"
-        flow, _entry, _entity_id = await self._create_actuator(
-            actuator_id=actuator_id,
-            actuator_type="relay_rps",
-        )
-        with (
-            patch.object(options_flow, "PAIRING_TIMEOUT", 0.3),
-            patch.object(options_flow, "PAIRING_RELAY_INTERVAL", 0.01),
-        ):
-            await flow.async_step_pair_actuator_instructions({})
-            async_dispatcher_send(
-                self.hass,
-                SIGNAL_RECEIVE_MESSAGE,
-                self._d2_status(actuator_id, channel=1),
-            )
-            await asyncio.sleep(0.05)
-            self.assertFalse(flow._pairing_task.done())
-            async_dispatcher_send(
-                self.hass,
-                SIGNAL_RECEIVE_MESSAGE,
-                self._d2_status(actuator_id, channel=0),
-            )
-            await asyncio.wait_for(flow._pairing_task, 1)
-        self.assertEqual(flow._pairing_outcome, "success")
-
-    async def test_rejected_teach_in_never_counts_as_sent(self) -> None:
-        """Review P1-02: a dongle-level rejection ends in failure, not success."""
-        from homeassistant.exceptions import HomeAssistantError
-
-        async def _rejecting_teach_in(call) -> None:
-            raise HomeAssistantError("rejected by the dongle")
-
-        self.hass.services.async_remove(DOMAIN, SERVICE_SEND_TEACH_IN)
-        self.hass.services.async_register(
-            DOMAIN, SERVICE_SEND_TEACH_IN, _rejecting_teach_in
-        )
-        flow, _entry, _entity_id = await self._create_actuator(
-            actuator_id="61:62:63:64",
-            actuator_type="dimmer_4bs",
-            sender_id="05:9F:89:34",
-        )
-        with (
-            patch.object(options_flow, "PAIRING_TIMEOUT", 0.05),
+            patch.object(options_flow, "PAIRING_TIMEOUT", 0.04),
             patch.object(options_flow, "PAIRING_DIMMER_INTERVAL", 0.005),
         ):
             await flow.async_step_pair_actuator_instructions({})
             await asyncio.wait_for(flow._pairing_task, 1)
+            done = await flow.async_step_pair_actuator_progress()
+        self.assertGreater(calls, 0)
         self.assertEqual(flow._pairing_outcome, "timeout")
-        done = await flow.async_step_pair_actuator_progress()
         self.assertEqual(done["step_id"], "pair_actuator_failure")
 
-    async def test_deleted_device_cannot_reach_success(self) -> None:
-        """Review P2-02: a concurrently deleted device never reports success."""
-        actuator_id = "71:72:73:74"
-        flow, entry, _entity_id = await self._create_actuator(
-            actuator_id=actuator_id,
-            actuator_type="relay_rps",
-        )
+    async def test_dimmer_blocking_teach_in_is_bounded_by_pairing_timeout(self):
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def _block(_call):
+            started.set()
+            await release.wait()
+
+        self.hass.services.async_register(DOMAIN, SERVICE_SEND_TEACH_IN, _block)
+        flow, _entity_id = await self._new_dimmer()
+        try:
+            with patch.object(options_flow, "PAIRING_TIMEOUT", 0.04):
+                await flow.async_step_pair_actuator_instructions({})
+                await asyncio.wait_for(started.wait(), 1)
+                await asyncio.wait_for(flow._pairing_task, 1)
+            self.assertEqual(flow._pairing_outcome, "timeout")
+        finally:
+            release.set()
+
+    async def test_abandon_dimmer_cancels_loop_without_later_service_calls(self):
+        first_call = asyncio.Event()
+        calls = []
+
+        async def _accept(call):
+            calls.append(call.data[CONF_ENTITY_ID])
+            first_call.set()
+
+        self.hass.services.async_register(DOMAIN, SERVICE_SEND_TEACH_IN, _accept)
+        flow, _entity_id = await self._new_dimmer()
         with (
-            patch.object(options_flow, "PAIRING_TIMEOUT", 0.5),
-            patch.object(options_flow, "PAIRING_RELAY_INTERVAL", 0.01),
+            patch.object(options_flow, "PAIRING_TIMEOUT", 1),
+            patch.object(options_flow, "PAIRING_DIMMER_INTERVAL", 0.05),
         ):
             await flow.async_step_pair_actuator_instructions({})
-            while not self.toggle_calls:
-                await asyncio.sleep(0)
-            # A second options flow deletes the device while we pair.
-            self.hass.config_entries.async_update_entry(
-                entry, options={CONF_UI_DEVICES: []}
-            )
-            async_dispatcher_send(
-                self.hass,
-                SIGNAL_RECEIVE_MESSAGE,
-                self._d2_status(actuator_id, channel=0),
-            )
-            await asyncio.sleep(0.05)
-            # The stale status must not confirm; the loop runs to timeout.
-            self.assertNotEqual(flow._pairing_outcome, "success")
+            await asyncio.wait_for(first_call.wait(), 1)
+            task = flow._pairing_task
             flow.async_remove()
             with contextlib.suppress(asyncio.CancelledError):
-                await flow._pairing_task
+                await task
+            calls_at_remove = len(calls)
+            await asyncio.sleep(0.08)
+        self.assertTrue(task.cancelled())
+        self.assertEqual(len(calls), calls_at_remove)
 
-    async def test_deadline_bounds_the_service_call(self) -> None:
-        """Review P2-01: a stuck service call cannot overrun the deadline."""
-        stuck = asyncio.Event()
-
-        async def _blocking_toggle(call) -> None:
-            self.toggle_calls.append(call.data[CONF_ENTITY_ID])
-            await stuck.wait()
-
-        self.hass.services.async_remove("switch", "toggle")
-        self.hass.services.async_register("switch", "toggle", _blocking_toggle)
-        flow, _entry, _entity_id = await self._create_actuator(
-            actuator_id="81:82:83:84",
-            actuator_type="relay_rps",
+    async def test_default_ui_channel_31_accepted_32_rejected_rps_still_0_or_1(self):
+        entry = self._entry()
+        for channel, accepted in ((31, True), (32, False)):
+            flow = self._flow(entry)
+            flow._captured_id = [1, 2, 3, channel]
+            flow._pending_platform = "switch"
+            flow._pending_name = "Switch"
+            result = await flow.async_step_device_details(
+                {"channel": channel, "switch_type": "default"}
+            )
+            self.assertEqual(result["type"] == FlowResultType.CREATE_ENTRY, accepted)
+        flow = self._flow(entry)
+        flow._captured_id = [5, 6, 7, 8]
+        flow._pending_platform = "switch"
+        flow._pending_name = "RPS"
+        self.assertEqual(
+            (
+                await flow.async_step_device_details(
+                    {"channel": 1, "switch_type": "RPS"}
+                )
+            )["type"],
+            FlowResultType.CREATE_ENTRY,
         )
-        with (
-            patch.object(options_flow, "PAIRING_TIMEOUT", 0.05),
-            patch.object(options_flow, "PAIRING_RELAY_INTERVAL", 0.01),
-        ):
-            await flow.async_step_pair_actuator_instructions({})
-            await asyncio.wait_for(flow._pairing_task, 1)
-        stuck.set()
-        self.assertEqual(flow._pairing_outcome, "timeout")
-        self.assertEqual(len(self.toggle_calls), 1)
+        self.assertEqual(
+            (
+                await flow.async_step_device_details(
+                    {"channel": 2, "switch_type": "RPS"}
+                )
+            )["errors"]["channel"],
+            "invalid_channel_rps",
+        )
+
+    async def test_d2_channel_bounds_match_ui_persistence_and_yaml(self):
+        ui_row = {
+            "id": [0x11, 0x22, 0x33, 0x44],
+            "platform": "switch",
+            "name": "Relay",
+            "channel": 32,
+            "switch_type": "default",
+        }
+        with self.assertRaises(vol.Invalid):
+            UI_DEVICE_SCHEMA(ui_row)
+        with self.assertRaises(vol.Invalid):
+            switch.PLATFORM_SCHEMA(
+                {
+                    "platform": DOMAIN,
+                    "id": [0x11, 0x22, 0x33, 0x44],
+                    "name": "Relay",
+                    "channel": 32,
+                    "switch_type": "default",
+                }
+            )
 
 
 if __name__ == "__main__":

@@ -164,7 +164,7 @@ UI_DEVICE_SCHEMA = vol.Schema(
             ),
             vol.Optional("device_class", default=None): vol.Any(None, cv.string),
             vol.Optional("channel", default=0): vol.All(
-                exact_finite_int, vol.Range(min=0, max=255)
+                exact_finite_int, vol.Range(min=0, max=31)
             ),
             vol.Optional("switch_type", default=None): vol.Any(
                 None, vol.In(("default", "RPS"))

@@ -11,14 +11,12 @@ from typing import Any
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
-from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
 from homeassistant.config_entries import OptionsFlow
 from homeassistant.const import (
     CONF_DEVICE_CLASS,
     CONF_ENTITY_ID,
     CONF_NAME,
     CONF_PLATFORM,
-    SERVICE_TOGGLE,
 )
 from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
@@ -46,8 +44,10 @@ from .const import (
     SIGNAL_RECEIVE_MESSAGE,
     UI_DEVICE_PLATFORMS,
 )
+from .device import build_radio_optional, get_gateway_base_id
 from .device_intelligence import (
     UNKNOWN_PLACEHOLDER,
+    Evidence,
     apply_manual_eep,
     flow_placeholders,
     metadata_declares_eep,
@@ -56,7 +56,9 @@ from .device_intelligence import (
     recommended_platform,
     reconcile_commissioning_metadata,
 )
+from .enocean_library.protocol.constants import PACKET, RORG
 from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
+from .enocean_library.protocol.packet import Packet as ESP3Packet
 from .enocean_library.utils import combine_hex, to_hex_string
 from .inbox import get_device_inbox
 from .learn import get_known_ids, get_learn_manager
@@ -84,7 +86,7 @@ _CONF_QR_CODE = "qr_code"
 _CONF_MANUAL_EEP = "manual_eep"
 _CONF_ACTUATOR_TYPE = "actuator_type"
 _CONF_FAILURE_ACTION = "failure_action"
-_ACTUATOR_RELAY = "relay_rps"
+_ACTUATOR_RELAY = "relay_d2"
 _ACTUATOR_DIMMER = "dimmer_4bs"
 _FAILURE_RETRY = "retry"
 _FAILURE_KEEP = "keep"
@@ -200,6 +202,49 @@ def _pairing_failure_schema() -> vol.Schema:
     )
 
 
+def _commission_existing_schema(choices: dict[str, str]) -> vol.Schema:
+    """Return the websocket-serializable existing-device chooser."""
+    return vol.Schema(
+        {
+            vol.Required("device"): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        {"value": value, "label": label}
+                        for value, label in choices.items()
+                    ]
+                )
+            )
+        }
+    )
+
+
+def _is_eligible_existing_d2_relay(device: dict[str, Any]) -> bool:
+    """Return whether a persisted row is safe for guided D2 commissioning.
+
+    An existing generic default switch is not evidence of a D2-01-12 relay, and
+    that EEP alone is not a product identity.  Keep this path fail-closed: it
+    is offered only to channel 0/1 rows whose exact radio declaration is bound to
+    that row's sender, never a QR-assisted or manually asserted profile.
+    """
+    metadata = device.get(CONF_RADIO_METADATA)
+    channel = device.get("channel")
+    device_id = device.get("id")
+    return (
+        device.get("platform") == "switch"
+        and device.get("switch_type") == "default"
+        and isinstance(channel, int)
+        and not isinstance(channel, bool)
+        and channel in (0, 1)
+        and isinstance(metadata, dict)
+        and isinstance(device_id, list)
+        and isinstance(metadata.get("sender_id"), list)
+        and metadata.get("sender_id") == device_id
+        and metadata.get("eep") == "D2-01-12"
+        and metadata.get("eep_source") == "radio_declared"
+        and metadata.get("evidence") == Evidence.EXACT.value
+    )
+
+
 class EnOceanOptionsFlow(OptionsFlow):
     """Add or remove EnOcean devices entirely from the UI."""
 
@@ -214,9 +259,12 @@ class EnOceanOptionsFlow(OptionsFlow):
         self._manage_index: int | None = None
         self._pairing_actuator_type: str | None = None
         self._pairing_device: dict[str, Any] | None = None
+        self._pairing_existing = False
         self._pairing_task: asyncio.Task[None] | None = None
         self._pairing_outcome: str | None = None
         self._pairing_status_event: asyncio.Event | None = None
+        self._pairing_command_accepted = False
+        self._pairing_response_token: object | None = None
         self._pairing_unsubscribe = None
         self._yaml_import_result: dict[str, int] | None = None
 
@@ -275,7 +323,13 @@ class EnOceanOptionsFlow(OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         """Offer to add a new device or manage existing UI devices."""
-        menu_options = ["learn", "qr_code", "pair_actuator", "manage"]
+        menu_options = [
+            "learn",
+            "qr_code",
+            "pair_actuator",
+            "commission_existing",
+            "manage",
+        ]
         if self._pending_yaml_rows():
             menu_options.append("import_yaml")
         return self.async_show_menu(
@@ -427,7 +481,7 @@ class EnOceanOptionsFlow(OptionsFlow):
         )
 
     async def async_step_pair_actuator_details(self, user_input=None):
-        """Validate, persist, and reload the entity used during pairing."""
+        """Validate the actuator; relays remain flow-local until radio proof."""
         if (
             self._captured_id is None
             or self._pending_name is None
@@ -446,7 +500,7 @@ class EnOceanOptionsFlow(OptionsFlow):
 
         sender_id = None
         platform = "switch"
-        switch_type = "RPS"
+        switch_type = "default"
         if self._pairing_actuator_type == _ACTUATOR_DIMMER:
             platform = "light"
             switch_type = None
@@ -473,13 +527,61 @@ class EnOceanOptionsFlow(OptionsFlow):
                 errors={"base": "invalid_device_details"}
             )
 
-        updated_options = self._options_with_added_device(device)
-        if updated_options is None:
+        if self._options_with_added_device(device) is None:
             return self._show_pair_actuator_details(errors={"base": "unique_id_exists"})
         self._pairing_device = device
-        self.hass.config_entries.async_update_entry(
-            self.config_entry, options=updated_options
-        )
+        self._pairing_existing = False
+        # The legacy 4BS path needs its entity-backed teach-in service. Relay D2
+        # commissioning intentionally stays flow-local and entry-reload-free.
+        if self._pairing_actuator_type == _ACTUATOR_DIMMER:
+            updated_options = self._options_with_added_device(device)
+            if updated_options is None:
+                return self._show_pair_actuator_details(
+                    errors={"base": "unique_id_exists"}
+                )
+            self.hass.config_entries.async_update_entry(
+                self.config_entry, options=updated_options
+            )
+        return await self.async_step_pair_actuator_instructions()
+
+    async def async_step_commission_existing(self, user_input=None):
+        """Commission an existing default UI switch without replacing its row."""
+        choices: dict[str, str] = {}
+        raw_devices = self.config_entry.options.get(CONF_UI_DEVICES, [])
+        for raw in raw_devices:
+            valid = valid_ui_devices([raw])
+            if not valid:
+                continue
+            device = valid[0]
+            if not _is_eligible_existing_d2_relay(device):
+                continue
+            choices[_unique_id_for(device)] = (
+                f"{device['name']} ({to_hex_string(device['id'])}, "
+                f"channel {device['channel']})"
+            )
+        if not choices:
+            return self.async_abort(reason="no_commissionable_devices")
+        if user_input is None:
+            return self.async_show_form(
+                step_id="commission_existing",
+                data_schema=_commission_existing_schema(choices),
+            )
+        try:
+            selected_identity = user_input["device"]
+            device = next(
+                valid[0]
+                for raw in raw_devices
+                if (valid := valid_ui_devices([raw]))
+                and _is_eligible_existing_d2_relay(valid[0])
+                and _unique_id_for(valid[0]) == selected_identity
+            )
+        except (KeyError, StopIteration, TypeError):
+            return self.async_abort(reason="no_commissionable_devices")
+        if not _is_eligible_existing_d2_relay(device):
+            return self.async_abort(reason="no_commissionable_devices")
+        self._pairing_device = device
+        self._pairing_actuator_type = _ACTUATOR_RELAY
+        self._pairing_existing = True
         return await self.async_step_pair_actuator_instructions()
 
     async def async_step_pair_actuator_instructions(self, user_input=None):
@@ -493,6 +595,9 @@ class EnOceanOptionsFlow(OptionsFlow):
             data_schema=vol.Schema({}),
             description_placeholders={
                 "timeout": str(round(PAIRING_TIMEOUT)),
+                "software_channel": str(self._pairing_device.get("channel", 0)),
+                "hardware_channel": str(self._pairing_device.get("channel", 0) + 1),
+                "press_count": str(self._pairing_device.get("channel", 0) + 3),
             },
         )
 
@@ -523,9 +628,8 @@ class EnOceanOptionsFlow(OptionsFlow):
                     "timeout": str(round(PAIRING_TIMEOUT)),
                 },
             )
-        if (
-            self._pairing_outcome == "success"
-            and self._pairing_device_still_persisted()
+        if self._pairing_outcome == "success" and (
+            not self._pairing_existing or self._pairing_device_still_persisted()
         ):
             next_step = (
                 "pair_relay_success"
@@ -564,27 +668,60 @@ class EnOceanOptionsFlow(OptionsFlow):
             self._pairing_status_event = None
 
     async def _run_relay_pairing(self, deadline: float) -> None:
-        """Toggle the persisted RPS entity until a D2-01 status arrives."""
+        """Send directed D2 ON and require ESP3 OK before matching feedback."""
         while self._pairing_status_event is not None:
             remaining = deadline - asyncio.get_running_loop().time()
             if remaining <= 0:
                 self._pairing_outcome = "timeout"
                 return
-            if self._pairing_status_event.is_set():
-                self._pairing_outcome = "success"
-                return
-            # Review finding P2-01: the deadline also bounds the service call
-            # itself. Cancelling the await cannot kill an executor handler
-            # already running, so one last in-flight command may still
-            # complete — but no further command is issued afterwards.
-            try:
-                await asyncio.wait_for(
-                    self._async_call_pairing_service(SWITCH_DOMAIN, SERVICE_TOGGLE),
-                    timeout=remaining,
-                )
-            except TimeoutError:
+            response = asyncio.get_running_loop().create_future()
+            response_token = object()
+            self._pairing_response_token = response_token
+
+            @callback
+            def _response_received(
+                ok: bool, token=response_token, future=response
+            ) -> None:
+                if self._pairing_response_token is token and not future.done():
+                    self._pairing_command_accepted = ok
+                    future.set_result(ok)
+
+            device = self._pairing_device
+            if device is None:
                 self._pairing_outcome = "timeout"
                 return
+            gateway = self.config_entry.runtime_data
+            sender_id = get_gateway_base_id(gateway)
+            if sender_id is None:
+                # An ERP1 VLD frame carries its sender in DATA. Never emit a
+                # placeholder or actuator EURID when this dongle's Base ID has
+                # not finished resolving.
+                self._pairing_outcome = "base_id_unavailable"
+                return
+            packet = ESP3Packet(
+                PACKET.RADIO_ERP1,
+                data=[RORG.VLD, 0x01, device["channel"], 100, *sender_id, 0],
+                optional=build_radio_optional(device["id"]),
+            )
+            queued = bool(gateway and gateway.send(packet, _response_received))
+            if not queued:
+                await asyncio.sleep(min(PAIRING_RELAY_INTERVAL, remaining))
+                continue
+            try:
+                accepted = await asyncio.wait_for(
+                    response,
+                    timeout=min(PAIRING_RELAY_INTERVAL, remaining),
+                )
+            except TimeoutError:
+                self._pairing_response_token = None
+                continue
+            if not accepted:
+                remaining = deadline - asyncio.get_running_loop().time()
+                await asyncio.sleep(min(PAIRING_RELAY_INTERVAL, max(remaining, 0.0)))
+                continue
+            # Statuses received before this exact command's OK callback were
+            # ignored. Only a later matching ON status can set this event.
+            self._pairing_command_accepted = True
             remaining = deadline - asyncio.get_running_loop().time()
             try:
                 await asyncio.wait_for(
@@ -592,6 +729,7 @@ class EnOceanOptionsFlow(OptionsFlow):
                     timeout=min(PAIRING_RELAY_INTERVAL, max(remaining, 0.0)),
                 )
             except TimeoutError:
+                self._pairing_command_accepted = False
                 continue
             self._pairing_outcome = "success"
             return
@@ -602,6 +740,7 @@ class EnOceanOptionsFlow(OptionsFlow):
         if (
             self._pairing_status_event is None
             or self._pairing_device is None
+            or not getattr(self, "_pairing_command_accepted", False)
             or getattr(packet, "sender_int", None)
             != combine_hex(self._pairing_device["id"])
         ):
@@ -618,7 +757,12 @@ class EnOceanOptionsFlow(OptionsFlow):
             return False
         # Review finding P2-02: a concurrent options flow may have deleted the
         # device while we wait; a stale success must never be reported.
-        return self._pairing_device_still_persisted()
+        # The directed commissioning command requests OV=100. A merely nonzero
+        # status could be an unrelated local state, so it cannot prove this
+        # exact command took effect.
+        return status.output_value == 100 and (
+            not self._pairing_existing or self._pairing_device_still_persisted()
+        )
 
     def _pairing_device_still_persisted(self) -> bool:
         """Return whether the pairing device identity is still in the options."""
@@ -626,7 +770,13 @@ class EnOceanOptionsFlow(OptionsFlow):
             return False
         unique_id = _unique_id_for(self._pairing_device)
         devices = self.config_entry.options.get(CONF_UI_DEVICES, [])
-        return any(_unique_id_for(existing) == unique_id for existing in devices)
+        return any(
+            valid
+            and valid[0]["platform"] == self._pairing_device["platform"]
+            and _unique_id_for(valid[0]) == unique_id
+            for raw in devices
+            if (valid := valid_ui_devices([raw]))
+        )
 
     async def _run_dimmer_pairing(self, deadline: float) -> None:
         """Send the existing A5-38-08 entity service a bounded number of times."""
@@ -674,7 +824,18 @@ class EnOceanOptionsFlow(OptionsFlow):
         return True
 
     def _finish_pairing(self):
-        """Finish an options flow whose device was already persisted."""
+        """Finalize exactly once, preserving or adding the exact current row."""
+        if self._pairing_existing:
+            if not self._pairing_device_still_persisted():
+                return self.async_abort(reason="commissioning_device_disappeared")
+            return self.async_create_entry(
+                title="", data=dict(self.config_entry.options)
+            )
+        if self._pairing_actuator_type == _ACTUATOR_RELAY:
+            updated = self._options_with_added_device(self._pairing_device)
+            if updated is None:
+                return self.async_abort(reason="unique_id_exists")
+            return self.async_create_entry(title="", data=updated)
         return self.async_create_entry(title="", data=dict(self.config_entry.options))
 
     async def async_step_pair_relay_success(self, user_input=None):
@@ -713,14 +874,13 @@ class EnOceanOptionsFlow(OptionsFlow):
             return await self.async_step_pair_actuator_instructions()
         if action == _FAILURE_KEEP:
             return self._finish_pairing()
-
+        if self._pairing_existing or self._pairing_actuator_type == _ACTUATOR_RELAY:
+            return self.async_create_entry(
+                title="", data=dict(self.config_entry.options)
+            )
         updated_options, error = self._options_without_pairing_device()
         if error is not None:
             return self.async_abort(reason=error)
-        self.hass.config_entries.async_update_entry(
-            self.config_entry, options=updated_options
-        )
-        self._pairing_device = None
         return self.async_create_entry(title="", data=updated_options)
 
     @callback
@@ -732,12 +892,15 @@ class EnOceanOptionsFlow(OptionsFlow):
             self._pairing_unsubscribe()
             self._pairing_unsubscribe = None
         self._pairing_status_event = None
+        self._pairing_command_accepted = False
+        self._pairing_response_token = None
 
     def _reset_pairing_run(self) -> None:
         """Reset completed run state before a retry."""
         self._stop_pairing_loop()
         self._pairing_task = None
         self._pairing_outcome = None
+        self._pairing_command_accepted = False
 
     async def async_step_qr_code(self, user_input=None):
         """Capture an EnOcean ID from a commissioning QR payload or typed ID."""
@@ -882,7 +1045,7 @@ class EnOceanOptionsFlow(OptionsFlow):
             schema_dict[vol.Optional(CONF_CHANNEL, default=0)] = (
                 selector.NumberSelector(
                     selector.NumberSelectorConfig(
-                        min=0, max=255, mode=selector.NumberSelectorMode.BOX
+                        min=0, max=31, mode=selector.NumberSelectorMode.BOX
                     )
                 )
             )
@@ -988,7 +1151,7 @@ class EnOceanOptionsFlow(OptionsFlow):
 
         if platform == "switch":
             channel = _exact_int(user_input.get(CONF_CHANNEL, 0))
-            if channel is None or not 0 <= channel <= 255:
+            if channel is None or not 0 <= channel <= 31:
                 return self._show_details_form(
                     platform, errors={CONF_CHANNEL: "invalid_channel"}
                 )

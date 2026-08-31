@@ -1,7 +1,20 @@
 # Changelog
 
-## 2.4.1 - Unreleased
+## 2.5.0 - 2026-08-31
 
+- Draft a safety-gated Ubiwizz commissioning flow using directed D2 commands
+  whose ERP1 sender is the resolved dongle Base ID, causal ESP3-OK-plus-matching
+  channel/OV=100 feedback proof, delayed one-time persistence, and an
+  identity-preserving path for existing default switches, restricted fail-closed
+  to exact radio-declared D2-01-12 evidence bound to the same sender on channels
+  0/1 (an EEP is not a product identity). D2 channels are schema-bounded to
+  0–31. Direct QR remains radio-silent and the unsafe guided
+  RPS variant is no longer offered.
+- Release gate: validate a factory-reset UBID1507C on both physical channels,
+  including ESP3 OK, directed D2 ON, and matching feedback; power-cycle the
+  module; repeat directed control and matching feedback; verify preserved
+  entity identity; and finish with an all-green CI run. No persistent hardware
+  commissioning success is claimed yet.
 - Add optional `which` and `onoff` capabilities to native EnOcean device
   triggers, allowing an exact conversion of historical `button_pressed` event
   filters while preserving the broad v2.4.0 behavior when they are omitted.

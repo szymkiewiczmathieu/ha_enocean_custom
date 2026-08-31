@@ -19,8 +19,8 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
-from .const import DOMAIN, LOGGER
-from .device import EnOceanEntity, build_radio_optional
+from .const import DATA_ENOCEAN, DOMAIN, ENOCEAN_DONGLE, LOGGER
+from .device import EnOceanEntity, build_radio_optional, get_gateway_base_id
 from .enocean_library.protocol.constants import RORG
 from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
 from .enocean_library.utils import combine_hex
@@ -48,7 +48,7 @@ PLATFORM_SCHEMA = vol.All(
             vol.Required(CONF_ID): ENOCEAN_ID,
             vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
             vol.Optional(CONF_CHANNEL, default=0): vol.All(
-                exact_finite_int, vol.Range(min=0, max=255)
+                exact_finite_int, vol.Range(min=0, max=31)
             ),
             vol.Optional(CONF_SWITCH_TYPE, default="default"): vol.In(SWITCH_TYPES),
         }
@@ -178,6 +178,18 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
                 ([RORG.RPS, 0x00, *self.dev_id, 0x20], build_radio_optional()),
             )
         else:
+            hass = getattr(self, "hass", None)
+            gateway = (
+                hass.data.get(DATA_ENOCEAN, {}).get(ENOCEAN_DONGLE)
+                if hass is not None
+                else None
+            )
+            sender_id = get_gateway_base_id(gateway)
+            if sender_id is None:
+                LOGGER.warning(
+                    "Skipping D2 command because the dongle Base ID is unavailable"
+                )
+                return
             output = 100 if target else 0
             frames = (
                 (
@@ -186,10 +198,7 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
                         0x01,
                         self.channel,
                         output,
-                        0x00,
-                        0x00,
-                        0x00,
-                        0x00,
+                        *sender_id,
                         0x00,
                     ],
                     build_radio_optional(self.dev_id),

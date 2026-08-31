@@ -53,15 +53,15 @@
     },
     "actuator_type": {
       "options": {
-        "relay_rps": "Relais (RPS, ex. Ubiwizz)",
+        "relay_d2": "Relais Ubiwizz — commissioning puis contrôle D2 dirigé",
         "dimmer_4bs": "Variateur 4BS (ex. Eltako)"
       }
     },
     "pairing_failure_action": {
       "options": {
         "retry": "Réessayer",
-        "keep": "Garder l'appareil sans appairage",
-        "delete": "Supprimer l'appareil"
+        "keep": "Garder/enregistrer sans commissioning prouvé",
+        "delete": "Annuler le commissioning"
       }
     }
   },
@@ -72,6 +72,7 @@
           "learn": "Ajouter un équipement",
           "qr_code": "Ajouter par code QR",
           "pair_actuator": "Appairer un actionneur (guidé)",
+          "commission_existing": "Commissionner un relais D2 prouvé par radio",
           "manage": "Gérer les équipements de l'interface",
           "import_yaml": "Importer les équipements YAML"
         }
@@ -101,11 +102,11 @@
       },
       "pair_actuator_instructions": {
         "title": "Mettre le module en mode appairage",
-        "description": "Mets le module en mode appairage maintenant (ex. Ubiwizz : 3 appuis courts sur PRESS ; la LED clignote). Continue ensuite pour démarrer la fenêtre d'appairage de {timeout} secondes."
+        "description": "Correspondance provisoire soumise à validation terrain : le canal logiciel {software_channel} correspond au canal matériel Ubiwizz {hardware_channel} ; appuyez brièvement {press_count} fois sur PRESS. Ensuite, n'effectuez plus aucun appui physique afin qu'un état local ne soit pas pris pour une conséquence de Home Assistant. Continuez pour lancer la fenêtre de commissioning D2 dirigé de {timeout} secondes."
       },
       "pair_relay_success": {
-        "title": "Actionneur appairé",
-        "description": "Module appairé et remontant son état ✓"
+        "title": "Contrôle D2 dirigé confirmé",
+        "description": "Une commande D2 ON dirigée a été mise en file, acceptée par ESP3 (OK), puis suivie d'un retour ON correspondant de cet actionneur et de ce canal exacts. La persistance du commissioning d'un actionneur réinitialisé en usine reste non prouvée tant que le jalon matériel de publication n'est pas validé."
       },
       "pair_dimmer_success": {
         "title": "Teach-in envoyé",
@@ -113,14 +114,14 @@
       },
       "pair_actuator_failure": {
         "title": "Délai d'appairage expiré",
-        "description": "Aucune confirmation n'a été reçue avant la fin de la fenêtre de 120 secondes. L'appareil est déjà enregistré.",
+        "description": "Le commissioning n'a pas été prouvé. Réessayer ne modifie rien. Pour un nouvel équipement, Garder peut enregistrer l'interrupteur default sans prétendre au commissioning ; Annuler l'abandonne. Pour un équipement existant, Garder ou Annuler laisse sa ligne intacte et ne la supprime jamais.",
         "data": {
           "failure_action": "Action suivante"
         }
       },
       "qr_code": {
         "title": "Ajouter par code QR",
-        "description": "Collez le contenu d'un QR de commissioning EnOcean Alliance ou saisissez un ID de quatre octets tel que AA:BB:CC:DD.",
+        "description": "Configuration uniquement : ce parcours reste silencieux en radio et ne commissionne pas un actionneur neuf d'usine. Il convient aux modules déjà commissionnés. Pour un nouvel Ubiwizz, utilisez le parcours guidé ; un relais déjà listé n'est éligible au commissioning existant qu'avec une preuve radio D2-01-12 exacte, déclarée par radio et liée à cet émetteur, sur le canal 0 ou 1.",
         "data": {
           "qr_code": "Code de commissioning ou ID EnOcean"
         }
@@ -139,7 +140,7 @@
       },
       "device_details": {
         "title": "Détails de l'équipement",
-        "description": "ID EnOcean capturé : {captured_id}, nom : {name}",
+        "description": "ID EnOcean capturé : {captured_id}, nom : {name}. L'ajout QR configure uniquement et n'émet aucune radio de commissioning.",
         "data": {
           "device_class": "Classe d'appareil",
           "channel": "Canal",
@@ -177,6 +178,11 @@
           "device": "Équipement à supprimer"
         }
       },
+      "commission_existing": {
+        "title": "Commissionner un relais D2 existant prouvé par radio",
+        "description": "Seuls les relais default gérés par l'interface, avec preuve radio D2-01-12 exacte déclarée par radio et liée au même émetteur sur le canal 0 ou 1, sont listés. Ce profil n'est pas une identité produit. La ligne d'options et l'identité dans le registre d'entités sont conservées.",
+        "data": {"device": "Relais D2 existant éligible"}
+      },
       "delete_confirm": {
         "title": "Supprimer l'équipement ?",
         "description": "Supprimer {name} ({platform}, {captured_id}) ? Cela supprime aussi son entrée dans le registre des entités.",
@@ -192,7 +198,7 @@
     "error": {
       "unique_id_exists": "Un équipement avec cette identité existe déjà. Le mode apprentissage ne fusionne ni n'écrase jamais un équipement existant.",
       "invalid_channel_rps": "Un interrupteur RPS n'accepte que le canal 0 ou 1.",
-      "invalid_channel": "Le canal doit être un entier exact entre 0 et 255.",
+      "invalid_channel": "Le canal doit être un entier exact entre 0 et 31.",
       "invalid_sender_id": "L'ID émetteur doit être 4 octets hex, ex. 05:9F:89:34.",
       "invalid_qr_code": "La valeur n'est ni un QR de commissioning EnOcean Alliance pris en charge, ni un ID au format AA:BB:CC:DD.",
       "invalid_exact_integer": "La valeur doit être un entier exact dans les limites affichées.",
@@ -206,6 +212,8 @@
     "abort": {
       "learn_timeout": "Aucun expéditeur EnOcean inconnu n'a été entendu avant expiration du délai.",
       "no_ui_devices": "Aucun équipement géré depuis l'interface à supprimer.",
+      "no_commissionable_devices": "Aucun relais default géré par l'interface avec une preuve radio D2-01-12 exacte déclarée par radio et liée au même émetteur sur le canal 0 ou 1 n'est disponible pour le commissioning.",
+      "commissioning_device_disappeared": "L'interrupteur sélectionné a été supprimé pendant le commissioning ; il n'a pas été recréé.",
       "delete_cancelled": "Suppression annulée.",
       "learn_in_progress": "Une fenêtre d'apprentissage est déjà en cours.",
       "device_form_missing": "La session du formulaire a expiré ; recommencez.",

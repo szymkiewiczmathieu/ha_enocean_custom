@@ -73,6 +73,11 @@ class EnOceanDongle:
         """Return whether the serial worker can currently accept traffic."""
         return self._available and not self._stopping and self._communicator.is_alive()
 
+    @property
+    def base_id(self) -> list[int] | None:
+        """Return the already-resolved radio sender ID without blocking HA."""
+        return self._communicator.current_base_id
+
     async def async_setup(self) -> None:
         """Start the serial worker and clear any stale repair issue."""
         self._started_at = datetime.now(UTC)

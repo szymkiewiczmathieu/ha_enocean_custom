@@ -149,6 +149,15 @@ because this integration only supports four-byte radio IDs. You can also enter
 the fallback form `AA:BB:CC:DD`. A valid value opens the same device form with
 the extracted ID pre-filled; invalid input never creates an options row.
 
+**Add via QR code is configuration-only and radio-silent.** It does not
+commission a factory-fresh actuator; already-commissioned modules can use it.
+For field evaluation of a physically identified Ubiwizz relay, use **Pair an
+actuator (guided)**. An existing switch is eligible for **Commission an existing
+radio-proven D2 relay** only when it carries exact radio-declared `D2-01-12`
+evidence bound to the same sender on channel `0` or `1`; that EEP is not a product identity. The selected
+row retains its entity ID, name, area, labels, history, automations, and radio
+metadata.
+
 Use **Configure > Manage UI devices** to remove a device you added from the
 UI; this deletes both its config-entry option entry and its exact entity
 registry row. If the same radio ID is also configured in YAML, removal is
@@ -202,34 +211,44 @@ Three things worth knowing:
 
 ### Guided actuator pairing
 
-Since `v1.5.0`, **Settings > Devices & services > EnOcean Custom > Configure >
-Pair an actuator (guided)** pairs supported receivers without DolphinView.
+**Settings > Devices & services > EnOcean Custom > Configure > Pair an actuator
+(guided)** now offers the Ubiwizz relay path first. This is a draft pending the
+hardware release gate below; it does not claim that D2 commissioning works on a
+factory-reset module until field validation proves it.
 
 1. Scan or paste the actuator's EnOcean Alliance commissioning label. You can
    instead type its four-byte radio ID exactly as `AA:BB:CC:DD`.
 2. Give it a name and select its family:
-   - **Relay (RPS, e.g. Ubiwizz)** creates an RPS `switch`; select channel `0`
-     or `1`.
+   - **Ubiwizz relay — commission, then use directed D2 control** prepares a
+     final `switch_type: default` switch. It never exposes or uses the unsafe
+     guided RPS sender path.
    - **4BS dimmer (e.g. Eltako)** creates a `light`; enter the required
      four-byte outbound `sender_id` and optionally select channel `0`–`31`.
-3. Put the receiver into pairing mode. For a Ubiwizz UBID1507C, briefly press
-   **PRESS** three times and check that its LED flashes, then continue.
-4. During the 120-second window, the relay wizard resolves the new entity by
-   its registry `unique_id` and calls its normal `switch.toggle` service about
-   every four seconds. This reuses the entity's RPS press/release transaction
-   and its dongle response handling. Pairing is confirmed only when a valid
-   D2-01 actuator status arrives from the module's own radio ID.
+3. The field-gated mapping is software channel `0` → hardware channel 1 →
+   **PRESS ×3**, and software channel `1` → hardware channel 2 → **PRESS ×4**.
+   After starting radio progress, make no further physical presses. This keeps
+   a locally generated status from being mistaken for Home Assistant causality.
+4. During the 120-second window, the entry-owned dongle sends a directed D2-01
+   ON command to the actuator. Confirmation requires all three facts in order:
+   the command was queued, its ESP3 response callback reported OK, and a later
+   D2-01 status from the exact actuator and channel reported output value 100,
+   exactly matching the directed ON command.
+   Wrong, early, OFF, rejected, and timed-out evidence never confirms.
 5. For an Eltako dimmer, the wizard calls the existing
    `enocean_custom.send_teach_in` entity service three times, about five
    seconds apart. A5-38-08 provides no confirmation telegram: the final screen
    therefore asks you to verify physically that the dimmer responds.
 
-The device is saved in the existing `ui_devices` config-entry option before
-the pairing loop begins, and the normal options update listener reloads the
-integration to create its entity. If the 120-second relay window expires, you
-can retry, keep the saved device without pairing, or remove it through the
-same protected UI-device removal path. Closing the flow cancels the loop and
-its D2 listener, so it cannot keep transmitting in the background.
+For a new relay, no row is saved and no reload occurs before radio proof. A
+successful close saves one final default row once. On timeout, retry changes
+nothing; keep may save that requested row while explicitly leaving
+commissioning unproven; cancel discards it. **Commission an existing radio-proven
+D2 relay** runs the same radio process against a current persisted row only when
+the row has exact radio-declared `D2-01-12` evidence bound to the same sender
+and channel `0` or `1`. This proof is not a Ubiwizz product identity. It never adds, replaces, or
+deletes the row. Concurrent deletion aborts honestly and never resurrects the
+row. Closing the flow cancels its task/listener and stops future sends. The 4BS
+dimmer path is unchanged.
 
 ### Binary sensors
 
@@ -315,6 +334,13 @@ After the first valid status, the entity exposes `d2_channel`,
 `d2_output_value`, the power-failure capability/state flags, and `last_status`.
 Malformed feedback and telegrams from other sender IDs are ignored. RPS switch
 behavior is unchanged.
+
+A factory-fresh UBID1507C may require the explicit guided commissioning above;
+direct QR configuration alone does not perform it. Release remains gated on a
+factory-reset UBID1507C test of both physical channels: obtain ESP3 OK for a
+directed D2 ON and matching feedback, power-cycle the module, repeat directed
+control and matching feedback, verify that entity identity is preserved, and
+finish with all CI checks green.
 
 ### Climate device
 
