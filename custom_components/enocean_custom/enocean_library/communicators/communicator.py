@@ -168,6 +168,13 @@ class Communicator(threading.Thread):
                 self.logger.debug("Received EnOcean packet type=%s", packet.packet_type)
 
     @property
+    def current_base_id(self):
+        """Return the resolved Base ID without issuing or waiting for a request."""
+        if not isinstance(self._base_id, (list, tuple)) or len(self._base_id) != 4:
+            return None
+        return list(self._base_id)
+
+    @property
     def base_id(self):
         """Fetches Base ID from the transmitter, if required. Otherwise returns the currently set Base ID."""
         # If base id is already set, return it.

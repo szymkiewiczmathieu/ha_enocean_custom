@@ -151,9 +151,12 @@ the extracted ID pre-filled; invalid input never creates an options row.
 
 **Add via QR code is configuration-only and radio-silent.** It does not
 commission a factory-fresh actuator; already-commissioned modules can use it.
-For a new Ubiwizz relay use **Pair an actuator (guided)**. If the default switch
-already exists, use **Commission an existing Ubiwizz switch** so its entity ID,
-name, area, labels, history, automations, and radio metadata stay intact.
+For field evaluation of a physically identified Ubiwizz relay, use **Pair an
+actuator (guided)**. An existing switch is eligible for **Commission an existing
+radio-proven D2 relay** only when it carries exact radio-declared `D2-01-12`
+evidence bound to the same sender on channel `0` or `1`; that EEP is not a product identity. The selected
+row retains its entity ID, name, area, labels, history, automations, and radio
+metadata.
 
 Use **Configure > Manage UI devices** to remove a device you added from the
 UI; this deletes both its config-entry option entry and its exact entity
@@ -228,7 +231,8 @@ factory-reset module until field validation proves it.
 4. During the 120-second window, the entry-owned dongle sends a directed D2-01
    ON command to the actuator. Confirmation requires all three facts in order:
    the command was queued, its ESP3 response callback reported OK, and a later
-   D2-01 status from the exact actuator and channel reported an ON output (>0).
+   D2-01 status from the exact actuator and channel reported output value 100,
+   exactly matching the directed ON command.
    Wrong, early, OFF, rejected, and timed-out evidence never confirms.
 5. For an Eltako dimmer, the wizard calls the existing
    `enocean_custom.send_teach_in` entity service three times, about five
@@ -238,11 +242,13 @@ factory-reset module until field validation proves it.
 For a new relay, no row is saved and no reload occurs before radio proof. A
 successful close saves one final default row once. On timeout, retry changes
 nothing; keep may save that requested row while explicitly leaving
-commissioning unproven; cancel discards it. **Commission an existing Ubiwizz
-switch** runs the same radio process against the current persisted row and
-never adds, replaces, or deletes it. Concurrent deletion aborts honestly and
-never resurrects the row. Closing the flow cancels its task/listener and stops
-future sends. The 4BS dimmer path is unchanged.
+commissioning unproven; cancel discards it. **Commission an existing radio-proven
+D2 relay** runs the same radio process against a current persisted row only when
+the row has exact radio-declared `D2-01-12` evidence bound to the same sender
+and channel `0` or `1`. This proof is not a Ubiwizz product identity. It never adds, replaces, or
+deletes the row. Concurrent deletion aborts honestly and never resurrects the
+row. Closing the flow cancels its task/listener and stops future sends. The 4BS
+dimmer path is unchanged.
 
 ### Binary sensors
 

@@ -72,7 +72,7 @@
           "learn": "Add a device",
           "qr_code": "Add via QR code",
           "pair_actuator": "Pair an actuator (guided)",
-          "commission_existing": "Commission an existing Ubiwizz switch",
+          "commission_existing": "Commission an existing radio-proven D2 relay",
           "manage": "Manage UI devices",
           "import_yaml": "Import YAML devices"
         }
@@ -121,7 +121,7 @@
       },
       "qr_code": {
         "title": "Add via QR code",
-        "description": "Configuration only: this radio-silent path does not commission a factory-fresh actuator. Already-commissioned modules can use it. For a new Ubiwizz use guided pairing; for one already listed use Commission an existing Ubiwizz switch.",
+        "description": "Configuration only: this radio-silent path does not commission a factory-fresh actuator. Already-commissioned modules can use it. For a new Ubiwizz use guided pairing; an already-listed relay is eligible for existing-device commissioning only with exact radio-declared D2-01-12 evidence bound to that sender on channel 0 or 1.",
         "data": {
           "qr_code": "Commissioning code or EnOcean ID"
         }
@@ -179,9 +179,9 @@
         }
       },
       "commission_existing": {
-        "title": "Commission an existing Ubiwizz switch",
-        "description": "Choose a UI-managed default switch. Its options row and entity-registry identity will be preserved.",
-        "data": {"device": "Existing switch"}
+        "title": "Commission an existing radio-proven D2 relay",
+        "description": "Only UI-managed default relays with exact radio-declared D2-01-12 evidence bound to the same sender on channel 0 or 1 are listed. This profile is not a product identity. The existing options row and entity-registry identity will be preserved.",
+        "data": {"device": "Existing eligible D2 relay"}
       },
       "delete_confirm": {
         "title": "Remove device?",
@@ -212,7 +212,7 @@
     "abort": {
       "learn_timeout": "No unknown EnOcean sender was heard before the timeout.",
       "no_ui_devices": "No UI-managed devices to remove.",
-      "no_commissionable_devices": "No valid UI-managed default switch is available to commission.",
+      "no_commissionable_devices": "No UI-managed default relay with exact radio-declared D2-01-12 evidence bound to the same sender on channel 0 or 1 is available to commission.",
       "commissioning_device_disappeared": "The selected switch was removed during commissioning; it was not recreated.",
       "delete_cancelled": "Removal cancelled.",
       "learn_in_progress": "A teach-in window is already in progress.",

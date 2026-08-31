@@ -15,6 +15,7 @@ ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
 try:  # Bare unittest collection intentionally has no Home Assistant dependency.
+    import voluptuous as vol
     from homeassistant.config_entries import ConfigEntries, ConfigEntry
     from homeassistant.const import CONF_ENTITY_ID
     from homeassistant.core import HomeAssistant
@@ -25,9 +26,11 @@ try:  # Bare unittest collection intentionally has no Home Assistant dependency.
     from homeassistant.helpers import entity_registry as er
     from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-    from custom_components.enocean_custom import options_flow
+    from custom_components.enocean_custom import options_flow, switch
     from custom_components.enocean_custom.const import (
+        DATA_ENOCEAN,
         DOMAIN,
+        ENOCEAN_DONGLE,
         SERVICE_SEND_TEACH_IN,
         SIGNAL_RECEIVE_MESSAGE,
     )
@@ -40,6 +43,7 @@ try:  # Bare unittest collection intentionally has no Home Assistant dependency.
         CONF_UI_DEVICES,
         UI_DEVICE_SCHEMA,
     )
+    from custom_components.enocean_custom.switch import EnOceanSwitch
 
     HA_AVAILABLE = True
 except ModuleNotFoundError:  # pragma: no cover - bare CI environment
@@ -53,6 +57,7 @@ class FakeDongle:
         self.sent = []
         self.callbacks = []
         self.queue_result = True
+        self.base_id = [0xA1, 0xB2, 0xC3, 0xD4]
 
     def send(self, packet, response_callback=None):
         self.sent.append(packet)
@@ -121,13 +126,14 @@ class PairingWizardTests(unittest.IsolatedAsyncioTestCase):
                 CONF_RADIO_METADATA: {
                     "sender_id": sender_bytes,
                     "eep": "D2-01-12",
+                    "eep_source": "radio_declared",
                     "evidence": "exact",
                 },
             }
         )
 
     @staticmethod
-    def _status(sender="11:22:33:44", channel=0, output=50):
+    def _status(sender="11:22:33:44", channel=0, output=100):
         sender_bytes = [int(part, 16) for part in sender.split(":")]
         return SimpleNamespace(
             sender_int=int(sender.replace(":", ""), 16),
@@ -171,6 +177,15 @@ class PairingWizardTests(unittest.IsolatedAsyncioTestCase):
         )
         return flow, entity.entity_id
 
+    async def test_direct_qr_identification_is_radio_silent(self):
+        entry = self._entry()
+        flow = self._flow(entry)
+
+        result = await flow.async_step_qr_code({"qr_code": "11:22:33:44"})
+
+        self.assertEqual(result["step_id"], "device_form")
+        self.assertEqual(entry.runtime_data.sent, [])
+
     async def _start(self, flow):
         with (
             patch.object(options_flow, "PAIRING_TIMEOUT", 0.3),
@@ -191,10 +206,21 @@ class PairingWizardTests(unittest.IsolatedAsyncioTestCase):
             await self._start(flow)
             packet = entry.runtime_data.sent[0]
             self.assertEqual(packet.packet_type, PACKET.RADIO_ERP1)
-            self.assertEqual(packet.data, [RORG.VLD, 1, 1, 100, 0, 0, 0, 0, 0])
+            self.assertEqual(
+                packet.data,
+                [RORG.VLD, 1, 1, 100, 0xA1, 0xB2, 0xC3, 0xD4, 0],
+            )
             self.assertEqual(packet.optional, [3, 0x11, 0x22, 0x33, 0x44, 0xFF, 0])
             update.assert_not_called()
         flow.async_remove()
+
+    async def test_relay_refuses_to_transmit_without_a_resolved_dongle_base_id(self):
+        flow, entry = await self._new_relay()
+        entry.runtime_data.base_id = None
+        await self._start(flow)
+        await asyncio.wait_for(flow._pairing_task, 1)
+        self.assertEqual(flow._pairing_outcome, "base_id_unavailable")
+        self.assertEqual(entry.runtime_data.sent, [])
 
     async def test_esp3_ok_then_later_matching_on_status_required(self):
         flow, entry = await self._new_relay()
@@ -206,6 +232,35 @@ class PairingWizardTests(unittest.IsolatedAsyncioTestCase):
         async_dispatcher_send(self.hass, SIGNAL_RECEIVE_MESSAGE, self._status())
         await asyncio.wait_for(flow._pairing_task, 1)
         self.assertEqual(flow._pairing_outcome, "success")
+
+    async def test_relay_feedback_output_must_match_the_directed_on_command(self):
+        flow, entry = await self._new_relay()
+        await self._start(flow)
+        entry.runtime_data.callbacks[0](True)
+        async_dispatcher_send(
+            self.hass, SIGNAL_RECEIVE_MESSAGE, self._status(output=50)
+        )
+        await asyncio.sleep(0)
+        self.assertFalse(flow._pairing_task.done())
+        async_dispatcher_send(self.hass, SIGNAL_RECEIVE_MESSAGE, self._status())
+        await asyncio.wait_for(flow._pairing_task, 1)
+        self.assertEqual(flow._pairing_outcome, "success")
+
+    async def test_existing_default_switch_uses_base_id_and_refuses_unknown_sender(
+        self,
+    ):
+        entry = self._entry()
+        self.hass.data[DATA_ENOCEAN] = {ENOCEAN_DONGLE: entry.runtime_data}
+        entity = EnOceanSwitch([0x11, 0x22, 0x33, 0x44], "Relay", 1, "default")
+        entity.hass = self.hass
+        entity.turn_on()
+        self.assertEqual(
+            entry.runtime_data.sent[0].data,
+            [RORG.VLD, 1, 1, 100, 0xA1, 0xB2, 0xC3, 0xD4, 0],
+        )
+        entry.runtime_data.base_id = None
+        entity.turn_off()
+        self.assertEqual(len(entry.runtime_data.sent), 1)
 
     async def test_rejected_response_and_wrong_feedback_never_confirm(self):
         flow, entry = await self._new_relay()
@@ -236,6 +291,32 @@ class PairingWizardTests(unittest.IsolatedAsyncioTestCase):
             rows[0][CONF_RADIO_METADATA], flow._pairing_device[CONF_RADIO_METADATA]
         )
         self.assertEqual(entry.options[CONF_UI_DEVICES], [])
+
+    async def test_existing_commission_rejects_unproven_unbound_or_nonrelay_rows(self):
+        eligible = self._row()
+        invalid_channel = self._row(channel=2, name="Out of range")
+        unproven = self._row(sender="22:33:44:55", name="Unproven")
+        unproven[CONF_RADIO_METADATA] = {
+            **unproven[CONF_RADIO_METADATA],
+            "eep_source": "manual",
+            "evidence": "manual",
+        }
+        unbound = self._row(sender="33:44:55:66", name="Unbound evidence")
+        unbound[CONF_RADIO_METADATA].pop("sender_id")
+        entry = self._entry([eligible, invalid_channel, unproven, unbound])
+        flow = self._flow(entry)
+
+        for device in (invalid_channel, unproven, unbound):
+            result = await flow.async_step_commission_existing(
+                {"device": options_flow._unique_id_for(device)}
+            )
+            self.assertEqual(result["type"], FlowResultType.ABORT)
+            self.assertEqual(result["reason"], "no_commissionable_devices")
+
+        selected = await flow.async_step_commission_existing(
+            {"device": options_flow._unique_id_for(eligible)}
+        )
+        self.assertEqual(selected["step_id"], "pair_actuator_instructions")
 
     async def test_existing_commission_preserves_options_and_registry_identity(self):
         row = self._row()
@@ -450,6 +531,27 @@ class PairingWizardTests(unittest.IsolatedAsyncioTestCase):
             )["errors"]["channel"],
             "invalid_channel_rps",
         )
+
+    async def test_d2_channel_bounds_match_ui_persistence_and_yaml(self):
+        ui_row = {
+            "id": [0x11, 0x22, 0x33, 0x44],
+            "platform": "switch",
+            "name": "Relay",
+            "channel": 32,
+            "switch_type": "default",
+        }
+        with self.assertRaises(vol.Invalid):
+            UI_DEVICE_SCHEMA(ui_row)
+        with self.assertRaises(vol.Invalid):
+            switch.PLATFORM_SCHEMA(
+                {
+                    "platform": DOMAIN,
+                    "id": [0x11, 0x22, 0x33, 0x44],
+                    "name": "Relay",
+                    "channel": 32,
+                    "switch_type": "default",
+                }
+            )
 
 
 if __name__ == "__main__":

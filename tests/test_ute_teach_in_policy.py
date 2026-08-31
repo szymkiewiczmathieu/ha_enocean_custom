@@ -174,6 +174,18 @@ class AutomaticTeachInIsNeverEnabledTests(unittest.TestCase):
 class UnsolicitedTeachInTests(unittest.TestCase):
     """No UTE received outside an explicit session may produce any packet."""
 
+    def test_current_base_id_is_nonblocking_and_never_queues_a_request(self):
+        communicator = Communicator()
+        self.assertIsNone(communicator.current_base_id)
+        self.assertFalse(communicator._base_id_requested)
+        self.assertTrue(communicator.transmit.empty())
+        communicator.base_id = BASE_ID
+        observed = communicator.current_base_id
+        self.assertIsNotNone(observed)
+        self.assertEqual(observed, BASE_ID)
+        observed[0] = 0
+        self.assertEqual(communicator.current_base_id, BASE_ID)
+
     def _parse_ute(self, communicator):
         received = []
         communicator._Communicator__callback = received.append

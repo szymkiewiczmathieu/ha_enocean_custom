@@ -72,7 +72,7 @@
           "learn": "Ajouter un équipement",
           "qr_code": "Ajouter par code QR",
           "pair_actuator": "Appairer un actionneur (guidé)",
-          "commission_existing": "Commissionner un interrupteur Ubiwizz existant",
+          "commission_existing": "Commissionner un relais D2 prouvé par radio",
           "manage": "Gérer les équipements de l'interface",
           "import_yaml": "Importer les équipements YAML"
         }
@@ -121,7 +121,7 @@
       },
       "qr_code": {
         "title": "Ajouter par code QR",
-        "description": "Configuration uniquement : ce parcours reste silencieux en radio et ne commissionne pas un actionneur neuf d'usine. Il convient aux modules déjà commissionnés. Pour un nouvel Ubiwizz, utilisez le parcours guidé ; s'il est déjà listé, utilisez Commissionner un interrupteur Ubiwizz existant.",
+        "description": "Configuration uniquement : ce parcours reste silencieux en radio et ne commissionne pas un actionneur neuf d'usine. Il convient aux modules déjà commissionnés. Pour un nouvel Ubiwizz, utilisez le parcours guidé ; un relais déjà listé n'est éligible au commissioning existant qu'avec une preuve radio D2-01-12 exacte, déclarée par radio et liée à cet émetteur, sur le canal 0 ou 1.",
         "data": {
           "qr_code": "Code de commissioning ou ID EnOcean"
         }
@@ -179,9 +179,9 @@
         }
       },
       "commission_existing": {
-        "title": "Commissionner un interrupteur Ubiwizz existant",
-        "description": "Choisissez un interrupteur default géré par l'interface. Sa ligne d'options et son identité dans le registre d'entités seront conservées.",
-        "data": {"device": "Interrupteur existant"}
+        "title": "Commissionner un relais D2 existant prouvé par radio",
+        "description": "Seuls les relais default gérés par l'interface, avec preuve radio D2-01-12 exacte déclarée par radio et liée au même émetteur sur le canal 0 ou 1, sont listés. Ce profil n'est pas une identité produit. La ligne d'options et l'identité dans le registre d'entités sont conservées.",
+        "data": {"device": "Relais D2 existant éligible"}
       },
       "delete_confirm": {
         "title": "Supprimer l'équipement ?",
@@ -212,7 +212,7 @@
     "abort": {
       "learn_timeout": "Aucun expéditeur EnOcean inconnu n'a été entendu avant expiration du délai.",
       "no_ui_devices": "Aucun équipement géré depuis l'interface à supprimer.",
-      "no_commissionable_devices": "Aucun interrupteur default valide géré par l'interface n'est disponible pour le commissioning.",
+      "no_commissionable_devices": "Aucun relais default géré par l'interface avec une preuve radio D2-01-12 exacte déclarée par radio et liée au même émetteur sur le canal 0 ou 1 n'est disponible pour le commissioning.",
       "commissioning_device_disappeared": "L'interrupteur sélectionné a été supprimé pendant le commissioning ; il n'a pas été recréé.",
       "delete_cancelled": "Suppression annulée.",
       "learn_in_progress": "Une fenêtre d'apprentissage est déjà en cours.",

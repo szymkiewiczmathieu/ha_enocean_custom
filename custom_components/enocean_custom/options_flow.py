@@ -44,9 +44,10 @@ from .const import (
     SIGNAL_RECEIVE_MESSAGE,
     UI_DEVICE_PLATFORMS,
 )
-from .device import build_radio_optional
+from .device import build_radio_optional, get_gateway_base_id
 from .device_intelligence import (
     UNKNOWN_PLACEHOLDER,
+    Evidence,
     apply_manual_eep,
     flow_placeholders,
     metadata_declares_eep,
@@ -214,6 +215,33 @@ def _commission_existing_schema(choices: dict[str, str]) -> vol.Schema:
                 )
             )
         }
+    )
+
+
+def _is_eligible_existing_d2_relay(device: dict[str, Any]) -> bool:
+    """Return whether a persisted row is safe for guided D2 commissioning.
+
+    An existing generic default switch is not evidence of a D2-01-12 relay, and
+    that EEP alone is not a product identity.  Keep this path fail-closed: it
+    is offered only to channel 0/1 rows whose exact radio declaration is bound to
+    that row's sender, never a QR-assisted or manually asserted profile.
+    """
+    metadata = device.get(CONF_RADIO_METADATA)
+    channel = device.get("channel")
+    device_id = device.get("id")
+    return (
+        device.get("platform") == "switch"
+        and device.get("switch_type") == "default"
+        and isinstance(channel, int)
+        and not isinstance(channel, bool)
+        and channel in (0, 1)
+        and isinstance(metadata, dict)
+        and isinstance(device_id, list)
+        and isinstance(metadata.get("sender_id"), list)
+        and metadata.get("sender_id") == device_id
+        and metadata.get("eep") == "D2-01-12"
+        and metadata.get("eep_source") == "radio_declared"
+        and metadata.get("evidence") == Evidence.EXACT.value
     )
 
 
@@ -525,7 +553,7 @@ class EnOceanOptionsFlow(OptionsFlow):
             if not valid:
                 continue
             device = valid[0]
-            if device["platform"] != "switch" or device["switch_type"] != "default":
+            if not _is_eligible_existing_d2_relay(device):
                 continue
             choices[_unique_id_for(device)] = (
                 f"{device['name']} ({to_hex_string(device['id'])}, "
@@ -544,13 +572,12 @@ class EnOceanOptionsFlow(OptionsFlow):
                 valid[0]
                 for raw in raw_devices
                 if (valid := valid_ui_devices([raw]))
-                and valid[0]["platform"] == "switch"
-                and valid[0]["switch_type"] == "default"
+                and _is_eligible_existing_d2_relay(valid[0])
                 and _unique_id_for(valid[0]) == selected_identity
             )
         except (KeyError, StopIteration, TypeError):
             return self.async_abort(reason="no_commissionable_devices")
-        if device["platform"] != "switch" or device["switch_type"] != "default":
+        if not _is_eligible_existing_d2_relay(device):
             return self.async_abort(reason="no_commissionable_devices")
         self._pairing_device = device
         self._pairing_actuator_type = _ACTUATOR_RELAY
@@ -663,12 +690,19 @@ class EnOceanOptionsFlow(OptionsFlow):
             if device is None:
                 self._pairing_outcome = "timeout"
                 return
+            gateway = self.config_entry.runtime_data
+            sender_id = get_gateway_base_id(gateway)
+            if sender_id is None:
+                # An ERP1 VLD frame carries its sender in DATA. Never emit a
+                # placeholder or actuator EURID when this dongle's Base ID has
+                # not finished resolving.
+                self._pairing_outcome = "base_id_unavailable"
+                return
             packet = ESP3Packet(
                 PACKET.RADIO_ERP1,
-                data=[RORG.VLD, 0x01, device["channel"], 100, 0, 0, 0, 0, 0],
+                data=[RORG.VLD, 0x01, device["channel"], 100, *sender_id, 0],
                 optional=build_radio_optional(device["id"]),
             )
-            gateway = self.config_entry.runtime_data
             queued = bool(gateway and gateway.send(packet, _response_received))
             if not queued:
                 await asyncio.sleep(min(PAIRING_RELAY_INTERVAL, remaining))
@@ -723,7 +757,10 @@ class EnOceanOptionsFlow(OptionsFlow):
             return False
         # Review finding P2-02: a concurrent options flow may have deleted the
         # device while we wait; a stale success must never be reported.
-        return status.output_value > 0 and (
+        # The directed commissioning command requests OV=100. A merely nonzero
+        # status could be an unrelated local state, so it cannot prove this
+        # exact command took effect.
+        return status.output_value == 100 and (
             not self._pairing_existing or self._pairing_device_still_persisted()
         )
 

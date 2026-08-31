@@ -29,6 +29,19 @@ def build_radio_optional(destination: list[int] | None = None) -> list[int]:
     return [0x03, *radio_destination, 0xFF, 0x00]
 
 
+def get_gateway_base_id(gateway: object) -> list[int] | None:
+    """Return a valid resolved dongle Base ID, never a guessed sender."""
+    base_id = getattr(gateway, "base_id", None)
+    if (
+        not isinstance(base_id, (list, tuple))
+        or len(base_id) != 4
+        or any(isinstance(byte, bool) or not isinstance(byte, int) for byte in base_id)
+        or any(not 0 <= byte <= 0xFF for byte in base_id)
+    ):
+        return None
+    return list(base_id)
+
+
 class EnOceanEntity(Entity):
     """Base entity bound to one four-byte EnOcean sender identity."""
 
