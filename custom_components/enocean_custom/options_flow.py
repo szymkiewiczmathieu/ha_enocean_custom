@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import re
 from datetime import timedelta
 from math import isfinite
@@ -47,6 +48,7 @@ from .const import (
 from .device import build_radio_optional, get_gateway_base_id
 from .device_intelligence import (
     UNKNOWN_PLACEHOLDER,
+    CommissioningIdentity,
     Evidence,
     apply_manual_eep,
     flow_placeholders,
@@ -55,6 +57,7 @@ from .device_intelligence import (
     parse_manual_eep,
     recommended_platform,
     reconcile_commissioning_metadata,
+    safe_metadata,
 )
 from .enocean_library.protocol.constants import PACKET, RORG
 from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
@@ -86,8 +89,10 @@ _CONF_QR_CODE = "qr_code"
 _CONF_MANUAL_EEP = "manual_eep"
 _CONF_ACTUATOR_TYPE = "actuator_type"
 _CONF_FAILURE_ACTION = "failure_action"
+_CONF_CONFIRM_RELAY_D2 = "confirm_relay_d2"
 _ACTUATOR_RELAY = "relay_d2"
 _ACTUATOR_DIMMER = "dimmer_4bs"
+_D2_RELAY_EEP = "D2-01-12"
 _FAILURE_RETRY = "retry"
 _FAILURE_KEEP = "keep"
 _FAILURE_DELETE = "delete"
@@ -218,31 +223,106 @@ def _commission_existing_schema(choices: dict[str, str]) -> vol.Schema:
     )
 
 
-def _is_eligible_existing_d2_relay(device: dict[str, Any]) -> bool:
-    """Return whether a persisted row is safe for guided D2 commissioning.
+def _commission_existing_confirmation_schema() -> vol.Schema:
+    """Require a deliberate D2 relay/profile assertion from the operator."""
+    return vol.Schema({vol.Required(_CONF_CONFIRM_RELAY_D2, default=False): bool})
 
-    An existing generic default switch is not evidence of a D2-01-12 relay, and
-    that EEP alone is not a product identity.  Keep this path fail-closed: it
-    is offered only to channel 0/1 rows whose exact radio declaration is bound to
-    that row's sender, never a QR-assisted or manually asserted profile.
-    """
+
+def _has_exact_radio_d2_proof(device: dict[str, Any]) -> bool:
+    """Return whether the selected row already has exact bound D2 evidence."""
     metadata = device.get(CONF_RADIO_METADATA)
-    channel = device.get("channel")
     device_id = device.get("id")
+    return (
+        isinstance(metadata, dict)
+        and isinstance(device_id, list)
+        and isinstance(metadata.get("sender_id"), list)
+        and metadata.get("sender_id") == device_id
+        and metadata.get("eep") == _D2_RELAY_EEP
+        and metadata.get("eep_source") == "radio_declared"
+        and metadata.get("evidence") == Evidence.EXACT.value
+    )
+
+
+def _metadata_can_be_assisted_d2(metadata: object) -> bool:
+    """Reject persisted radio/product claims incompatible with manual D2.
+
+    A missing migration metadata object is intentionally *not* a proof, but it
+    is safe to identify physically and then ask for an explicit manual relay
+    assertion. A contradictory observed/radio/product profile is never
+    repaired by that assertion.
+    """
+    if metadata is None:
+        return True
+    if not isinstance(metadata, dict) or metadata.get("manufacturer_conflict"):
+        return False
+    eep = metadata.get("eep")
+    source = metadata.get("eep_source")
+    if eep is not None and eep != _D2_RELAY_EEP:
+        return False
+    if source in ("radio_declared", "observed"):
+        return (
+            source == "radio_declared"
+            and eep == _D2_RELAY_EEP
+            and metadata.get("evidence") == Evidence.EXACT.value
+        )
+    # A persisted EEP without provenance cannot be treated as evidence.
+    return source in (None, "manual", "product_declared")
+
+
+def _is_eligible_existing_d2_relay(device: dict[str, Any]) -> bool:
+    """Return whether a UI default switch may enter assisted D2 verification.
+
+    Selection alone proves nothing. The flow binds the physical QR/ID to this
+    exact row and, absent exact radio evidence, requires an explicit manual
+    D2-01-12 relay assertion before sending any D2 packet.
+    """
+    channel = device.get("channel")
+    metadata = device.get(CONF_RADIO_METADATA)
     return (
         device.get("platform") == "switch"
         and device.get("switch_type") == "default"
         and isinstance(channel, int)
         and not isinstance(channel, bool)
         and channel in (0, 1)
-        and isinstance(metadata, dict)
-        and isinstance(device_id, list)
-        and isinstance(metadata.get("sender_id"), list)
-        and metadata.get("sender_id") == device_id
-        and metadata.get("eep") == "D2-01-12"
-        and metadata.get("eep_source") == "radio_declared"
-        and metadata.get("evidence") == Evidence.EXACT.value
+        and _metadata_can_be_assisted_d2(metadata)
+        and (
+            not isinstance(metadata, dict)
+            or metadata.get("eep_source") not in ("radio_declared", "observed")
+            or _has_exact_radio_d2_proof(device)
+        )
     )
+
+
+def _commissioning_identity_conflicts_with_existing(
+    device: dict[str, Any], commissioning: CommissioningIdentity
+) -> bool:
+    """Return whether QR/typed identity contradicts existing safe evidence."""
+    metadata = device.get(CONF_RADIO_METADATA)
+    if metadata is None:
+        return False
+    if not isinstance(metadata, dict) or metadata.get("manufacturer_conflict"):
+        return True
+    if metadata.get("sender_id") not in (None, list(commissioning.sender_id)):
+        return True
+    if not _metadata_can_be_assisted_d2(metadata):
+        return True
+
+    # The label must not overwrite prior Product ID/manufacturer evidence. A
+    # typed four-byte ID has no Product ID claim to compare, but still binds the
+    # actual radio sender exactly above.
+    if commissioning.product_id is None:
+        return False
+    previous_product = metadata.get("product_id")
+    if previous_product is not None and previous_product != commissioning.product_id:
+        return True
+    previous_manufacturer = metadata.get("manufacturer_id")
+    if (
+        previous_manufacturer is not None
+        and previous_manufacturer != commissioning.manufacturer_id
+    ):
+        return True
+    label_profile = safe_metadata(commissioning=commissioning).get("eep")
+    return label_profile is not None and label_profile != _D2_RELAY_EEP
 
 
 class EnOceanOptionsFlow(OptionsFlow):
@@ -260,6 +340,9 @@ class EnOceanOptionsFlow(OptionsFlow):
         self._pairing_actuator_type: str | None = None
         self._pairing_device: dict[str, Any] | None = None
         self._pairing_existing = False
+        self._pairing_existing_raw: dict[str, Any] | None = None
+        self._pairing_commissioning_identity: CommissioningIdentity | None = None
+        self._pairing_manual_relay_confirmed = False
         self._pairing_task: asyncio.Task[None] | None = None
         self._pairing_outcome: str | None = None
         self._pairing_status_event: asyncio.Event | None = None
@@ -544,17 +627,62 @@ class EnOceanOptionsFlow(OptionsFlow):
             )
         return await self.async_step_pair_actuator_instructions()
 
-    async def async_step_commission_existing(self, user_input=None):
-        """Commission an existing default UI switch without replacing its row."""
-        choices: dict[str, str] = {}
+    def _current_existing_commissioning_row(
+        self,
+    ) -> tuple[dict[str, Any], dict[str, Any]] | None:
+        """Return only the exact raw row selected before physical identification.
+
+        The options flow must not redirect a scan to a same-unique-id replacement
+        made by a concurrent flow. Equality here is deliberately stricter than
+        entity identity: any options mutation makes the run fail closed.
+        """
+        if (
+            not self._pairing_existing
+            or self._pairing_device is None
+            or self._pairing_existing_raw is None
+        ):
+            return None
+        selected_identity = _unique_id_for(self._pairing_device)
         raw_devices = self.config_entry.options.get(CONF_UI_DEVICES, [])
+        if not isinstance(raw_devices, list):
+            return None
         for raw in raw_devices:
             valid = valid_ui_devices([raw])
-            if not valid:
+            if (
+                valid
+                and _is_eligible_existing_d2_relay(valid[0])
+                and _unique_id_for(valid[0]) == selected_identity
+                and raw == self._pairing_existing_raw
+            ):
+                return valid[0], raw
+        return None
+
+    def _show_commission_existing_identity(self, errors: dict[str, str] | None = None):
+        """Ask for the physical QR/ID after a single existing row was selected."""
+        device = self._pairing_device
+        if device is None:
+            return self.async_abort(reason="commissioning_device_disappeared")
+        return self.async_show_form(
+            step_id="commission_existing_identity",
+            data_schema=_qr_code_schema(),
+            description_placeholders={
+                "selected_id": to_hex_string(device["id"]),
+                "channel": str(device["channel"]),
+            },
+            errors=errors or {},
+        )
+
+    async def async_step_commission_existing(self, user_input=None):
+        """Select an existing candidate; physical identity is bound next."""
+        choices: dict[str, str] = {}
+        raw_devices = self.config_entry.options.get(CONF_UI_DEVICES, [])
+        if not isinstance(raw_devices, list):
+            return self.async_abort(reason="no_commissionable_devices")
+        for raw in raw_devices:
+            valid = valid_ui_devices([raw])
+            if not valid or not _is_eligible_existing_d2_relay(valid[0]):
                 continue
             device = valid[0]
-            if not _is_eligible_existing_d2_relay(device):
-                continue
             choices[_unique_id_for(device)] = (
                 f"{device['name']} ({to_hex_string(device['id'])}, "
                 f"channel {device['channel']})"
@@ -568,8 +696,8 @@ class EnOceanOptionsFlow(OptionsFlow):
             )
         try:
             selected_identity = user_input["device"]
-            device = next(
-                valid[0]
+            device, raw = next(
+                (valid[0], raw)
                 for raw in raw_devices
                 if (valid := valid_ui_devices([raw]))
                 and _is_eligible_existing_d2_relay(valid[0])
@@ -577,11 +705,59 @@ class EnOceanOptionsFlow(OptionsFlow):
             )
         except (KeyError, StopIteration, TypeError):
             return self.async_abort(reason="no_commissionable_devices")
-        if not _is_eligible_existing_d2_relay(device):
-            return self.async_abort(reason="no_commissionable_devices")
         self._pairing_device = device
+        self._pairing_existing_raw = copy.deepcopy(raw)
+        self._pairing_commissioning_identity = None
+        self._pairing_manual_relay_confirmed = False
         self._pairing_actuator_type = _ACTUATOR_RELAY
         self._pairing_existing = True
+        return self._show_commission_existing_identity()
+
+    async def async_step_commission_existing_identity(self, user_input=None):
+        """Bind a scanned/typed physical ID to the selected options row."""
+        current = self._current_existing_commissioning_row()
+        if current is None:
+            return self.async_abort(reason="commissioning_device_disappeared")
+        device, _raw = current
+        if user_input is None:
+            return self._show_commission_existing_identity()
+        commissioning = parse_commissioning_identity(user_input.get(_CONF_QR_CODE))
+        if commissioning is None:
+            return self._show_commission_existing_identity(
+                errors={_CONF_QR_CODE: "invalid_qr_code"}
+            )
+        if list(commissioning.sender_id) != device["id"]:
+            return self._show_commission_existing_identity(
+                errors={_CONF_QR_CODE: "commissioning_identity_mismatch"}
+            )
+        if _commissioning_identity_conflicts_with_existing(device, commissioning):
+            return self._show_commission_existing_identity(
+                errors={_CONF_QR_CODE: "commissioning_identity_conflict"}
+            )
+        self._pairing_commissioning_identity = commissioning
+        if _has_exact_radio_d2_proof(device):
+            return await self.async_step_pair_actuator_instructions()
+        return await self.async_step_commission_existing_confirm()
+
+    async def async_step_commission_existing_confirm(self, user_input=None):
+        """Require a manual D2 relay/profile assertion when radio proof is absent."""
+        current = self._current_existing_commissioning_row()
+        if current is None or self._pairing_commissioning_identity is None:
+            return self.async_abort(reason="commissioning_device_disappeared")
+        if _has_exact_radio_d2_proof(current[0]):
+            return self.async_abort(reason="commissioning_relay_unconfirmed")
+        if user_input is None:
+            return self.async_show_form(
+                step_id="commission_existing_confirm",
+                data_schema=_commission_existing_confirmation_schema(),
+                description_placeholders={
+                    "selected_id": to_hex_string(current[0]["id"]),
+                    "channel": str(current[0]["channel"]),
+                },
+            )
+        if user_input.get(_CONF_CONFIRM_RELAY_D2) is not True:
+            return self.async_abort(reason="commissioning_relay_unconfirmed")
+        self._pairing_manual_relay_confirmed = True
         return await self.async_step_pair_actuator_instructions()
 
     async def async_step_pair_actuator_instructions(self, user_input=None):
@@ -768,6 +944,8 @@ class EnOceanOptionsFlow(OptionsFlow):
         """Return whether the pairing device identity is still in the options."""
         if self._pairing_device is None:
             return False
+        if self._pairing_existing:
+            return self._current_existing_commissioning_row() is not None
         unique_id = _unique_id_for(self._pairing_device)
         devices = self.config_entry.options.get(CONF_UI_DEVICES, [])
         return any(
@@ -777,6 +955,65 @@ class EnOceanOptionsFlow(OptionsFlow):
             for raw in devices
             if (valid := valid_ui_devices([raw]))
         )
+
+    def _options_after_existing_commissioning(self) -> dict[str, Any] | None:
+        """Return success options, changing only justified manual proof metadata.
+
+        Exact radio-declared D2 proof remains byte-for-byte unchanged. For a
+        migration row with no such proof, the only allowed final mutation is a
+        bounded manual D2-01-12 assertion after the directed ESP3-OK-plus-status
+        proof. The scanned raw label itself is never retained.
+        """
+        current = self._current_existing_commissioning_row()
+        if current is None:
+            return None
+        device, raw = current
+        if _has_exact_radio_d2_proof(device):
+            return dict(self.config_entry.options)
+        existing_metadata = device.get(CONF_RADIO_METADATA)
+        # A prior manual/product D2 assertion is already bounded evidence. The
+        # physical scan/check may make the commissioning causal, but must not
+        # rewrite its product proof into a different provenance class.
+        if (
+            isinstance(existing_metadata, dict)
+            and existing_metadata.get("eep") == _D2_RELAY_EEP
+        ):
+            return dict(self.config_entry.options)
+        if (
+            self._pairing_outcome != "success"
+            or not self._pairing_manual_relay_confirmed
+            or self._pairing_commissioning_identity is None
+        ):
+            return None
+        metadata = safe_metadata(
+            commissioning=self._pairing_commissioning_identity,
+            manual_eep=_D2_RELAY_EEP,
+        )
+        if isinstance(existing_metadata, dict):
+            # A typed ID proves the physical sender but says nothing about an
+            # already persisted Product ID. Preserve that independent evidence
+            # instead of silently dropping it while recording the manual EEP.
+            for field in ("product_id", "manufacturer_id", "product_reference"):
+                if field in existing_metadata:
+                    metadata[field] = existing_metadata[field]
+        updated_raw = dict(raw)
+        updated_raw[CONF_RADIO_METADATA] = metadata
+        try:
+            UI_DEVICE_SCHEMA(updated_raw)
+        except vol.Invalid:
+            return None
+        raw_devices = self.config_entry.options.get(CONF_UI_DEVICES, [])
+        if not isinstance(raw_devices, list):
+            return None
+        updated_devices = list(raw_devices)
+        try:
+            index = raw_devices.index(raw)
+        except ValueError:
+            return None
+        updated_devices[index] = updated_raw
+        updated_options = dict(self.config_entry.options)
+        updated_options[CONF_UI_DEVICES] = updated_devices
+        return updated_options
 
     async def _run_dimmer_pairing(self, deadline: float) -> None:
         """Send the existing A5-38-08 entity service a bounded number of times."""
@@ -826,11 +1063,10 @@ class EnOceanOptionsFlow(OptionsFlow):
     def _finish_pairing(self):
         """Finalize exactly once, preserving or adding the exact current row."""
         if self._pairing_existing:
-            if not self._pairing_device_still_persisted():
+            updated_options = self._options_after_existing_commissioning()
+            if updated_options is None:
                 return self.async_abort(reason="commissioning_device_disappeared")
-            return self.async_create_entry(
-                title="", data=dict(self.config_entry.options)
-            )
+            return self.async_create_entry(title="", data=updated_options)
         if self._pairing_actuator_type == _ACTUATOR_RELAY:
             updated = self._options_with_added_device(self._pairing_device)
             if updated is None:
@@ -872,9 +1108,15 @@ class EnOceanOptionsFlow(OptionsFlow):
         if action == _FAILURE_RETRY:
             self._reset_pairing_run()
             return await self.async_step_pair_actuator_instructions()
+        if self._pairing_existing:
+            # An existing row is never written after an unproven timeout,
+            # including its flow-local manual relay assertion.
+            return self.async_create_entry(
+                title="", data=dict(self.config_entry.options)
+            )
         if action == _FAILURE_KEEP:
             return self._finish_pairing()
-        if self._pairing_existing or self._pairing_actuator_type == _ACTUATOR_RELAY:
+        if self._pairing_actuator_type == _ACTUATOR_RELAY:
             return self.async_create_entry(
                 title="", data=dict(self.config_entry.options)
             )

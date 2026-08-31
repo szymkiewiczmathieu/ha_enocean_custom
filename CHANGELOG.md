@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.5.1 - Unreleased
+
+- Permit an explicitly selected migrated UI `switch/default` on channel `0` or
+  `1` to enter assisted D2 commissioning without delete/recreate or inferred
+  `radio_metadata`. The operator must bind a scanned/typed physical QR/ID to
+  that exact existing sender before any radio; sender, Product ID/manufacturer,
+  known-profile, replacement, and concurrent-mutation conflicts fail closed.
+- When no exact radio-declared `D2-01-12` evidence exists, require an explicit
+  operator relay/profile assertion. It stays flow-local through instructions,
+  ESP3 `OK`, and causal same-sender/channel/OV=100 feedback; only success may
+  persist the bounded `manual` assertion. Timeout, cancellation, close, unload,
+  deletion, or replacement leaves the existing options row unchanged.
+- Keep evidence, configuration, and support distinct: an unknown Product ID
+  remains unknown, no QR/manual action becomes radio evidence, and no
+  manufacturer/model/EEP is inferred. Existing exact radio metadata remains
+  byte-for-byte unchanged.
+
 ## 2.5.0 - 2026-08-31
 
 - Draft a safety-gated Ubiwizz commissioning flow using directed D2 commands
