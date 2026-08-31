@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.4.1 - Unreleased
+## 2.5.0 - 2026-08-31
 
 - Draft a safety-gated Ubiwizz commissioning flow using directed D2 commands
   whose ERP1 sender is the resolved dongle Base ID, causal ESP3-OK-plus-matching
