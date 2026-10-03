@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.6.0 - 2026-10-03
+
+- Add D5-00-01 / 1BS binary sensor decoding: `0x08` open and `0x09` closed.
+- Ignore D5 teach-in frames (`0x00`/`0x01`) so they cannot create false state changes.
+- Include the D2 commissioning identity fix from PR #4.
+
 ## 2.5.1 - Unreleased
 
 - Permit an explicitly selected migrated UI `switch/default` on channel `0` or
