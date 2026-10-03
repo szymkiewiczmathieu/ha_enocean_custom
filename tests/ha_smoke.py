@@ -1722,6 +1722,9 @@ def main() -> None:
     d5_contact.value_changed(SimpleNamespace(rorg=0xD5, data=[0xD5, 0x08]))
     if d5_contact.is_on is not True:
         raise AssertionError("D5-00-01 open telegram did not report open")
+    d5_contact.value_changed(SimpleNamespace(rorg=0xD5, data=[0xD5, 0x00]))
+    if d5_contact.is_on is not True:
+        raise AssertionError("D5 teach-in telegram must not change state")
 
     light_entity = light.EnOceanLight(valid_id, valid_id, "light")
     sent_commands: list[tuple[list[int], list[int], int]] = []
