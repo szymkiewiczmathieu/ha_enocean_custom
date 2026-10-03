@@ -177,6 +177,16 @@ class PairingWizardTests(unittest.IsolatedAsyncioTestCase):
         )
         return flow, entity.entity_id
 
+    async def _identify_existing(self, flow, row, identity=None):
+        """Select one existing row and bind the physical ID before any radio."""
+        selected = await flow.async_step_commission_existing(
+            {"device": options_flow._unique_id_for(row)}
+        )
+        self.assertEqual(selected["step_id"], "commission_existing_identity")
+        return await flow.async_step_commission_existing_identity(
+            {"qr_code": identity or ":".join(f"{byte:02X}" for byte in row["id"])}
+        )
+
     async def test_direct_qr_identification_is_radio_silent(self):
         entry = self._entry()
         flow = self._flow(entry)
@@ -292,31 +302,239 @@ class PairingWizardTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(entry.options[CONF_UI_DEVICES], [])
 
-    async def test_existing_commission_rejects_unproven_unbound_or_nonrelay_rows(self):
+    async def test_existing_commission_rejects_incompatible_or_unbound_rows(self):
         eligible = self._row()
         invalid_channel = self._row(channel=2, name="Out of range")
-        unproven = self._row(sender="22:33:44:55", name="Unproven")
-        unproven[CONF_RADIO_METADATA] = {
-            **unproven[CONF_RADIO_METADATA],
+        incompatible = self._row(sender="22:33:44:55", name="Incompatible")
+        incompatible[CONF_RADIO_METADATA] = {
+            **incompatible[CONF_RADIO_METADATA],
+            "eep": "A5-12-01",
             "eep_source": "manual",
             "evidence": "manual",
         }
         unbound = self._row(sender="33:44:55:66", name="Unbound evidence")
         unbound[CONF_RADIO_METADATA].pop("sender_id")
-        entry = self._entry([eligible, invalid_channel, unproven, unbound])
+        entry = self._entry([eligible, invalid_channel, incompatible, unbound])
         flow = self._flow(entry)
 
-        for device in (invalid_channel, unproven, unbound):
+        for device in (invalid_channel, incompatible, unbound):
             result = await flow.async_step_commission_existing(
                 {"device": options_flow._unique_id_for(device)}
             )
             self.assertEqual(result["type"], FlowResultType.ABORT)
             self.assertEqual(result["reason"], "no_commissionable_devices")
 
-        selected = await flow.async_step_commission_existing(
-            {"device": options_flow._unique_id_for(eligible)}
-        )
+        selected = await self._identify_existing(flow, eligible)
         self.assertEqual(selected["step_id"], "pair_actuator_instructions")
+
+    async def test_migrated_existing_relay_requires_exact_physical_identity(self):
+        """A YAML-migrated default switch is not silently excluded or trusted."""
+        migrated = UI_DEVICE_SCHEMA(
+            {
+                "id": [0x11, 0x22, 0x33, 0x44],
+                "platform": "switch",
+                "name": "Migrated relay",
+                "channel": 0,
+                "switch_type": "default",
+            }
+        )
+        entry = self._entry([migrated])
+        flow = self._flow(entry)
+        before = dict(entry.options)
+
+        shown = await flow.async_step_commission_existing()
+        self.assertEqual(shown["type"], FlowResultType.FORM)
+        self.assertEqual(shown["step_id"], "commission_existing")
+        selected = await flow.async_step_commission_existing(
+            {"device": options_flow._unique_id_for(migrated)}
+        )
+        self.assertEqual(selected["step_id"], "commission_existing_identity")
+        self.assertEqual(entry.runtime_data.sent, [])
+        wrong = await flow.async_step_commission_existing_identity(
+            {"qr_code": "AA:BB:CC:DD"}
+        )
+        self.assertEqual(wrong["errors"]["qr_code"], "commissioning_identity_mismatch")
+        self.assertEqual(entry.runtime_data.sent, [])
+        self.assertEqual(entry.options, before)
+
+        confirm = await self._identify_existing(flow, migrated)
+        self.assertEqual(confirm["step_id"], "commission_existing_confirm")
+        declined = await flow.async_step_commission_existing_confirm(
+            {"confirm_relay_d2": False}
+        )
+        self.assertEqual(declined["reason"], "commissioning_relay_unconfirmed")
+        self.assertEqual(entry.runtime_data.sent, [])
+        self.assertEqual(entry.options, before)
+
+    async def test_migrated_timeout_or_flow_close_never_persists_manual_assertion(self):
+        migrated = UI_DEVICE_SCHEMA(
+            {
+                "id": [0x11, 0x22, 0x33, 0x44],
+                "platform": "switch",
+                "name": "Migrated relay",
+                "channel": 0,
+                "switch_type": "default",
+            }
+        )
+        entry = self._entry([migrated])
+        before = dict(entry.options)
+        flow = self._flow(entry)
+        confirm = await self._identify_existing(flow, migrated)
+        self.assertEqual(confirm["step_id"], "commission_existing_confirm")
+        await flow.async_step_commission_existing_confirm({"confirm_relay_d2": True})
+        timed_out = await flow.async_step_pair_actuator_failure(
+            {"failure_action": "keep"}
+        )
+        self.assertEqual(timed_out["data"], before)
+        self.assertEqual(entry.options, before)
+
+        second_flow = self._flow(entry)
+        confirm = await self._identify_existing(second_flow, migrated)
+        self.assertEqual(confirm["step_id"], "commission_existing_confirm")
+        await second_flow.async_step_commission_existing_confirm(
+            {"confirm_relay_d2": True}
+        )
+        second_flow.async_remove()
+        self.assertEqual(entry.options, before)
+
+    async def test_migrated_existing_relay_persists_only_post_proof_manual_assertion(
+        self,
+    ):
+        """The selected migrated row keeps its HA identity and raw options fields."""
+        migrated = UI_DEVICE_SCHEMA(
+            {
+                "id": [0x11, 0x22, 0x33, 0x44],
+                "platform": "switch",
+                "name": "Migrated relay",
+                "channel": 1,
+                "switch_type": "default",
+            }
+        )
+        entry = self._entry([migrated])
+        registry = er.async_get(self.hass)
+        entity = registry.async_get_or_create(
+            "switch",
+            DOMAIN,
+            options_flow._unique_id_for(migrated),
+            suggested_object_id="kept",
+        )
+        registry.async_update_entity(
+            entity.entity_id, name="Kept label", area_id="hall"
+        )
+        before = dict(entry.options)
+        flow = self._flow(entry)
+
+        confirm = await self._identify_existing(
+            flow, migrated, "30S000011223344+1P0123AABBCCDD"
+        )
+        self.assertEqual(confirm["step_id"], "commission_existing_confirm")
+        instructions = await flow.async_step_commission_existing_confirm(
+            {"confirm_relay_d2": True}
+        )
+        self.assertEqual(instructions["step_id"], "pair_actuator_instructions")
+        self.assertEqual(entry.options, before)
+        await self._start(flow)
+        packet = entry.runtime_data.sent[0]
+        self.assertEqual(packet.data, [RORG.VLD, 1, 1, 100, 0xA1, 0xB2, 0xC3, 0xD4, 0])
+        entry.runtime_data.callbacks[0](True)
+        async_dispatcher_send(
+            self.hass, SIGNAL_RECEIVE_MESSAGE, self._status(channel=1)
+        )
+        await flow._pairing_task
+        result = await flow.async_step_pair_relay_success({})
+        committed = result["data"][CONF_UI_DEVICES][0]
+        self.assertEqual(
+            {
+                key: value
+                for key, value in committed.items()
+                if key != CONF_RADIO_METADATA
+            },
+            {
+                key: value
+                for key, value in migrated.items()
+                if key != CONF_RADIO_METADATA
+            },
+        )
+        self.assertEqual(
+            committed[CONF_RADIO_METADATA],
+            {
+                "sender_id": [0x11, 0x22, 0x33, 0x44],
+                "product_id": "0123AABBCCDD",
+                "manufacturer_id": 0x123,
+                "product_reference": 0xAABBCCDD,
+                "eep": "D2-01-12",
+                "eep_source": "manual",
+                "evidence": "manual",
+                "support": "manual",
+            },
+        )
+        self.assertEqual(entry.options, before)
+        current = registry.async_get(entity.entity_id)
+        self.assertEqual(
+            (current.entity_id, current.unique_id, current.name, current.area_id),
+            (entity.entity_id, entity.unique_id, "Kept label", "hall"),
+        )
+
+    async def test_existing_product_identity_is_preserved_when_typed_id_is_bound(self):
+        sender = [0x11, 0x22, 0x33, 0x44]
+        product_metadata = {
+            "sender_id": sender,
+            "product_id": "0123AABBCCDD",
+            "manufacturer_id": 0x123,
+            "product_reference": 0xAABBCCDD,
+            "evidence": "assisted",
+            "support": "unknown",
+        }
+        row = UI_DEVICE_SCHEMA(
+            {
+                "id": sender,
+                "platform": "switch",
+                "name": "Existing product relay",
+                "channel": 0,
+                "switch_type": "default",
+                CONF_RADIO_METADATA: product_metadata,
+            }
+        )
+        entry = self._entry([row])
+        flow = self._flow(entry)
+        confirm = await self._identify_existing(flow, row)
+        self.assertEqual(confirm["step_id"], "commission_existing_confirm")
+        await flow.async_step_commission_existing_confirm({"confirm_relay_d2": True})
+        await self._start(flow)
+        entry.runtime_data.callbacks[0](True)
+        async_dispatcher_send(self.hass, SIGNAL_RECEIVE_MESSAGE, self._status())
+        await flow._pairing_task
+        result = await flow.async_step_pair_relay_success({})
+        metadata = result["data"][CONF_UI_DEVICES][0][CONF_RADIO_METADATA]
+        self.assertEqual(metadata["product_id"], product_metadata["product_id"])
+        self.assertEqual(
+            metadata["manufacturer_id"], product_metadata["manufacturer_id"]
+        )
+        self.assertEqual(
+            metadata["product_reference"], product_metadata["product_reference"]
+        )
+        self.assertEqual(
+            (metadata["eep"], metadata["eep_source"], metadata["evidence"]),
+            ("D2-01-12", "manual", "manual"),
+        )
+
+    async def test_existing_product_or_radio_conflict_fails_closed_before_radio(self):
+        row = self._row()
+        row[CONF_RADIO_METADATA]["manufacturer_id"] = 1
+        entry = self._entry([row])
+        flow = self._flow(entry)
+        selected = await flow.async_step_commission_existing(
+            {"device": options_flow._unique_id_for(row)}
+        )
+        self.assertEqual(selected["step_id"], "commission_existing_identity")
+        conflict = await flow.async_step_commission_existing_identity(
+            {"qr_code": "30S000011223344+1P0002AABBCCDD"}
+        )
+        self.assertEqual(
+            conflict["errors"]["qr_code"], "commissioning_identity_conflict"
+        )
+        self.assertEqual(entry.runtime_data.sent, [])
+        self.assertEqual(entry.options[CONF_UI_DEVICES], [row])
 
     async def test_existing_commission_preserves_options_and_registry_identity(self):
         row = self._row()
@@ -333,9 +551,7 @@ class PairingWizardTests(unittest.IsolatedAsyncioTestCase):
         )
         before = dict(entry.options)
         flow = self._flow(entry)
-        selected = await flow.async_step_commission_existing(
-            {"device": options_flow._unique_id_for(row)}
-        )
+        selected = await self._identify_existing(flow, row)
         self.assertEqual(selected["step_id"], "pair_actuator_instructions")
         await self._start(flow)
         entry.runtime_data.callbacks[0](True)

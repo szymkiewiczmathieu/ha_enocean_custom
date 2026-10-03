@@ -72,7 +72,7 @@
           "learn": "Ajouter un équipement",
           "qr_code": "Ajouter par code QR",
           "pair_actuator": "Appairer un actionneur (guidé)",
-          "commission_existing": "Commissionner un relais D2 prouvé par radio",
+          "commission_existing": "Commissionner un relais D2 existant (assisté)",
           "manage": "Gérer les équipements de l'interface",
           "import_yaml": "Importer les équipements YAML"
         }
@@ -121,7 +121,7 @@
       },
       "qr_code": {
         "title": "Ajouter par code QR",
-        "description": "Configuration uniquement : ce parcours reste silencieux en radio et ne commissionne pas un actionneur neuf d'usine. Il convient aux modules déjà commissionnés. Pour un nouvel Ubiwizz, utilisez le parcours guidé ; un relais déjà listé n'est éligible au commissioning existant qu'avec une preuve radio D2-01-12 exacte, déclarée par radio et liée à cet émetteur, sur le canal 0 ou 1.",
+        "description": "Configuration uniquement : ce parcours reste silencieux en radio et ne commissionne pas un actionneur neuf d'usine. Il convient aux modules déjà commissionnés. Pour un nouvel Ubiwizz, utilisez le parcours guidé. Les relais default existants de l'interface sur le canal 0 ou 1 utilisent le commissioning assisté séparé : il lie un QR/ID physique exact avant toute radio et exige une confirmation manuelle du profil relais en l'absence de preuve radio exacte.",
         "data": {
           "qr_code": "Code de commissioning ou ID EnOcean"
         }
@@ -179,9 +179,19 @@
         }
       },
       "commission_existing": {
-        "title": "Commissionner un relais D2 existant prouvé par radio",
-        "description": "Seuls les relais default gérés par l'interface, avec preuve radio D2-01-12 exacte déclarée par radio et liée au même émetteur sur le canal 0 ou 1, sont listés. Ce profil n'est pas une identité produit. La ligne d'options et l'identité dans le registre d'entités sont conservées.",
-        "data": {"device": "Relais D2 existant éligible"}
+        "title": "Commissionner un relais D2 existant (assisté)",
+        "description": "Choisissez un relais default géré par l'interface sur le canal 0 ou 1. La sélection ne prouve pas l'identité et n'émet aucune radio. Les lignes avec preuve radio/produit contradictoire sont exclues. L'étape suivante lie un QR/ID physique à cette ligne exacte ; son entité et son identité de registre sont conservées.",
+        "data": {"device": "Relais existant à identifier"}
+      },
+      "commission_existing_identity": {
+        "title": "Lier l'identité physique de l'actionneur",
+        "description": "Relais sélectionné dans l'interface : {selected_id}, canal {channel}. Scannez ou collez le QR de commissioning EnOcean Alliance physique exact, ou saisissez cet ID exact au format AA:BB:CC:DD. Un autre émetteur ou une preuve produit/radio contradictoire est refusé. Cette étape n'émet aucune radio.",
+        "data": {"qr_code": "Code de commissioning ou ID exact de l'actionneur"}
+      },
+      "commission_existing_confirm": {
+        "title": "Confirmer le profil du relais",
+        "description": "Aucune preuve D2-01-12 exacte déclarée par radio n'est liée au relais sélectionné {selected_id}, canal {channel}. Confirmez seulement après avoir vérifié le module physique : c'est un relais qui exige un commissioning D2-01-12. C'est une assertion opérateur, pas une preuve radio. Elle n'est persistée qu'après mise en file d'un D2 ON dirigé, ESP3 OK, puis un retour D2 ultérieur correspondant.",
+        "data": {"confirm_relay_d2": "Je confirme que ce relais physique exige le commissioning D2-01-12"}
       },
       "delete_confirm": {
         "title": "Supprimer l'équipement ?",
@@ -207,13 +217,16 @@
       "invalid_raw_range": "Le début et la fin de la plage brute doivent être différents.",
       "invalid_command_frequency": "La fréquence des commandes doit être une durée positive valide d'au moins une seconde.",
       "invalid_device_details": "Les détails de l'équipement sont invalides.",
-      "invalid_eep": "L'EEP manuel doit respecter le format hexadécimal exact XX-XX-XX, ex. A5-12-01."
+      "invalid_eep": "L'EEP manuel doit respecter le format hexadécimal exact XX-XX-XX, ex. A5-12-01.",
+      "commissioning_identity_mismatch": "L'ID scanné ou saisi ne correspond pas exactement au relais sélectionné dans l'interface. Aucune radio n'a été émise.",
+      "commissioning_identity_conflict": "L'identité scannée contredit une preuve radio ou produit existante. Aucune radio n'a été émise."
     },
     "abort": {
       "learn_timeout": "Aucun expéditeur EnOcean inconnu n'a été entendu avant expiration du délai.",
       "no_ui_devices": "Aucun équipement géré depuis l'interface à supprimer.",
-      "no_commissionable_devices": "Aucun relais default géré par l'interface avec une preuve radio D2-01-12 exacte déclarée par radio et liée au même émetteur sur le canal 0 ou 1 n'est disponible pour le commissioning.",
+      "no_commissionable_devices": "Aucun relais default géré par l'interface sur le canal 0 ou 1, sans preuve radio/produit contradictoire, n'est disponible pour l'identification du commissioning assisté.",
       "commissioning_device_disappeared": "L'interrupteur sélectionné a été supprimé pendant le commissioning ; il n'a pas été recréé.",
+      "commissioning_relay_unconfirmed": "La confirmation physique D2-01-12 requise pour le relais n'a pas été donnée. Aucune radio n'a été émise et les options sont restées inchangées.",
       "delete_cancelled": "Suppression annulée.",
       "learn_in_progress": "Une fenêtre d'apprentissage est déjà en cours.",
       "device_form_missing": "La session du formulaire a expiré ; recommencez.",

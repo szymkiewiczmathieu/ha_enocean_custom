@@ -72,7 +72,7 @@
           "learn": "Add a device",
           "qr_code": "Add via QR code",
           "pair_actuator": "Pair an actuator (guided)",
-          "commission_existing": "Commission an existing radio-proven D2 relay",
+          "commission_existing": "Commission an existing D2 relay (assisted)",
           "manage": "Manage UI devices",
           "import_yaml": "Import YAML devices"
         }
@@ -121,7 +121,7 @@
       },
       "qr_code": {
         "title": "Add via QR code",
-        "description": "Configuration only: this radio-silent path does not commission a factory-fresh actuator. Already-commissioned modules can use it. For a new Ubiwizz use guided pairing; an already-listed relay is eligible for existing-device commissioning only with exact radio-declared D2-01-12 evidence bound to that sender on channel 0 or 1.",
+        "description": "Configuration only: this radio-silent path does not commission a factory-fresh actuator. Already-commissioned modules can use it. For a new Ubiwizz use guided pairing. Existing UI default relays on channel 0 or 1 use the separate assisted commissioning path: it binds an exact physical QR/ID before any radio and requires a manual relay-profile confirmation when exact radio evidence is absent.",
         "data": {
           "qr_code": "Commissioning code or EnOcean ID"
         }
@@ -179,9 +179,19 @@
         }
       },
       "commission_existing": {
-        "title": "Commission an existing radio-proven D2 relay",
-        "description": "Only UI-managed default relays with exact radio-declared D2-01-12 evidence bound to the same sender on channel 0 or 1 are listed. This profile is not a product identity. The existing options row and entity-registry identity will be preserved.",
-        "data": {"device": "Existing eligible D2 relay"}
+        "title": "Commission an existing D2 relay (assisted)",
+        "description": "Choose one UI-managed default relay on channel 0 or 1. Selection is not identity proof and sends no radio. Rows with contradictory radio/product evidence are excluded. The next step binds a physical QR/ID to this exact selected row; its entity and registry identity are preserved.",
+        "data": {"device": "Existing relay to identify"}
+      },
+      "commission_existing_identity": {
+        "title": "Bind the physical actuator identity",
+        "description": "Selected UI relay: {selected_id}, channel {channel}. Scan or paste the exact physical EnOcean Alliance commissioning QR label, or enter this exact ID as AA:BB:CC:DD. A different sender or contradictory product/radio evidence is refused. This step sends no radio.",
+        "data": {"qr_code": "Commissioning code or exact actuator ID"}
+      },
+      "commission_existing_confirm": {
+        "title": "Confirm the relay profile",
+        "description": "No exact radio-declared D2-01-12 proof is bound to selected relay {selected_id}, channel {channel}. Confirm only after checking the physical module: it is a relay requiring D2-01-12 commissioning. This is an operator assertion, not radio evidence. It is persisted only after queued directed D2 ON, ESP3 OK, and later matching D2 feedback.",
+        "data": {"confirm_relay_d2": "I confirm this physical relay requires D2-01-12 commissioning"}
       },
       "delete_confirm": {
         "title": "Remove device?",
@@ -207,13 +217,16 @@
       "invalid_raw_range": "Raw range start and end must differ.",
       "invalid_command_frequency": "Command frequency must be a valid positive duration of at least one second.",
       "invalid_device_details": "The device details are invalid.",
-      "invalid_eep": "The manual EEP must use the exact XX-XX-XX hexadecimal format, e.g. A5-12-01."
+      "invalid_eep": "The manual EEP must use the exact XX-XX-XX hexadecimal format, e.g. A5-12-01.",
+      "commissioning_identity_mismatch": "The scanned or typed ID does not exactly match the selected UI relay. No radio was sent.",
+      "commissioning_identity_conflict": "The scanned identity contradicts existing radio or product evidence. No radio was sent."
     },
     "abort": {
       "learn_timeout": "No unknown EnOcean sender was heard before the timeout.",
       "no_ui_devices": "No UI-managed devices to remove.",
-      "no_commissionable_devices": "No UI-managed default relay with exact radio-declared D2-01-12 evidence bound to the same sender on channel 0 or 1 is available to commission.",
+      "no_commissionable_devices": "No UI-managed default relay on channel 0 or 1 without contradictory radio/product evidence is available to identify for assisted commissioning.",
       "commissioning_device_disappeared": "The selected switch was removed during commissioning; it was not recreated.",
+      "commissioning_relay_unconfirmed": "The required physical D2-01-12 relay confirmation was not given. No radio was sent and options were left unchanged.",
       "delete_cancelled": "Removal cancelled.",
       "learn_in_progress": "A teach-in window is already in progress.",
       "device_form_missing": "The device form session expired; start again.",

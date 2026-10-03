@@ -152,11 +152,18 @@ the extracted ID pre-filled; invalid input never creates an options row.
 **Add via QR code is configuration-only and radio-silent.** It does not
 commission a factory-fresh actuator; already-commissioned modules can use it.
 For field evaluation of a physically identified Ubiwizz relay, use **Pair an
-actuator (guided)**. An existing switch is eligible for **Commission an existing
-radio-proven D2 relay** only when it carries exact radio-declared `D2-01-12`
-evidence bound to the same sender on channel `0` or `1`; that EEP is not a product identity. The selected
-row retains its entity ID, name, area, labels, history, automations, and radio
-metadata.
+actuator (guided)**. **Commission an existing D2 relay (assisted)** lists only
+UI-managed default switches on channel `0` or `1` that have no contradictory
+radio/product claim. Select exactly one row, then scan or type its exact
+physical QR/ID. A sender mismatch, conflicting Product ID/manufacturer, or a
+known non-D2 profile fails before radio. If the row has no exact
+radio-declared `D2-01-12` proof (as is normal after YAML migration), the
+operator must explicitly assert that the inspected physical module requires
+that D2 relay profile; this is a manual assertion, never radio evidence. An
+unknown Product ID stays unknown and never becomes a model or an EEP claim.
+The selected row retains its entity ID, name, area, labels, history,
+automations, and radio metadata; the manual assertion is the sole allowed
+options mutation, and is persisted only after causal D2 proof.
 
 Use **Configure > Manage UI devices** to remove a device you added from the
 UI; this deletes both its config-entry option entry and its exact entity
@@ -242,13 +249,17 @@ factory-reset module until field validation proves it.
 For a new relay, no row is saved and no reload occurs before radio proof. A
 successful close saves one final default row once. On timeout, retry changes
 nothing; keep may save that requested row while explicitly leaving
-commissioning unproven; cancel discards it. **Commission an existing radio-proven
-D2 relay** runs the same radio process against a current persisted row only when
-the row has exact radio-declared `D2-01-12` evidence bound to the same sender
-and channel `0` or `1`. This proof is not a Ubiwizz product identity. It never adds, replaces, or
-deletes the row. Concurrent deletion aborts honestly and never resurrects the
-row. Closing the flow cancels its task/listener and stops future sends. The 4BS
-dimmer path is unchanged.
+commissioning unproven; cancel discards it. **Commission an existing D2 relay
+(assisted)** sends the same radio process only after the operator has selected
+one persisted UI row and bound its exact physical QR/ID. A row with exact
+radio-declared `D2-01-12` evidence proceeds without altering its metadata. A
+migration row without it needs an explicit physical D2 relay/profile assertion;
+that bounded `manual` metadata is written only after ESP3 `OK` and later
+matching channel/OV=100 feedback. Timeout, cancellation, flow close, unload,
+or concurrent change leaves its options row byte-for-byte unchanged. The flow
+never adds, replaces, or deletes the row, and concurrent deletion/mutation
+aborts honestly without resurrection. Closing the flow cancels its
+task/listener and stops future sends. The 4BS dimmer path is unchanged.
 
 ### Binary sensors
 
