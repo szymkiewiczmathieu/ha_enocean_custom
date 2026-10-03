@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.6.3 - 2026-10-03
+
+- Keep privacy-safe diagnostics available when a transmit queue backend does not expose `qsize()`.
+- Report an unavailable queue depth as `null` and log the condition at debug level.
+
 ## 2.6.0 - 2026-10-03
 
 - Add D5-00-01 / 1BS binary sensor decoding: `0x08` open and `0x09` closed.
