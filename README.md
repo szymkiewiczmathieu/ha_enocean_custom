@@ -5,14 +5,19 @@
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.7.3-18BCF2.svg)](https://www.home-assistant.io/)
 [![Python](https://img.shields.io/badge/Python-3.14-3776AB.svg)](https://www.python.org/)
 
-Apache-2.0 Home Assistant custom integration for EnOcean devices, rebuilt on
-the official Home Assistant Core 2026.7.3 EnOcean component. The integration
-keeps the established `enocean_custom` domain and configuration formats while
-using its hardened, entry-owned serial transport.
+Robust Apache-2.0 Home Assistant custom integration for EnOcean USB dongles
+using ESP3. It supports UI and YAML configuration, device learning, diagnostics,
+RPS/F6 rockers, D5-00-01 door/window contacts, D2 actuators, switches, lights,
+sensors and climate devices.
 
-Version 2.0.0 stops and joins the USB reader thread before a config-entry reload
-and closes probe descriptors deterministically. Compatibility is confirmed only
-after the live test procedure described in [PATCH_NOTES.md](PATCH_NOTES.md).
+The integration provides controlled serial-port ownership, safe reload/unload
+handling, malformed-packet protection, native device triggers and detailed
+lifecycle diagnostics. It preserves the established `enocean_custom` domain and
+configuration formats while using an entry-owned serial transport.
+
+Current release: **v2.6.2**. Compatible with Home Assistant Core 2026.7.3 and
+available through HACS. Compatibility is confirmed by the automated validation
+suite and the live dongle checklist in [PATCH_NOTES.md](PATCH_NOTES.md).
 
 ## Why this integration is different
 
