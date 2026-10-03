@@ -120,7 +120,16 @@ class EnOceanBinarySensor(EnOceanEntity, BinarySensorEntity):
 
     @override
     def value_changed(self, packet) -> None:
-        """Decode one complete RPS rocker telegram and emit its legacy event."""
+        """Decode supported RPS rocker and D5-00-01 contact telegrams."""
+        if packet.rorg == RORG.BS1:
+            if len(packet.data) < 2:
+                return
+            # D5-00-01: DB0 bit 0 is 1 when the contact is closed.
+            # Home Assistant's door binary sensor is on when open.
+            self._attr_is_on = not bool(packet.data[1] & 0x01)
+            self.schedule_update_ha_state()
+            return
+
         if packet.rorg != RORG.RPS or len(packet.data) < 7:
             return
 

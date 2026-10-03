@@ -1714,6 +1714,15 @@ def main() -> None:
     for entity, packet in malformed_packets:
         entity.value_changed(packet)
 
+    d5_contact = binary_sensor.EnOceanBinarySensor(valid_id, "d5 contact", None)
+    d5_contact.schedule_update_ha_state = lambda: None  # type: ignore[method-assign]
+    d5_contact.value_changed(SimpleNamespace(rorg=0xD5, data=[0xD5, 0x09]))
+    if d5_contact.is_on is not False:
+        raise AssertionError("D5-00-01 closed telegram did not report closed")
+    d5_contact.value_changed(SimpleNamespace(rorg=0xD5, data=[0xD5, 0x08]))
+    if d5_contact.is_on is not True:
+        raise AssertionError("D5-00-01 open telegram did not report open")
+
     light_entity = light.EnOceanLight(valid_id, valid_id, "light")
     sent_commands: list[tuple[list[int], list[int], int]] = []
     light_responses = []
