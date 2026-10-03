@@ -229,7 +229,12 @@ class EnOceanDongle:
     def diagnostics(self) -> dict[str, Any]:
         """Return privacy-safe runtime diagnostics for the config entry."""
         transmit_queue = getattr(self._communicator, "transmit", None)
-        queue_depth = transmit_queue.qsize() if transmit_queue is not None else None
+        queue_depth = None
+        if transmit_queue is not None:
+            try:
+                queue_depth = transmit_queue.qsize()
+            except (AttributeError, NotImplementedError, OSError):
+                _LOGGER.debug("EnOcean transmit queue depth is unavailable")
         thread_name = self._communicator.name.replace(self.serial_path, "[REDACTED]")
         with self._response_lock:
             pending_responses = len(self._pending_response_callbacks)
