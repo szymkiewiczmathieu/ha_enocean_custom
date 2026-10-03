@@ -1,15 +1,25 @@
 {
   "domain": "enocean_custom",
   "name": "EnOcean Custom",
-  "codeowners": ["@szymkiewiczmathieu"],
+  "codeowners": [
+    "@szymkiewiczmathieu"
+  ],
   "config_flow": true,
-  "dependencies": ["usb"],
+  "dependencies": [
+    "usb"
+  ],
   "documentation": "https://github.com/szymkiewiczmathieu/ha_enocean_custom",
   "integration_type": "hub",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/szymkiewiczmathieu/ha_enocean_custom/issues",
-  "loggers": ["custom_components.enocean_custom.enocean_library"],
-  "requirements": ["beautifulsoup4==4.13.3", "lxml==6.1.1", "pyserial==3.5"],
+  "loggers": [
+    "custom_components.enocean_custom.enocean_library"
+  ],
+  "requirements": [
+    "beautifulsoup4==4.13.3",
+    "lxml==6.1.1",
+    "pyserial==3.5"
+  ],
   "single_config_entry": true,
   "usb": [
     {
@@ -19,5 +29,5 @@
       "vid": "0403"
     }
   ],
-  "version": "2.6.0"
+  "version": "2.6.1"
 }
