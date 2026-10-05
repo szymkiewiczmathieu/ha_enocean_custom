@@ -3,6 +3,7 @@
 > A serious, local-first EnOcean integration for Home Assistant: reliable USB ownership, guided device learning, diagnostics, native device triggers, and honest radio evidence.
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
+[![Installations](https://img.shields.io/badge/dynamic/json?color=41BDF5&logo=home-assistant&label=installations&suffix=%20installs&cacheSeconds=15600&url=https://analytics.home-assistant.io/custom_integrations.json&query=$.enocean_custom.total)](https://analytics.home-assistant.io/)
 [![Validate](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.7.3-18BCF2.svg)](https://www.home-assistant.io/)
 [![Python](https://img.shields.io/badge/Python-3.14-3776AB.svg)](https://www.python.org/)
