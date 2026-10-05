@@ -1,5 +1,7 @@
 # EnOcean Custom
 
+> A serious, local-first EnOcean integration for Home Assistant: reliable USB ownership, guided device learning, diagnostics, native device triggers, and honest radio evidence.
+
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
 [![Validate](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.7.3-18BCF2.svg)](https://www.home-assistant.io/)
@@ -460,3 +462,15 @@ brightness commands use the same identity.
   stale readers and multiple access to the same USB port.
 - Close serial descriptors opened during config-flow validation.
 - Exception to handle parsing of malformed packets: With the official protocol library, the EnOcean integration would crash when receiving a malformed package. In practice, this happens every few weeks to months for some installations. An exception handler was added to drop malformed packages, see [PR for original protocol library](https://github.com/kipe/enocean/pull/138)
+
+## Support the project
+
+EnOcean Custom is free and open source. If it saves you time, keeps your dongle stable, or helps you automate your home, the best support is:
+
+- ⭐ [Star the repository](https://github.com/szymkiewiczmathieu/ha_enocean_custom)
+- 🐛 [Report a reproducible issue](https://github.com/szymkiewiczmathieu/ha_enocean_custom/issues/new/choose)
+- 💡 [Share a device profile or test result](https://github.com/szymkiewiczmathieu/ha_enocean_custom/discussions)
+- 💸 [Support Mathieu on GitHub Sponsors](https://github.com/szymkiewiczmathieu)
+
+Donations are optional and never unlock features or priority support. They help fund hardware testing, Home Assistant compatibility work, and maintenance of the protocol stack.
+
