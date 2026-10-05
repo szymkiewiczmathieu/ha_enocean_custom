@@ -470,7 +470,8 @@ EnOcean Custom is free and open source. If it saves you time, keeps your dongle 
 - ⭐ [Star the repository](https://github.com/szymkiewiczmathieu/ha_enocean_custom)
 - 🐛 [Report a reproducible issue](https://github.com/szymkiewiczmathieu/ha_enocean_custom/issues/new/choose)
 - 💡 [Share a device profile or test result](https://github.com/szymkiewiczmathieu/ha_enocean_custom/discussions)
-- 💸 [Support Mathieu on GitHub Sponsors](https://github.com/szymkiewiczmathieu)
+- 💸 [Support Mathieu via PayPal](https://www.paypal.com/paypalme/mathieuszym)
+- 💙 PayPal: `mathieu_szym@hotmail.fr`
 
 Donations are optional and never unlock features or priority support. They help fund hardware testing, Home Assistant compatibility work, and maintenance of the protocol stack.
 
