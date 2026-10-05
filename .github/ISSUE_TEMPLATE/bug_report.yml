@@ -1,0 +1,38 @@
+name: Bug report
+description: Report a reproducible problem with EnOcean Custom
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Please redact tokens, passwords, private URLs and personal data."
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+    validations:
+      required: true
+  - type: input
+    id: integration_version
+    attributes:
+      label: EnOcean Custom version or commit
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: Dongle and device
+      description: Include the dongle model and device EEP/profile if known.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant redacted logs
+      render: text

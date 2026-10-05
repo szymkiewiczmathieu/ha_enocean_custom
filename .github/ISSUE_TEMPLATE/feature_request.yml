@@ -1,0 +1,24 @@
+name: Feature request
+description: Suggest a device, profile or workflow improvement
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+    validations:
+      required: true
+  - type: textarea
+    id: device
+    attributes:
+      label: Device and EnOcean profile
+      description: Include manufacturer, model, EEP/profile and links to public documentation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
