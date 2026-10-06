@@ -76,12 +76,32 @@ Alliance certification nor tested hardware.
 | `A5-14-01` | `binary_sensor.EnOceanA514Contact`; optional disabled-by-default diagnostic `sensor.EnOceanA514Voltage` | `binary_sensor` | `automatic` | `supported` |
 | `A5-20-04` | `climate.EnOceanClimate` valve control | `climate` | `yaml_only` (the options flow persists SRC-D08 only) | `manual` |
 | `A5-38-08` | `light.EnOceanLight` commands and teach-in (transmit only) | `light` | `assisted` (a sender identity is required) | `supported` |
+| `D2-01-0A` | `switch.EnOceanSwitch` D2 CMD `0x1` switching and CMD `0x4` feedback | `switch` | `manual` (EEP does not prove NodOn hardware) | `manual` |
 | `D2-01-0B` | `sensor._decode_d2_measurement` for D2-01 CMD `0x7` | `sensor` | `assisted` | `supported` |
 | `D2-01-12` | switch/light actuator with D2-01 feedback | `light`, `switch` | `manual` (two valid platforms) | `manual` |
 
 A platform is pre-selected in the options flow only when the mode is
 `automatic` or `assisted` **and** exactly one platform applies. The selection
 always remains changeable, and a manufacturer conflict suppresses it entirely.
+
+### NodOn EnOcean catalogue audit
+
+The following is the bounded catalogue evidenced by the official ASP-2-1-x0
+manual, not a claim that every NodOn product or radio variant is covered.
+
+| NodOn EnOcean product/profile | EEP / functions documented | Repository status | Hardware proof |
+| --- | --- | --- | --- |
+| ASP-2-1-00 / ASP-2-1-10 SmartPlug | `D2-01-0A`: one-channel switching, local-control and status/power-failure parameters | implemented as manual `switch`; no consumption entity | not tested on hardware in this run |
+| Rocker Switch transmitter | `F6-02-01` | manual binary_sensor/switch mapping | no NodOn transmitter fixture |
+| Window handle transmitter | `F6-10-00` | assisted sensor mapping | no NodOn transmitter fixture |
+| Magnetic contact transmitter | `D5-00-01` | assisted sensor mapping | no NodOn transmitter fixture |
+| Other transmitters listed by the ASP manual (`A5-07-*`, `A5-08-*`, `A5-10-*`, `A5-14-*`) | transmitter EEPs are listed by NodOn, but are not product identities | unsupported unless a separate decoder row exists | not tested |
+
+The manual identifies the SmartPlug as bidirectional and explicitly documents
+`D2-01-0A`; it does not provide evidence that a captured EURID is a NodOn
+product. Therefore manufacturer/model attribution remains unknown unless a
+separate product-identification proof is supplied. ESP3 `OK` is transport
+acceptance, not proof that the load switched.
 
 ## Manual EEP entry
 

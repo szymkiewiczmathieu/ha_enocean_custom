@@ -204,24 +204,29 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
                     build_radio_optional(self.dev_id),
                 ),
             )
-        self._send_state_packets(list(frames), target)
+        self._send_state_packets(list(frames))
 
     def _send_state_packets(
         self,
         packets: list[tuple[list[int], list[int]]],
-        target_state: bool,
     ) -> None:
-        """Commit the requested state only when the complete sequence is accepted."""
+        """Queue a command without treating ESP3 ACK as actuator feedback.
+
+        The entity state is deliberately changed only by ``value_changed`` after
+        a matching D2-01 CMD 0x4 status telegram.  ESP3 acceptance proves only
+        transport delivery to the dongle, not physical relay actuation.
+        """
         outstanding = len(packets)
-        successful = True
 
         def response_received(accepted: bool) -> None:
-            nonlocal outstanding, successful
-            successful &= accepted
+            nonlocal outstanding
             outstanding -= 1
-            if outstanding == 0 and successful:
-                self._attr_is_on = target_state
-                self.async_write_ha_state()
+            if outstanding == 0 and not accepted:
+                LOGGER.warning(
+                    "D2 command for %s was not accepted by the dongle; "
+                    "waiting for actuator feedback",
+                    self.dev_name,
+                )
 
         for data, optional in packets:
             queued = self.send_command(
