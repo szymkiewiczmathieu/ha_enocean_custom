@@ -42,18 +42,21 @@ not prove that EURID `01:A2:FE:F8` is NodOn, so attribution remains unknown.
 2. Save the Home Assistant backup and record the current PC2 entity/options and
    captured EURID `01:A2:FE:F8`; do not reset the module or remove PC2.
 3. In Home Assistant open `Settings → Devices & services → EnOcean → PC2 →
-   Configure`, choose the captured device `01:A2:FE:F8`, and use the integration's
-   `Pair/associate actuator` action once while the ASP is in the physical
-   teach-in mode described by the NodOn manual. The observable confirmation is a
-   persisted association entry for that destination plus a matching D2-01 status
+   Configure`, choose the captured device `01:A2:FE:F8`, and select the actual
+   `Pair an actuator (guided)` or `Commission an existing D2 relay (assisted)`
+   action. The flow sends the directed D2 command only when the user explicitly
+   continues; it does not send UTE automatically, does not expose a generic
+   `Transmit` dialog, and does not claim that an association was persisted. Put
+   the ASP in the physical teach-in mode described by the NodOn manual before
+   using the flow. The observable success criterion is a matching D2-01 status
    telegram in the integration log; an ESP3 transport ACK alone is not
-   confirmation. Record the controller and actuator IDs before leaving teach-in.
+   confirmation. Record controller and actuator IDs before leaving teach-in.
 4. Keep the actuator destination as `01:A2:FE:F8`, dongle Base ID as sender,
-   and channel exactly `0`. In the confirmation dialog inspect the rendered
-   destination/channel and generated D2-01 command before pressing `Transmit`.
-   The action must be rejected if the channel is not zero or the destination
-   differs from the captured actuator; this is covered by the pairing and
-   channel-policy tests.
+   and channel exactly `0`. The flow's generated D2 command is directed to
+   that destination and channel; it must reject a non-zero ASP channel or a
+   destination mismatch before radio I/O. A persisted HA option row is only
+   configuration evidence, not proof of a NodOn association. These boundaries
+   are covered by the pairing and channel-policy tests.
 5. Trigger one ON, wait for the matching D2-01 CMD `0x4` status from that sender
    and channel, then trigger one OFF and wait for the corresponding status.
    ESP3 ACK, timeout, or rejected transport alone is never a state result.

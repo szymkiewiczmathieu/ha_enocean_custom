@@ -71,8 +71,8 @@
         "menu_options": {
           "learn": "Add a device",
           "qr_code": "Add via QR code",
-          "pair_actuator": "Pair an actuator (guided)",
-          "commission_existing": "Commission an existing D2 relay (assisted)",
+          "pair_actuator": "Pair an actuator (guided; no automatic UTE)",
+          "commission_existing": "Commission an existing D2 relay (assisted; no automatic UTE)",
           "manage": "Manage UI devices",
           "import_yaml": "Import YAML devices"
         }
