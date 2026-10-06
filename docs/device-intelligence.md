@@ -100,14 +100,14 @@ manual, not a claim that every NodOn product or radio variant is covered.
 Additional manufacturer-documented EnOcean products (inventory only; not proof
 that a captured EURID is that model):
 
-| NodOn model/SKU | EEP | Function | Commissioning documented | Repository status |
-| --- | --- | --- | --- | --- |
-| CWS-2-1-01 wall switch | F6-02-01 | 1/2-channel rocker transmitter | pair with actuator | manual mapping, untested |
-| CCS-2-1-01 card switch | F6-04-01 | card insertion/removal transmitter | pair with actuator | unsupported |
-| SIN-2-FP-01 pilot-wire module | D2-01-0C | six heating modes and telemetry | up to 22 controllers | unsupported |
-| SIN-2-2 lighting relay | D2-01-12 | ON/OFF actuator | up to 22 controllers | manual mapping, untested |
-| SIN-2-RS roller-shutter module | D2-05-00 | shutter actuator | up to 22 controllers | unsupported |
-| Soft Button | D2-03-0A | scene/button transmitter | compatible D2-03 actuator | unsupported |
+| NodOn model/SKU | EEP | Function | Commissioning documented | Official manufacturer source | Repository status |
+| --- | --- | --- | --- | --- | --- |
+| CWS-2-1-01 wall switch | F6-02-01 | 1/2-channel rocker transmitter | pair with actuator | [NodOn support: CWS-2-1-01](https://support.nodon.fr/support/solutions/articles/150000192103-interrupteur-mural-enocean-cws-2-1-01-) | manual mapping, untested |
+| CCS-2-1-01 card switch | F6-04-01 | card insertion/removal transmitter | pair with actuator | [NodOn support: CCS-2-1-01](https://support.nodon.fr/support/solutions/articles/150000192099-interrupteur-%25C3%25A0-carte-enocean-ccs-2-1-01-) | unsupported |
+| SIN-2-FP-01 pilot-wire module | D2-01-0C | six heating modes and telemetry | up to 22 controllers | NodOn product documentation referenced by the ASP manual catalogue; direct public article not located in this audit | unsupported |
+| SIN-2-2 lighting relay | D2-01-12 | ON/OFF actuator | up to 22 controllers | NodOn product documentation referenced by the ASP manual catalogue; direct public article not located in this audit | manual mapping, untested |
+| SIN-2-RS roller-shutter module | D2-05-00 | shutter actuator | up to 22 controllers | NodOn product documentation referenced by the ASP manual catalogue; direct public article not located in this audit | unsupported |
+| Soft Button | D2-03-0A | scene/button transmitter | compatible D2-03 actuator | NodOn product documentation referenced by the ASP manual catalogue; direct public article not located in this audit | unsupported |
 
 These rows record manufacturer claims, not implementation or hardware proof.
 
