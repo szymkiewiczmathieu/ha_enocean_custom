@@ -93,6 +93,7 @@ _CONF_CONFIRM_RELAY_D2 = "confirm_relay_d2"
 _ACTUATOR_RELAY = "relay_d2"
 _ACTUATOR_DIMMER = "dimmer_4bs"
 _D2_RELAY_EEP = "D2-01-12"
+_D2_ASP_EEP = "D2-01-0A"
 _FAILURE_RETRY = "retry"
 _FAILURE_KEEP = "keep"
 _FAILURE_DELETE = "delete"
@@ -764,6 +765,15 @@ class EnOceanOptionsFlow(OptionsFlow):
         """Tell the user how to put the actuator into pairing mode."""
         if self._pairing_device is None:
             return self.async_abort(reason="device_form_missing")
+        # NodOn ASP-2-1-00 commissioning is not implemented/verified here.
+        # Refuse the generic D2-01-12 relay wizard rather than presenting it as
+        # a working constructor-specific association procedure.
+        metadata = self._pairing_device.get(CONF_RADIO_METADATA) or {}
+        if (
+            self._pairing_actuator_type == _ACTUATOR_RELAY
+            and metadata.get("eep") == _D2_ASP_EEP
+        ):
+            return self.async_abort(reason="commissioning_asp_not_supported")
         if user_input is not None:
             return await self.async_step_pair_actuator_progress()
         return self.async_show_form(

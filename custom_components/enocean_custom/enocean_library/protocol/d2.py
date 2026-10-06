@@ -29,11 +29,14 @@ def parse_d2_01_actuator_status(data: list[int]) -> D201ActuatorStatus | None:
     """
     # EEP 2.6.7, §D2-01 CMD 0x4 "Actuator Status Response", pp. 135-136:
     # offsets 0..23 make a three-byte VLD payload. ERP1 appends sender
-    # (4 bytes) and status (1 byte).
-    if len(data) != 9 or data[0] != RORG.VLD:
+    # (4 bytes) and status (1 byte). Treat malformed runtime input as a
+    # rejected telegram; this helper is called from an asynchronous dispatcher.
+    try:
+        if len(data) != 9 or data[0] != RORG.VLD:
+            return None
+        flags_command, channel_status, output_status = data[1:4]
+    except (IndexError, TypeError, ValueError):
         return None
-
-    flags_command, channel_status, output_status = data[1:4]
 
     # EEP 2.6.7, §D2-01 CMD 0x4, p. 136, offsets 4..7: CMD 0x4 identifies an
     # actuator status response.

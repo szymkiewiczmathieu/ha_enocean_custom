@@ -187,6 +187,14 @@ class PairingWizardTests(unittest.IsolatedAsyncioTestCase):
             {"qr_code": identity or ":".join(f"{byte:02X}" for byte in row["id"])}
         )
 
+    async def test_asp_commissioning_is_explicitly_refused(self):
+        flow, _entry = await self._new_relay()
+        flow._pairing_device[CONF_RADIO_METADATA]["eep"] = "D2-01-0A"
+        result = await flow.async_step_pair_actuator_instructions()
+        self.assertEqual(result["type"], FlowResultType.ABORT)
+        self.assertEqual(result["reason"], "commissioning_asp_not_supported")
+        self.assertEqual(flow._pairing_task, None)
+
     async def test_direct_qr_identification_is_radio_silent(self):
         entry = self._entry()
         flow = self._flow(entry)

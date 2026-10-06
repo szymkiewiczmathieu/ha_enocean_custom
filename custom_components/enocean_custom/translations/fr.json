@@ -227,6 +227,7 @@
       "no_commissionable_devices": "Aucun relais default géré par l'interface sur le canal 0 ou 1, sans preuve radio/produit contradictoire, n'est disponible pour l'identification du commissioning assisté.",
       "commissioning_device_disappeared": "L'interrupteur sélectionné a été supprimé pendant le commissioning ; il n'a pas été recréé.",
       "commissioning_relay_unconfirmed": "La confirmation physique D2-01-12 requise pour le relais n'a pas été donnée. Aucune radio n'a été émise et les options sont restées inchangées.",
+      "commissioning_asp_not_supported": "La mise en service du NodOn ASP-2-1-00 n'est pas implémentée dans cette intégration. Aucune radio n'a été émise et les options sont restées inchangées.",
       "delete_cancelled": "Suppression annulée.",
       "learn_in_progress": "Une fenêtre d'apprentissage est déjà en cours.",
       "device_form_missing": "La session du formulaire a expiré ; recommencez.",

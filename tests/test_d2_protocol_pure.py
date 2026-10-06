@@ -44,6 +44,10 @@ class D201PureTests(unittest.TestCase):
             parse_d2_01_actuator_status([RORG.VLD, 0x81, 0, 100, 1, 2, 3, 4, 0])
         )
 
+    def test_malformed_runtime_data_is_rejected(self):
+        self.assertFalse(is_matching_d2_01_feedback(None, 0))
+        self.assertFalse(is_matching_d2_01_feedback([RORG.VLD, "bad"], 0))
+
     def test_feedback_boundary_requires_exact_channel_and_requested_output(self):
         packet = [RORG.VLD, 0x84, 0x00, 100, 1, 2, 3, 4, 0]
         self.assertTrue(is_matching_d2_01_feedback(packet, 0, output_value=100))
