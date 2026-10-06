@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import unittest
 from typing import ClassVar
-from unittest.mock import Mock, patch
 
 import voluptuous as vol
 
@@ -104,20 +103,14 @@ class D201EntrySetupTests(unittest.IsolatedAsyncioTestCase):
             }
 
         added = []
-        with patch(
-            "custom_components.enocean_custom.switch.EnOceanSwitch"
-        ) as constructor:
+        # Exercise async_setup_entry and the real EnOceanSwitch constructor.
+        # Only the callback boundary is observed; no radio or HA mutation occurs.
+        await async_setup_entry(object(), Entry(), added.extend)
 
-            def make_entity(*args, **kwargs):
-                entity = Mock()
-                entity.set_radio_metadata.return_value = entity
-                return entity
-
-            constructor.side_effect = make_entity
-            await async_setup_entry(object(), Entry(), added.extend)
-        self.assertEqual([call[0][2] for call in constructor.call_args_list], [0, 31])
+        self.assertEqual(len(added), 2)
+        self.assertEqual([entity.channel for entity in added], [0, 31])
+        self.assertEqual([entity._profile for entity in added], ["default", "default"])
         self.assertEqual(
-            [call[0][4] for call in constructor.call_args_list],
+            [entity._radio_metadata["eep"] for entity in added],
             ["D2-01-0A", "D2-01-12"],
         )
-        self.assertEqual(len(added), 2)
