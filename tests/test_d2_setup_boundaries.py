@@ -64,6 +64,12 @@ class D201BoundaryTests(unittest.TestCase):
         rows = valid_ui_devices([self._row(0), self._row(1), self._row(31, "D2-01-12")])
         self.assertEqual([row["channel"] for row in rows], [0, 31])
 
+    def test_real_switch_constructor_rejects_invalid_asp_channel(self):
+        from custom_components.enocean_custom.switch import EnOceanSwitch
+
+        with self.assertRaisesRegex(ValueError, "channel 0 only"):
+            EnOceanSwitch([1, 2, 3, 4], "Invalid ASP", 1, "default", "D2-01-0A")
+
 
 class D201EntrySetupTests(unittest.IsolatedAsyncioTestCase):
     async def test_entry_setup_uses_metadata_eep_and_skips_invalid_row(self):
