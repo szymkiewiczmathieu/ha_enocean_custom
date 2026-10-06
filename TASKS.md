@@ -37,13 +37,19 @@ not prove that EURID `01:A2:FE:F8` is NodOn, so attribution remains unknown.
    mains-fed load without Mathieu's explicit confirmation.
 2. Save the Home Assistant backup and record the current PC2 entity/options and
    captured EURID `01:A2:FE:F8`; do not reset the module or remove PC2.
-3. Put the ASP into its manufacturer teach-in/association mode using the physical
-   button (the NodOn ASP manual's association procedure), then send exactly one
-   teach-in/association action from the intended controller. Do not substitute
-   an ESP3 transport ACK for teach-in confirmation. Record the controller and
-   actuator IDs and verify that the association is stored before leaving teach-in.
+3. In Home Assistant open `Settings → Devices & services → EnOcean → PC2 →
+   Configure`, choose the captured device `01:A2:FE:F8`, and use the integration's
+   `Pair/associate actuator` action once while the ASP is in the physical
+   teach-in mode described by the NodOn manual. The observable confirmation is a
+   persisted association entry for that destination plus a matching D2-01 status
+   telegram in the integration log; an ESP3 transport ACK alone is not
+   confirmation. Record the controller and actuator IDs before leaving teach-in.
 4. Keep the actuator destination as `01:A2:FE:F8`, dongle Base ID as sender,
-   and channel exactly `0`. Verify the generated D2-01 command before transmit.
+   and channel exactly `0`. In the confirmation dialog inspect the rendered
+   destination/channel and generated D2-01 command before pressing `Transmit`.
+   The action must be rejected if the channel is not zero or the destination
+   differs from the captured actuator; this is covered by the pairing and
+   channel-policy tests.
 5. Trigger one ON, wait for the matching D2-01 CMD `0x4` status from that sender
    and channel, then trigger one OFF and wait for the corresponding status.
    ESP3 ACK, timeout, or rejected transport alone is never a state result.

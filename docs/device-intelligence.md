@@ -86,6 +86,22 @@ always remains changeable, and a manufacturer conflict suppresses it entirely.
 
 ### NodOn EnOcean catalogue audit
 
+| NodOn model/SKU | EEP / function | Repository status | Fixture / hardware boundary |
+| --- | --- | --- | --- |
+| ASP-2-1-00 / ASP-2-1-10 / ASP-2-1-01 SmartPlug family | `D2-01-0A`: one-channel switching, local-control and status/power-failure parameters | implemented as manual `switch`; no consumption entity | no hardware fixture; safe-load commissioning required |
+| CWS-2-1-01 wall switch | `F6-02-01`: rocker transmitter | manual binary_sensor/switch mapping | no hardware fixture; add captured RPS fixture before claiming support |
+| CCS-2-1-01 card switch | `F6-04-01`: card insertion/removal transmitter | unsupported | no decoder or fixture; add both telegram fixture and decoder test before support |
+| SIN-2-FP-01 pilot-wire module | `D2-01-0C`: heating modes and telemetry | unsupported | no decoder or fixture; add command/status fixtures before support |
+| SIN-2-2-01 lighting relay | `D2-01-12`: ON/OFF actuator | manual mapping, untested | add directed-command and feedback fixtures; physical proof remains pending |
+| SIN-2-RS-01 roller-shutter module | `D2-05-00`: shutter actuator | unsupported | no decoder or fixture; add range/status fixtures before support |
+| CRC-2-6-01 Soft Remote | `D2-03-0A`: scene/button transmitter | unsupported | no decoder or fixture; add button-event fixture before support |
+
+For every row marked unsupported or untested, the required fixture is a
+sanitized telegram fixture containing sender, destination (when applicable),
+RORG/EEP, payload, status direction, and expected decoded event. A fixture is
+not hardware proof: support may be promoted only after decoder tests pass and,
+for actuators, a safe physical ON/OFF plus matching feedback is recorded.
+
 The following is the bounded catalogue evidenced by the official ASP-2-1-x0
 manual, not a claim that every NodOn product or radio variant is covered.
 
