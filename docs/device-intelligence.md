@@ -97,6 +97,20 @@ manual, not a claim that every NodOn product or radio variant is covered.
 | Magnetic contact transmitter | `D5-00-01` | assisted sensor mapping | no NodOn transmitter fixture |
 | Other transmitters listed by the ASP manual (`A5-07-*`, `A5-08-*`, `A5-10-*`, `A5-14-*`) | transmitter EEPs are listed by NodOn, but are not product identities | unsupported unless a separate decoder row exists | not tested |
 
+Additional manufacturer-documented EnOcean products (inventory only; not proof
+that a captured EURID is that model):
+
+| NodOn model/SKU | EEP | Function | Commissioning documented | Repository status |
+| --- | --- | --- | --- | --- |
+| CWS-2-1-01 wall switch | F6-02-01 | 1/2-channel rocker transmitter | pair with actuator | manual mapping, untested |
+| CCS-2-1-01 card switch | F6-04-01 | card insertion/removal transmitter | pair with actuator | unsupported |
+| SIN-2-FP-01 pilot-wire module | D2-01-0C | six heating modes and telemetry | up to 22 controllers | unsupported |
+| SIN-2-2 lighting relay | D2-01-12 | ON/OFF actuator | up to 22 controllers | manual mapping, untested |
+| SIN-2-RS roller-shutter module | D2-05-00 | shutter actuator | up to 22 controllers | unsupported |
+| Soft Button | D2-03-0A | scene/button transmitter | compatible D2-03 actuator | unsupported |
+
+These rows record manufacturer claims, not implementation or hardware proof.
+
 The manual identifies the SmartPlug as bidirectional and explicitly documents
 `D2-01-0A`; it does not provide evidence that a captured EURID is a NodOn
 product. Therefore manufacturer/model attribution remains unknown unless a
@@ -243,6 +257,7 @@ YAML blocks → restart Home Assistant → verify entities and automations**.
 
 ## Sources
 
+- NodOn product pages: <https://nodon.fr/en/products/enocean-wall-switch>, <https://nodon.fr/en/products/enocean-card-switch>, <https://nodon.fr/en/products/enocean-pilot-wire-heating-module>, <https://nodon.fr/en/products/enocean-on-off-lighting-relay-switch>, <https://nodon.fr/en/products/enocean-roller-shutter-relay-switch>, <https://nodon.fr/en/products/enocean-soft-button>
 - EnOcean Alliance, EEP database: <https://www.enocean-alliance.org/products/eeps>
 - EnOcean Alliance, Product ID and labelling: <https://www.enocean-alliance.org/productid>
 - EnOcean Alliance, manufacturer list: <https://enoceanwiki.atlassian.net/wiki/spaces/IEC/pages/260669482>
