@@ -5,7 +5,8 @@
 - [x] Ensure ESP3 ACK never updates switch state; state changes only on matching D2-01 CMD 0x4 feedback.
 - [x] Preserve PC2 identity and channel-aware unique IDs; no reset, deletion, deployment, or radio command performed.
 - [x] Document bounded NodOn evidence and explicitly avoid unsupported manufacturer inference.
-- [ ] Run HA-dependent tests, Ruff, Hassfest and HACS in an environment with their dependencies.
+- [x] Run HA-dependent tests in isolated `.venv-ha` with Home Assistant 2026.7.3, pyserial, BeautifulSoup4 and lxml; run Ruff (baseline currently reports pre-existing legacy violations).
+- [ ] Run Hassfest and HACS validators; this host has no Docker daemon and no local HACS validator checkout.
 - [ ] Perform physical commissioning/switching only after Mathieu confirms the connected load is safe; this run does not claim hardware success.
 - [ ] Independent review and user authorization remain required before push, merge, release, or deployment.
 

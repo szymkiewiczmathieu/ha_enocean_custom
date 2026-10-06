@@ -6,11 +6,15 @@ import sys
 import types
 import unittest
 
-
-_ROOT = pathlib.Path(__file__).parents[1] / "custom_components/enocean_custom/enocean_library/protocol"
+_ROOT = (
+    pathlib.Path(__file__).parents[1]
+    / "custom_components/enocean_custom/enocean_library/protocol"
+)
 _pkg = "_pure_protocol"
 sys.modules.setdefault(_pkg, types.ModuleType(_pkg))
-_spec = importlib.util.spec_from_file_location(f"{_pkg}.constants", _ROOT / "constants.py")
+_spec = importlib.util.spec_from_file_location(
+    f"{_pkg}.constants", _ROOT / "constants.py"
+)
 _constants = importlib.util.module_from_spec(_spec)
 sys.modules[f"{_pkg}.constants"] = _constants
 _spec.loader.exec_module(_constants)
@@ -35,10 +39,14 @@ class D201PureTests(unittest.TestCase):
     def test_ack_or_wrong_command_is_not_actuator_feedback(self):
         # ESP3 ACK is not a radio payload and must never be interpreted as state.
         self.assertIsNone(parse_d2_01_actuator_status([0x02, 0x00]))
-        self.assertIsNone(parse_d2_01_actuator_status([RORG.VLD, 0x81, 0, 100, 1, 2, 3, 4, 0]))
+        self.assertIsNone(
+            parse_d2_01_actuator_status([RORG.VLD, 0x81, 0, 100, 1, 2, 3, 4, 0])
+        )
 
     def test_invalid_output_and_channel_are_rejected_or_bounded(self):
-        self.assertIsNone(parse_d2_01_actuator_status([RORG.VLD, 0x84, 0, 127, 1, 2, 3, 4, 0]))
+        self.assertIsNone(
+            parse_d2_01_actuator_status([RORG.VLD, 0x84, 0, 127, 1, 2, 3, 4, 0])
+        )
         status = parse_d2_01_actuator_status([RORG.VLD, 0x04, 0x9F, 0, 1, 2, 3, 4, 0])
         self.assertIsNotNone(status)
         assert status is not None
