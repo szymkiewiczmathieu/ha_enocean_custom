@@ -1798,8 +1798,15 @@ def main() -> None:
     rps_switch.turn_on()
     rps_responses[2](True)
     rps_responses[3](True)
+    if rps_switch.is_on is not None:
+        raise AssertionError("RPS state changed after ACKs without actuator feedback")
+    rps_switch.value_changed(
+        SimpleNamespace(rorg=0xD2, data=[0xD2, 0x04, 0x00, 100, *valid_id, 0x00])
+    )
     if rps_switch.is_on is not True:
-        raise AssertionError("RPS state did not change after two RET_OK responses")
+        raise AssertionError(
+            "RPS state did not change after matching actuator feedback"
+        )
 
     class PowerPacket:
         def __init__(self, watts: int) -> None:

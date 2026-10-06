@@ -187,6 +187,22 @@ class PairingWizardTests(unittest.IsolatedAsyncioTestCase):
             {"qr_code": identity or ":".join(f"{byte:02X}" for byte in row["id"])}
         )
 
+    async def test_asp_commissioning_is_explicitly_refused(self):
+        flow, _entry = await self._new_relay()
+        flow._pairing_device[CONF_RADIO_METADATA]["eep"] = "D2-01-0A"
+        result = await flow.async_step_pair_actuator_instructions()
+        self.assertEqual(result["type"], FlowResultType.ABORT)
+        self.assertEqual(result["reason"], "commissioning_asp_not_supported")
+        self.assertEqual(flow._pairing_task, None)
+
+    async def test_asp_commissioning_is_explicitly_refused_for_lowercase_eep(self):
+        flow, _entry = await self._new_relay()
+        flow._pairing_device[CONF_RADIO_METADATA]["eep"] = "d2-01-0a"
+        result = await flow.async_step_pair_actuator_instructions()
+        self.assertEqual(result["type"], FlowResultType.ABORT)
+        self.assertEqual(result["reason"], "commissioning_asp_not_supported")
+        self.assertIsNone(flow._pairing_task)
+
     async def test_direct_qr_identification_is_radio_silent(self):
         entry = self._entry()
         flow = self._flow(entry)
@@ -748,7 +764,21 @@ class PairingWizardTests(unittest.IsolatedAsyncioTestCase):
             "invalid_channel_rps",
         )
 
-    async def test_d2_channel_bounds_match_ui_persistence_and_yaml(self):
+    async def test_d2_pairing_menu_discloses_no_automatic_ute(self):
+        """The guided D2 actions must not imply unsolicited UTE pairing."""
+        import json
+        from pathlib import Path
+
+        data = json.loads(
+            (
+                Path(__file__).parents[1]
+                / "custom_components/enocean_custom/strings.json"
+            ).read_text()
+        )
+        menu = data["options"]["step"]["init"]["menu_options"]
+        self.assertIn("no automatic UTE", menu["pair_actuator"])
+        self.assertIn("no automatic UTE", menu["commission_existing"])
+
         ui_row = {
             "id": [0x11, 0x22, 0x33, 0x44],
             "platform": "switch",

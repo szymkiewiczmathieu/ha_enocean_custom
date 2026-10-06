@@ -60,7 +60,7 @@ from .device_intelligence import (
     safe_metadata,
 )
 from .enocean_library.protocol.constants import PACKET, RORG
-from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
+from .enocean_library.protocol.d2 import is_matching_d2_01_feedback
 from .enocean_library.protocol.packet import Packet as ESP3Packet
 from .enocean_library.utils import combine_hex, to_hex_string
 from .inbox import get_device_inbox
@@ -93,6 +93,7 @@ _CONF_CONFIRM_RELAY_D2 = "confirm_relay_d2"
 _ACTUATOR_RELAY = "relay_d2"
 _ACTUATOR_DIMMER = "dimmer_4bs"
 _D2_RELAY_EEP = "D2-01-12"
+_D2_ASP_EEP = "D2-01-0A"
 _FAILURE_RETRY = "retry"
 _FAILURE_KEEP = "keep"
 _FAILURE_DELETE = "delete"
@@ -764,6 +765,15 @@ class EnOceanOptionsFlow(OptionsFlow):
         """Tell the user how to put the actuator into pairing mode."""
         if self._pairing_device is None:
             return self.async_abort(reason="device_form_missing")
+        # NodOn ASP-2-1-00 commissioning is not implemented/verified here.
+        # Refuse the generic D2-01-12 relay wizard rather than presenting it as
+        # a working constructor-specific association procedure.
+        metadata = self._pairing_device.get(CONF_RADIO_METADATA) or {}
+        if (
+            self._pairing_actuator_type == _ACTUATOR_RELAY
+            and str(metadata.get("eep", "")).upper() == _D2_ASP_EEP
+        ):
+            return self.async_abort(reason="commissioning_asp_not_supported")
         if user_input is not None:
             return await self.async_step_pair_actuator_progress()
         return self.async_show_form(
@@ -921,24 +931,15 @@ class EnOceanOptionsFlow(OptionsFlow):
             != combine_hex(self._pairing_device["id"])
         ):
             return False
-        try:
-            status = parse_d2_01_actuator_status(getattr(packet, "data", []))
-        except (IndexError, TypeError, ValueError):
-            return False
-        if status is None:
-            return False
-        # Review finding P1-01: a valid status for the OTHER channel of a
-        # multi-gang actuator does not prove THIS channel learned the command.
-        if status.channel != self._pairing_device["channel"]:
+        if not is_matching_d2_01_feedback(
+            getattr(packet, "data", []),
+            self._pairing_device["channel"],
+            output_value=100,
+        ):
             return False
         # Review finding P2-02: a concurrent options flow may have deleted the
         # device while we wait; a stale success must never be reported.
-        # The directed commissioning command requests OV=100. A merely nonzero
-        # status could be an unrelated local state, so it cannot prove this
-        # exact command took effect.
-        return status.output_value == 100 and (
-            not self._pairing_existing or self._pairing_device_still_persisted()
-        )
+        return not self._pairing_existing or self._pairing_device_still_persisted()
 
     def _pairing_device_still_persisted(self) -> bool:
         """Return whether the pairing device identity is still in the options."""

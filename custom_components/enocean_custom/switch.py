@@ -29,7 +29,9 @@ from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devi
 from .yaml_import import track_yaml_device
 
 CONF_CHANNEL, CONF_SWITCH_TYPE = "channel", "switch_type"
+CONF_EEP = "eep"
 DEFAULT_NAME = "EnOcean Switch"
+D2_SINGLE_CHANNEL_EEPS = frozenset(("D2-01-0A",))
 
 SWITCH_TYPES = ("default", "RPS")
 
@@ -39,6 +41,8 @@ def _validate_switch_config(config: ConfigType) -> ConfigType:
     channel = config[CONF_CHANNEL]
     if config[CONF_SWITCH_TYPE] == "RPS" and channel not in (0, 1):
         raise vol.Invalid("RPS channel must be 0 or 1")
+    if config.get(CONF_EEP) in D2_SINGLE_CHANNEL_EEPS and channel != 0:
+        raise vol.Invalid("D2-01-0A supports actuator channel 0 only")
     return config
 
 
@@ -51,6 +55,7 @@ PLATFORM_SCHEMA = vol.All(
                 exact_finite_int, vol.Range(min=0, max=31)
             ),
             vol.Optional(CONF_SWITCH_TYPE, default="default"): vol.In(SWITCH_TYPES),
+            vol.Optional(CONF_EEP): vol.Match(r"^[0-9A-F]{2}-[0-9A-F]{2}-[0-9A-F]{2}$"),
         }
     ),
     _validate_switch_config,
@@ -105,6 +110,7 @@ async def async_setup_platform(
                 config[CONF_NAME],
                 channel,
                 config[CONF_SWITCH_TYPE],
+                config.get(CONF_EEP),
             )
         ]
     )
@@ -122,6 +128,7 @@ async def async_setup_entry(
             row["name"],
             row["channel"],
             row.get("switch_type") or "default",
+            (row.get("radio_metadata") or {}).get("eep"),
         ).set_radio_metadata(row.get("radio_metadata"))
         for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
         if row["platform"] == "switch"
@@ -140,8 +147,11 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
         dev_name: str,
         channel: int,
         switch_type: str,
+        eep: str | None = None,
     ) -> None:
         """Initialize an actuator without claiming an unconfirmed state."""
+        if eep in D2_SINGLE_CHANNEL_EEPS and channel != 0:
+            raise ValueError(f"{eep} supports actuator channel 0 only")
         super().__init__(dev_id, dev_name)
         self._attr_name = dev_name
         self._attr_unique_id = generate_unique_id(dev_id, channel)
@@ -204,24 +214,29 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
                     build_radio_optional(self.dev_id),
                 ),
             )
-        self._send_state_packets(list(frames), target)
+        self._send_state_packets(list(frames))
 
     def _send_state_packets(
         self,
         packets: list[tuple[list[int], list[int]]],
-        target_state: bool,
     ) -> None:
-        """Commit the requested state only when the complete sequence is accepted."""
+        """Queue a command without treating ESP3 ACK as actuator feedback.
+
+        The entity state is deliberately changed only by ``value_changed`` after
+        a matching D2-01 CMD 0x4 status telegram.  ESP3 acceptance proves only
+        transport delivery to the dongle, not physical relay actuation.
+        """
         outstanding = len(packets)
-        successful = True
 
         def response_received(accepted: bool) -> None:
-            nonlocal outstanding, successful
-            successful &= accepted
+            nonlocal outstanding
             outstanding -= 1
-            if outstanding == 0 and successful:
-                self._attr_is_on = target_state
-                self.async_write_ha_state()
+            if outstanding == 0 and not accepted:
+                LOGGER.warning(
+                    "D2 command for %s was not accepted by the dongle; "
+                    "waiting for actuator feedback",
+                    self.dev_name,
+                )
 
         for data, optional in packets:
             queued = self.send_command(

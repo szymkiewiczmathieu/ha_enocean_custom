@@ -149,6 +149,10 @@ EEP_IMPLEMENTATIONS: Mapping[str, EEPImplementation] = MappingProxyType(
         "A5-20-04": EEPImplementation(("climate",), ConfigMode.YAML_ONLY),
         # light.EnOceanLight transmits only; a sender identity must be chosen.
         "A5-38-08": EEPImplementation(("light",), ConfigMode.ASSISTED),
+        # NodOn ASP-2-1-x0 SmartPlug: D2-01 CMD 0x1 switching and CMD 0x4
+        # status. The product has one output channel and no dimming; keep it
+        # manual because the EEP alone cannot prove the physical model.
+        "D2-01-0A": EEPImplementation(("switch",), ConfigMode.MANUAL),
         # sensor._decode_d2_measurement handles D2-01 CMD 0x7 reports.
         "D2-01-0B": EEPImplementation(("sensor",), ConfigMode.ASSISTED),
         # D2-01-12 actuators are valid as either a light or a switch.

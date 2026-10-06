@@ -76,12 +76,63 @@ Alliance certification nor tested hardware.
 | `A5-14-01` | `binary_sensor.EnOceanA514Contact`; optional disabled-by-default diagnostic `sensor.EnOceanA514Voltage` | `binary_sensor` | `automatic` | `supported` |
 | `A5-20-04` | `climate.EnOceanClimate` valve control | `climate` | `yaml_only` (the options flow persists SRC-D08 only) | `manual` |
 | `A5-38-08` | `light.EnOceanLight` commands and teach-in (transmit only) | `light` | `assisted` (a sender identity is required) | `supported` |
+| `D2-01-0A` | `switch.EnOceanSwitch` D2 CMD `0x1` switching and CMD `0x4` feedback | `switch` | `manual` (EEP does not prove NodOn hardware) | `manual` |
 | `D2-01-0B` | `sensor._decode_d2_measurement` for D2-01 CMD `0x7` | `sensor` | `assisted` | `supported` |
 | `D2-01-12` | switch/light actuator with D2-01 feedback | `light`, `switch` | `manual` (two valid platforms) | `manual` |
 
 A platform is pre-selected in the options flow only when the mode is
 `automatic` or `assisted` **and** exactly one platform applies. The selection
 always remains changeable, and a manufacturer conflict suppresses it entirely.
+
+### NodOn EnOcean catalogue audit
+
+| NodOn model/SKU | EEP / function | Repository status | Fixture / hardware boundary |
+| --- | --- | --- | --- |
+| ASP-2-1-00 / ASP-2-1-10 / ASP-2-1-01 SmartPlug family | `D2-01-0A`: one-channel switching, local-control and status/power-failure parameters | implemented as manual `switch`; no consumption entity | no hardware fixture; safe-load commissioning required |
+| CWS-2-1-01 wall switch | `F6-02-01`: rocker transmitter | manual binary_sensor/switch mapping | no hardware fixture; add captured RPS fixture before claiming support |
+| CCS-2-1-01 card switch | `F6-04-01`: card insertion/removal transmitter | unsupported | no decoder or fixture; add both telegram fixture and decoder test before support |
+| SIN-2-FP-01 pilot-wire module | `D2-01-0C`: heating modes and telemetry | unsupported | no decoder or fixture; add command/status fixtures before support |
+| SIN-2-2-01 lighting relay | `D2-01-12`: ON/OFF actuator | manual mapping, untested | add directed-command and feedback fixtures; physical proof remains pending |
+| SIN-2-RS-01 roller-shutter module | `D2-05-00`: shutter actuator | unsupported | no decoder or fixture; add range/status fixtures before support |
+| CRC-2-6-01 Soft Remote | `D2-03-0A`: scene/button transmitter | unsupported | no decoder or fixture; add button-event fixture before support |
+
+For every row marked unsupported or untested, the required fixture is a
+sanitized telegram fixture containing sender, destination (when applicable),
+RORG/EEP, payload, status direction, and expected decoded event. A fixture is
+not hardware proof: support may be promoted only after decoder tests pass and,
+for actuators, a safe physical ON/OFF plus matching feedback is recorded.
+
+The following is the bounded catalogue evidenced by the official ASP-2-1-x0
+manual, not a claim that every NodOn product or radio variant is covered.
+
+| NodOn EnOcean product/profile | EEP / functions documented | Repository status | Hardware proof |
+| --- | --- | --- | --- |
+| ASP-2-1-00 / ASP-2-1-10 SmartPlug | `D2-01-0A`: one-channel switching, local-control and status/power-failure parameters | implemented as manual `switch`; no consumption entity | not tested on hardware in this run |
+| Rocker Switch transmitter | `F6-02-01` | manual binary_sensor/switch mapping | no NodOn transmitter fixture |
+| Window handle transmitter | `F6-10-00` | assisted sensor mapping | no NodOn transmitter fixture |
+| Magnetic contact transmitter | `D5-00-01` | assisted sensor mapping | no NodOn transmitter fixture |
+| Other transmitters listed by the ASP manual (`A5-07-*`, `A5-08-*`, `A5-10-*`, `A5-14-*`) | transmitter EEPs are listed by NodOn, but are not product identities | unsupported unless a separate decoder row exists | not tested |
+
+Additional manufacturer-documented EnOcean products (inventory only; not proof
+that a captured EURID is that model):
+
+| NodOn model/SKU | EEP | Function | Commissioning documented | Official manufacturer source | Repository status |
+| --- | --- | --- | --- | --- | --- |
+| CWS-2-1-01 wall switch | F6-02-01 | 1/2-channel rocker transmitter | pair with actuator | [NodOn support: CWS-2-1-01](https://support.nodon.fr/support/solutions/articles/150000192103-interrupteur-mural-enocean-cws-2-1-01-) | manual mapping, untested |
+| CCS-2-1-01 card switch | F6-04-01 | card insertion/removal transmitter | pair with actuator | [NodOn support: CCS-2-1-01](https://support.nodon.fr/support/solutions/articles/150000192099-interrupteur-%25C3%25A0-carte-enocean-ccs-2-1-01-) | unsupported |
+| SIN-2-FP-01 pilot-wire module | D2-01-0C | six heating modes and telemetry | up to 22 controllers | [NodOn support: SIN-2-FP-01](https://support.nodon.fr/support/solutions/articles/150000052161-module-chauffage-fil-pilote-enocean-sin-2-fp-01-) | unsupported; source verified, no fixture |
+| SIN-2-2-01 lighting relay | D2-01-12 | ON/OFF actuator | up to 22 controllers | [NodOn support: SIN-2-2-01](https://support.nodon.fr/support/solutions/articles/150000052164-module-eclairage-on-off-enocean-sin-2-2-01-) | manual mapping, untested |
+| SIN-2-RS-01 roller-shutter module | D2-05-00 | shutter actuator | up to 22 controllers | [NodOn support: SIN-2-RS-01](https://support.nodon.fr/support/solutions/articles/150000052163-module-volet-roulant-enocean-sin-2-rs-01-) | unsupported; source verified, no fixture |
+| Soft Button transmitter (family) | not established by the cited page | product family only; do not infer an EEP | no automatic mapping | source reviewed, no fixture | unsupported |
+| CRC-2-6-01 Soft Remote | `D2-03-0A` | scene/button transmitter | compatible D2-03 actuator | [NodOn support: CRC-2-6-01](https://support.nodon.fr/support/solutions/articles/150000052270-t%C3%A9l%C3%A9commande-soft-remote-enocean-crc-2-6-01-) | unsupported; no fixture |
+
+These rows record manufacturer claims, not implementation or hardware proof.
+
+The manual identifies the SmartPlug as bidirectional and explicitly documents
+`D2-01-0A`; it does not provide evidence that a captured EURID is a NodOn
+product. Therefore manufacturer/model attribution remains unknown unless a
+separate product-identification proof is supplied. ESP3 `OK` is transport
+acceptance, not proof that the load switched.
 
 ## Manual EEP entry
 
@@ -223,6 +274,7 @@ YAML blocks → restart Home Assistant → verify entities and automations**.
 
 ## Sources
 
+- NodOn product pages: <https://nodon.fr/en/products/enocean-wall-switch>, <https://nodon.fr/en/products/enocean-card-switch>, <https://nodon.fr/en/products/enocean-pilot-wire-heating-module>, <https://nodon.fr/en/products/enocean-on-off-lighting-relay-switch>, <https://nodon.fr/en/products/enocean-roller-shutter-relay-switch>, <https://nodon.fr/en/products/enocean-soft-button>
 - EnOcean Alliance, EEP database: <https://www.enocean-alliance.org/products/eeps>
 - EnOcean Alliance, Product ID and labelling: <https://www.enocean-alliance.org/productid>
 - EnOcean Alliance, manufacturer list: <https://enoceanwiki.atlassian.net/wiki/spaces/IEC/pages/260669482>

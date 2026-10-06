@@ -71,8 +71,8 @@
         "menu_options": {
           "learn": "Add a device",
           "qr_code": "Add via QR code",
-          "pair_actuator": "Pair an actuator (guided)",
-          "commission_existing": "Commission an existing D2 relay (assisted)",
+          "pair_actuator": "Pair an actuator (guided; no automatic UTE)",
+          "commission_existing": "Commission an existing D2 relay (assisted; no automatic UTE)",
           "manage": "Manage UI devices",
           "import_yaml": "Import YAML devices"
         }
@@ -227,6 +227,7 @@
       "no_commissionable_devices": "No UI-managed default relay on channel 0 or 1 without contradictory radio/product evidence is available to identify for assisted commissioning.",
       "commissioning_device_disappeared": "The selected switch was removed during commissioning; it was not recreated.",
       "commissioning_relay_unconfirmed": "The required physical D2-01-12 relay confirmation was not given. No radio was sent and options were left unchanged.",
+      "commissioning_asp_not_supported": "NodOn ASP-2-1-00 commissioning is not implemented in this integration. No radio was sent and options were left unchanged.",
       "delete_cancelled": "Removal cancelled.",
       "learn_in_progress": "A teach-in window is already in progress.",
       "device_form_missing": "The device form session expired; start again.",
