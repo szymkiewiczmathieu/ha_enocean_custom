@@ -73,3 +73,5 @@ and controller documentation explicitly supports it; it must not be inferred
 from D2-01-0A or performed silently.
 
 Evidence from this run: `.venv-ha/bin/python -B -m unittest tests.test_d2_channel_policy tests.test_d2_protocol_pure tests.test_d2_status tests.test_pairing_wizard tests.test_ute_teach_in_policy tests.test_d2_ui_options tests.test_d2_setup_boundaries -v` passed (59 tests, zero skipped); `.venv-ha/bin/ruff check` and `ruff format --check` passed on the 9 checked Python targets; `git diff --check` passed. Verification was rerun on 2026-10-06 after the review delta, with the same 59/59 result. A repository-wide Ruff run still reports 123 pre-existing legacy/vendor violations outside the changed targets. Hassfest/HACS and physical commissioning remain pending and no radio/deployment was performed.
+
+Re-review delta 2026-10-06: reran full unittest discovery (234 passed, 0 failed), changed-target Ruff (passed), and git diff --check (passed) at HEAD 6b5f7b4; no source behavior changed.
