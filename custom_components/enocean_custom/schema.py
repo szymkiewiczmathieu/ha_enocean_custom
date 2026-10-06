@@ -118,6 +118,10 @@ def _validate_radio_metadata_identity(device: dict) -> dict:
 
 def _validate_platform_fields(device: dict) -> dict:
     """Validate and populate platform-specific UI fields."""
+    if device["platform"] == "switch":
+        eep = (device.get(CONF_RADIO_METADATA) or {}).get("eep")
+        if eep == "D2-01-0A" and device["channel"] != 0:
+            raise vol.Invalid("D2-01-0A supports actuator channel 0 only")
     if device["platform"] == "light" and not device.get("sender_id"):
         raise vol.Invalid("sender_id is required for light devices")
     if device["platform"] == "climate":
