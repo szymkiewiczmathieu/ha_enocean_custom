@@ -771,7 +771,7 @@ class EnOceanOptionsFlow(OptionsFlow):
         metadata = self._pairing_device.get(CONF_RADIO_METADATA) or {}
         if (
             self._pairing_actuator_type == _ACTUATOR_RELAY
-            and metadata.get("eep") == _D2_ASP_EEP
+            and str(metadata.get("eep", "")).upper() == _D2_ASP_EEP
         ):
             return self.async_abort(reason="commissioning_asp_not_supported")
         if user_input is not None:
