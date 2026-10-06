@@ -107,7 +107,8 @@ that a captured EURID is that model):
 | SIN-2-FP-01 pilot-wire module | D2-01-0C | six heating modes and telemetry | up to 22 controllers | [NodOn support: SIN-2-FP-01](https://support.nodon.fr/support/solutions/articles/150000052161-module-chauffage-fil-pilote-enocean-sin-2-fp-01-) | unsupported; source verified, no fixture |
 | SIN-2-2-01 lighting relay | D2-01-12 | ON/OFF actuator | up to 22 controllers | [NodOn support: SIN-2-2-01](https://support.nodon.fr/support/solutions/articles/150000052164-module-eclairage-on-off-enocean-sin-2-2-01-) | manual mapping, untested |
 | SIN-2-RS-01 roller-shutter module | D2-05-00 | shutter actuator | up to 22 controllers | [NodOn support: SIN-2-RS-01](https://support.nodon.fr/support/solutions/articles/150000052163-module-volet-roulant-enocean-sin-2-rs-01-) | unsupported; source verified, no fixture |
-| Soft Button / CRC-2-6-01 remote | D2-03-0A (product-specific mapping not verified) | scene/button transmitter | compatible D2-03 actuator | [NodOn support: CRC-2-6-01](https://support.nodon.fr/support/solutions/articles/150000052270-t%C3%A9l%C3%A9commande-soft-remote-enocean-crc-2-6-01-) | unsupported; source verified, no fixture |
+| Soft Button transmitter (family) | not established by the cited page | product family only; do not infer an EEP | no automatic mapping | source reviewed, no fixture | unsupported |
+| CRC-2-6-01 Soft Remote | `D2-03-0A` | scene/button transmitter | compatible D2-03 actuator | [NodOn support: CRC-2-6-01](https://support.nodon.fr/support/solutions/articles/150000052270-t%C3%A9l%C3%A9commande-soft-remote-enocean-crc-2-6-01-) | unsupported; no fixture |
 
 These rows record manufacturer claims, not implementation or hardware proof.
 
