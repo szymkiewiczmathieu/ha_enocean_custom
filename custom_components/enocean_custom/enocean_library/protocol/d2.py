@@ -59,3 +59,20 @@ def parse_d2_01_actuator_status(data: list[int]) -> D201ActuatorStatus | None:
         error_level=(channel_status >> 5) & 0x03,
         local_control_enabled=bool(output_status & 0x80),
     )
+
+
+def is_matching_d2_01_feedback(
+    data: list[int], channel: int, *, output_value: int | None = None
+) -> bool:
+    """Return whether data is valid feedback for the requested D2 channel.
+
+    This is deliberately stricter than transport acceptance: callers use it as
+    the state/commissioning boundary, so malformed data and another channel
+    can never be presented as proof of actuator response.
+    """
+    status = parse_d2_01_actuator_status(data)
+    return (
+        status is not None
+        and status.channel == channel
+        and (output_value is None or status.output_value == output_value)
+    )

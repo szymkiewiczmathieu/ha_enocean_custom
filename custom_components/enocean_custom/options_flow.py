@@ -60,7 +60,7 @@ from .device_intelligence import (
     safe_metadata,
 )
 from .enocean_library.protocol.constants import PACKET, RORG
-from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
+from .enocean_library.protocol.d2 import is_matching_d2_01_feedback
 from .enocean_library.protocol.packet import Packet as ESP3Packet
 from .enocean_library.utils import combine_hex, to_hex_string
 from .inbox import get_device_inbox
@@ -921,24 +921,15 @@ class EnOceanOptionsFlow(OptionsFlow):
             != combine_hex(self._pairing_device["id"])
         ):
             return False
-        try:
-            status = parse_d2_01_actuator_status(getattr(packet, "data", []))
-        except (IndexError, TypeError, ValueError):
-            return False
-        if status is None:
-            return False
-        # Review finding P1-01: a valid status for the OTHER channel of a
-        # multi-gang actuator does not prove THIS channel learned the command.
-        if status.channel != self._pairing_device["channel"]:
+        if not is_matching_d2_01_feedback(
+            getattr(packet, "data", []),
+            self._pairing_device["channel"],
+            output_value=100,
+        ):
             return False
         # Review finding P2-02: a concurrent options flow may have deleted the
         # device while we wait; a stale success must never be reported.
-        # The directed commissioning command requests OV=100. A merely nonzero
-        # status could be an unrelated local state, so it cannot prove this
-        # exact command took effect.
-        return status.output_value == 100 and (
-            not self._pairing_existing or self._pairing_device_still_persisted()
-        )
+        return not self._pairing_existing or self._pairing_device_still_persisted()
 
     def _pairing_device_still_persisted(self) -> bool:
         """Return whether the pairing device identity is still in the options."""

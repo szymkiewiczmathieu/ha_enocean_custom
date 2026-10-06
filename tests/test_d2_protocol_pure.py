@@ -24,6 +24,7 @@ sys.modules[f"{_pkg}.d2"] = _d2
 _spec.loader.exec_module(_d2)
 RORG = _constants.RORG
 parse_d2_01_actuator_status = _d2.parse_d2_01_actuator_status
+is_matching_d2_01_feedback = _d2.is_matching_d2_01_feedback
 
 
 class D201PureTests(unittest.TestCase):
@@ -43,7 +44,13 @@ class D201PureTests(unittest.TestCase):
             parse_d2_01_actuator_status([RORG.VLD, 0x81, 0, 100, 1, 2, 3, 4, 0])
         )
 
-    def test_invalid_output_and_channel_are_rejected_or_bounded(self):
+    def test_feedback_boundary_requires_exact_channel_and_requested_output(self):
+        packet = [RORG.VLD, 0x84, 0x00, 100, 1, 2, 3, 4, 0]
+        self.assertTrue(is_matching_d2_01_feedback(packet, 0, output_value=100))
+        self.assertFalse(is_matching_d2_01_feedback(packet, 1, output_value=100))
+        off = [RORG.VLD, 0x84, 0x00, 0, 1, 2, 3, 4, 0]
+        self.assertFalse(is_matching_d2_01_feedback(off, 0, output_value=100))
+
         self.assertIsNone(
             parse_d2_01_actuator_status([RORG.VLD, 0x84, 0, 127, 1, 2, 3, 4, 0])
         )
