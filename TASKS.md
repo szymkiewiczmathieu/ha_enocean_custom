@@ -6,9 +6,10 @@
 - [x] Preserve PC2 identity and channel-aware unique IDs; no reset, deletion, deployment, or radio command performed.
 - [x] Document bounded NodOn evidence and explicitly avoid unsupported manufacturer inference.
 - [x] Run HA-dependent tests in isolated `.venv-ha` with Home Assistant 2026.7.3, pyserial, BeautifulSoup4 and lxml; targeted suite (including persisted UI options and YAML/setup boundaries) passes 59/59; Ruff check/format pass on touched targets.
+- [x] Enforce the commissioning boundary in the real options-flow path: matching feedback requires the exact sender, channel, D2 CMD 0x4 and requested ON output; ACK, timeout, wrong channel, and OFF feedback cannot complete pairing. Pure boundary regression tests cover this contract.
 - [x] Enforce D2-01-0A channel 0 at YAML and persisted UI boundaries; read EEP from `radio_metadata.eep` during config-entry setup; other EEPs retain channels 0-31.
 - [ ] Run Hassfest and HACS validators; local execution attempted 2026-10-06 using the exact workflow-pinned Docker images. Hassfest started successfully but scanned the installed Home Assistant tree as well as this custom integration and exited 1 with 1466 unrelated invalid core integrations; the output does not provide a clean repository-only pass. HACS image started but exited 1 because no `GITHUB_TOKEN` was available. No CI result or exact-head check is claimed for this SHA.
-- [ ] Audit the deployed HA version through the authorized HA access path; this isolated repository workspace does not expose the deployed instance. Deployment was not performed.
+- [x] Audit the deployed HA version through the authorized read-only HA path: `update.home_assistant_core_update` reports installed/latest Core `2026.9.4`; entity inventory is reachable (530 entities), including `switch.pc2` currently `unknown`. No service call, radio command, or deployment was performed.
 - [ ] Perform physical commissioning/switching only after Mathieu confirms the connected load is safe; this run does not claim hardware success.
 - [ ] Independent review remains required; push, merge, release, and deployment remain unperformed.
 
