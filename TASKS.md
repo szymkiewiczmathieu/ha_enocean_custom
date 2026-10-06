@@ -7,9 +7,9 @@
 - [x] Document bounded NodOn evidence and explicitly avoid unsupported manufacturer inference.
 - [x] Run HA-dependent tests in isolated `.venv-ha` with Home Assistant 2026.7.3, pyserial, BeautifulSoup4 and lxml; targeted suite (including persisted UI options and YAML/setup boundaries) passes 59/59; Ruff check/format pass on touched targets.
 - [x] Enforce D2-01-0A channel 0 at YAML and persisted UI boundaries; read EEP from `radio_metadata.eep` during config-entry setup; other EEPs retain channels 0-31.
-- [ ] Run Hassfest and HACS validators; this host has no Docker daemon and no local HACS validator checkout.
+- [ ] Run Hassfest and HACS validators; audit completed 2026-10-06: `docker` is absent/unusable, no Hassfest checkout is present, no HACS validator checkout is present, and `gh` is unavailable for CI/PR inspection. No CI result is claimed for this SHA. The repository's deployed HA version cannot be read from this isolated, non-mutating workspace; deployment was not performed.
 - [ ] Perform physical commissioning/switching only after Mathieu confirms the connected load is safe; this run does not claim hardware success.
-- [x] Independent review completed locally; push, merge, release, and deployment remain intentionally unperformed in this run.
+- [ ] Independent review remains required; push, merge, release, and deployment remain unperformed.
 
 ## Official commissioning boundary
 
