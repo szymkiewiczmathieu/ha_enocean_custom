@@ -41,6 +41,8 @@ def _validate_switch_config(config: ConfigType) -> ConfigType:
     channel = config[CONF_CHANNEL]
     if config[CONF_SWITCH_TYPE] == "RPS" and channel not in (0, 1):
         raise vol.Invalid("RPS channel must be 0 or 1")
+    if config.get(CONF_EEP) in D2_SINGLE_CHANNEL_EEPS and channel != 0:
+        raise vol.Invalid("D2-01-0A supports actuator channel 0 only")
     return config
 
 
