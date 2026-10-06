@@ -34,7 +34,10 @@ def parse_d2_01_actuator_status(data: list[int]) -> D201ActuatorStatus | None:
     try:
         if len(data) != 9 or data[0] != RORG.VLD:
             return None
-        if any(not isinstance(byte, int) or isinstance(byte, bool) or not 0 <= byte <= 0xFF for byte in data):
+        if any(
+            not isinstance(byte, int) or isinstance(byte, bool) or not 0 <= byte <= 0xFF
+            for byte in data
+        ):
             return None
         flags_command, channel_status, output_status = data[1:4]
     except (IndexError, TypeError, ValueError):
