@@ -86,6 +86,14 @@ class D201EntrySetupTests(unittest.IsolatedAsyncioTestCase):
                         "switch_type": "default",
                         "radio_metadata": {"eep": "D2-01-12"},
                     },
+                    {
+                        "id": [9, 10, 11, 12],
+                        "platform": "switch",
+                        "name": "Invalid ASP",
+                        "channel": 1,
+                        "switch_type": "default",
+                        "radio_metadata": {"eep": "D2-01-0A"},
+                    },
                 ]
             }
 

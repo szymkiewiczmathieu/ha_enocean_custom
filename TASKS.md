@@ -5,11 +5,31 @@
 - [x] Ensure ESP3 ACK never updates switch state; state changes only on matching D2-01 CMD 0x4 feedback.
 - [x] Preserve PC2 identity and channel-aware unique IDs; no reset, deletion, deployment, or radio command performed.
 - [x] Document bounded NodOn evidence and explicitly avoid unsupported manufacturer inference.
-- [x] Run HA-dependent tests in isolated `.venv-ha` with Home Assistant 2026.7.3, pyserial, BeautifulSoup4 and lxml; targeted suite (including persisted UI options and YAML/setup boundaries) passes 55/55; Ruff check/format pass on touched targets.
+- [x] Run HA-dependent tests in isolated `.venv-ha` with Home Assistant 2026.7.3, pyserial, BeautifulSoup4 and lxml; targeted suite (including persisted UI options and YAML/setup boundaries) passes 58/58; Ruff check/format pass on touched targets.
 - [x] Enforce D2-01-0A channel 0 at YAML and persisted UI boundaries; read EEP from `radio_metadata.eep` during config-entry setup; other EEPs retain channels 0-31.
 - [ ] Run Hassfest and HACS validators; this host has no Docker daemon and no local HACS validator checkout.
 - [ ] Perform physical commissioning/switching only after Mathieu confirms the connected load is safe; this run does not claim hardware success.
 - [ ] Independent review and user authorization remain required before push, merge, release, or deployment.
+
+## Official commissioning boundary
+
+The NodOn ASP-2-1-00 documentation identifies the SmartPlug as a bidirectional
+D2-01-0A actuator and requires a teach-in/association action before normal
+control. The software path is deliberately bounded: the options pairing wizard
+creates/persists the existing PC2 switch, sends directed D2 commands to the
+captured actuator, and accepts success only after a matching D2-01 status
+telegram (same sender/channel); transport ACK alone is rejected as proof. The
+wizard is bounded by a timeout and offers keep/rollback rather than deleting or
+resetting the actuator. This is the implementation contract tested by
+`tests.test_pairing_wizard` and `tests.test_ute_teach_in_policy`; no physical
+teach-in was run here.
+
+Sources: NodOn ASP-2-1-00 product documentation
+(https://support.nodon.fr/support/solutions/articles/150000192097-prise-intelligente-enocean-asp-2-1-00-)
+and the ASP-2-1-x0 manual
+(https://doc.eedomus.com/files/NodOn_ASP-2-1-x0_EnOcean_20141118_FR.pdf).
+The sources establish the product/EEP and commissioning requirement; they do
+not prove that EURID `01:A2:FE:F8` is NodOn, so attribution remains unknown.
 
 ## Guided physical commissioning protocol (not executed in this run)
 
@@ -28,4 +48,4 @@
    confirmation. Roll back by restoring the backup and reloading the prior
    integration version; this run performed no deployment or radio transmission.
 
-Evidence from this run: `.venv-ha/bin/python -B -m unittest tests.test_d2_channel_policy tests.test_d2_protocol_pure tests.test_d2_status tests.test_pairing_wizard tests.test_ute_teach_in_policy -v` passed (51 tests, zero skipped); `.venv-ha/bin/ruff check` and `ruff format --check` passed on touched targets; `git diff --check` passed. Hassfest/HACS and physical commissioning remain pending and no radio/deployment was performed.
+Evidence from this run: `.venv-ha/bin/python -B -m unittest tests.test_d2_channel_policy tests.test_d2_protocol_pure tests.test_d2_status tests.test_pairing_wizard tests.test_ute_teach_in_policy tests.test_d2_ui_options tests.test_d2_setup_boundaries -v` passed (58 tests, zero skipped); `.venv-ha/bin/ruff check` and `ruff format --check` passed on touched targets; `git diff --check` passed. Hassfest/HACS and physical commissioning remain pending and no radio/deployment was performed.
