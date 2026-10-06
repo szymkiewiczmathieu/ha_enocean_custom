@@ -1,7 +1,7 @@
 # NodOn ASP-2-1-00 / D2-01-0A run
 
 - [x] Audit release branch, origin/main and open remote branches before editing.
-- [x] Keep D2 destination equal to captured actuator ID and sender equal to dongle Base ID; channel is configured and bounded (0-31).
+- [x] Keep D2 destination equal to captured actuator ID and sender equal to dongle Base ID; ASP D2-01-0A is explicitly restricted to actuator channel 0 (other EEPs retain generic 0-31 validation).
 - [x] Ensure ESP3 ACK never updates switch state; state changes only on matching D2-01 CMD 0x4 feedback.
 - [x] Preserve PC2 identity and channel-aware unique IDs; no reset, deletion, deployment, or radio command performed.
 - [x] Document bounded NodOn evidence and explicitly avoid unsupported manufacturer inference.
@@ -27,4 +27,4 @@
    confirmation. Roll back by restoring the backup and reloading the prior
    integration version; this run performed no deployment or radio transmission.
 
-Evidence from this run: `python -m compileall -q custom_components tests` passed; `git diff --check` passed; `tests.test_d2_status` collected 5 tests but skipped all because Home Assistant is not installed.
+Evidence from this run: `.venv-ha/bin/python -B -m unittest tests.test_d2_channel_policy tests.test_d2_protocol_pure tests.test_d2_status tests.test_pairing_wizard tests.test_ute_teach_in_policy -v` passed (51 tests, zero skipped); `.venv-ha/bin/ruff check` and `ruff format --check` passed on touched targets; `git diff --check` passed. Hassfest/HACS and physical commissioning remain pending and no radio/deployment was performed.

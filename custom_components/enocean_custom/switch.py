@@ -29,7 +29,9 @@ from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devi
 from .yaml_import import track_yaml_device
 
 CONF_CHANNEL, CONF_SWITCH_TYPE = "channel", "switch_type"
+CONF_EEP = "eep"
 DEFAULT_NAME = "EnOcean Switch"
+D2_SINGLE_CHANNEL_EEPS = frozenset(("D2-01-0A",))
 
 SWITCH_TYPES = ("default", "RPS")
 
@@ -51,6 +53,7 @@ PLATFORM_SCHEMA = vol.All(
                 exact_finite_int, vol.Range(min=0, max=31)
             ),
             vol.Optional(CONF_SWITCH_TYPE, default="default"): vol.In(SWITCH_TYPES),
+            vol.Optional(CONF_EEP): vol.Match(r"^[0-9A-F]{2}-[0-9A-F]{2}-[0-9A-F]{2}$"),
         }
     ),
     _validate_switch_config,
@@ -105,6 +108,7 @@ async def async_setup_platform(
                 config[CONF_NAME],
                 channel,
                 config[CONF_SWITCH_TYPE],
+                config.get(CONF_EEP),
             )
         ]
     )
@@ -122,6 +126,7 @@ async def async_setup_entry(
             row["name"],
             row["channel"],
             row.get("switch_type") or "default",
+            row.get("eep"),
         ).set_radio_metadata(row.get("radio_metadata"))
         for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
         if row["platform"] == "switch"
@@ -140,8 +145,11 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
         dev_name: str,
         channel: int,
         switch_type: str,
+        eep: str | None = None,
     ) -> None:
         """Initialize an actuator without claiming an unconfirmed state."""
+        if eep in D2_SINGLE_CHANNEL_EEPS and channel != 0:
+            raise ValueError(f"{eep} supports actuator channel 0 only")
         super().__init__(dev_id, dev_name)
         self._attr_name = dev_name
         self._attr_unique_id = generate_unique_id(dev_id, channel)
