@@ -7,7 +7,8 @@
 - [x] Document bounded NodOn evidence and explicitly avoid unsupported manufacturer inference.
 - [x] Run HA-dependent tests in isolated `.venv-ha` with Home Assistant 2026.7.3, pyserial, BeautifulSoup4 and lxml; targeted suite (including persisted UI options and YAML/setup boundaries) passes 59/59; Ruff check/format pass on touched targets.
 - [x] Enforce D2-01-0A channel 0 at YAML and persisted UI boundaries; read EEP from `radio_metadata.eep` during config-entry setup; other EEPs retain channels 0-31.
-- [ ] Run Hassfest and HACS validators; audit completed 2026-10-06: `docker` is absent/unusable, no Hassfest checkout is present, no HACS validator checkout is present, and `gh` is unavailable for CI/PR inspection. No CI result is claimed for this SHA. The repository's deployed HA version cannot be read from this isolated, non-mutating workspace; deployment was not performed.
+- [ ] Run Hassfest and HACS validators; local execution attempted 2026-10-06 using the exact workflow-pinned Docker images. Hassfest started successfully but scanned the installed Home Assistant tree as well as this custom integration and exited 1 with 1466 unrelated invalid core integrations; the output does not provide a clean repository-only pass. HACS image started but exited 1 because no `GITHUB_TOKEN` was available. No CI result or exact-head check is claimed for this SHA.
+- [ ] Audit the deployed HA version through the authorized HA access path; this isolated repository workspace does not expose the deployed instance. Deployment was not performed.
 - [ ] Perform physical commissioning/switching only after Mathieu confirms the connected load is safe; this run does not claim hardware success.
 - [ ] Independent review remains required; push, merge, release, and deployment remain unperformed.
 
@@ -15,12 +16,15 @@
 
 The NodOn ASP-2-1-00 documentation identifies the SmartPlug as a bidirectional
 D2-01-0A actuator and requires a teach-in/association action before normal
-control. The software path is deliberately bounded: the options pairing wizard
-creates/persists the existing PC2 switch, sends directed D2 commands to the
-captured actuator, and accepts success only after a matching D2-01 status
-telegram (same sender/channel); transport ACK alone is rejected as proof. The
-wizard is bounded by a timeout and offers keep/rollback rather than deleting or
-resetting the actuator. This is the implementation contract tested by
+control. The software path is deliberately bounded: the options flow exposes the
+implemented `Pair an actuator (guided)` and `Commission an existing D2 relay
+(assisted)` actions, persists the existing PC2 switch/options, and sends directed
+D2 commands only through the normal switch path. It does not claim that a
+commissioning association was persisted: the flow has no generic `Transmit`
+dialog or association-verification result. Any success claim still requires a
+matching D2-01 status telegram (same sender/channel); transport ACK alone is
+rejected as proof. The action is bounded by a timeout and offers keep/rollback
+rather than deleting or resetting the actuator. This contract is tested by
 `tests.test_pairing_wizard` and `tests.test_ute_teach_in_policy`; no physical
 teach-in was run here.
 
