@@ -13,9 +13,8 @@ from homeassistant.components.switch import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ID, CONF_NAME, Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers import entity_platform
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
@@ -143,21 +142,31 @@ async def async_setup_entry(
         for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
         if row["platform"] == "switch"
     ]
-    # Register before adding entities: HA's current platform context is only
-    # guaranteed during platform setup, not after entity creation.
-    _register_repeater_service()
     async_add_entities(entities)
+    _register_repeater_service(hass, entities)
 
 
-def _register_repeater_service() -> None:
-    """Expose the documented D2-01-12 MSC repeater command in HA."""
-    platform = entity_platform.async_get_current_platform()
-    platform.async_register_entity_service(
+def _register_repeater_service(hass: HomeAssistant, entities: list[Any]) -> None:
+    """Expose a targetable HA service for the Ubiwizz MSC command."""
+    entity_map = {entity.entity_id: entity for entity in entities}
+
+    async def handle_call(call: ServiceCall) -> None:
+        level = call.data["level"]
+        for entity_id in call.data["entity_id"]:
+            entity = entity_map.get(entity_id)
+            if entity is not None:
+                entity.configure_repeater(level)
+
+    hass.services.async_register(
+        DOMAIN,
         "configure_repeater",
-        {
-            vol.Required("level"): vol.All(vol.Coerce(int), vol.In((0, 1, 2))),
-        },
-        "configure_repeater",
+        handle_call,
+        schema=vol.Schema(
+            {
+                vol.Required("entity_id"): cv.entity_ids,
+                vol.Required("level"): vol.All(vol.Coerce(int), vol.In((0, 1, 2))),
+            }
+        ),
     )
 
 

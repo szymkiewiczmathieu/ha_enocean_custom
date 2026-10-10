@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.7.2 - 2026-10-10
+- Replace the non-targetable entity-service registration with an explicit targetable HA service schema.
+
 ## 2.7.1 - 2026-10-10
 - Add explicit MSC repeater transmission logging for live transport verification.
 
