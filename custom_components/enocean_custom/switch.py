@@ -152,9 +152,17 @@ def _register_repeater_service(hass: HomeAssistant, entities: list[Any]) -> None
 
     async def handle_call(call: ServiceCall) -> None:
         level = call.data["level"]
-        requested = set(call.data["entity_id"])
+        raw_entity_ids = call.data.get("entity_id", [])
+        requested = (
+            {raw_entity_ids} if isinstance(raw_entity_ids, str) else set(raw_entity_ids)
+        )
+        LOGGER.info(
+            "Repeater service received entity_ids=%s level=%s", requested, level
+        )
         for entity in entity_list:
+            LOGGER.info("Repeater candidate entity_id=%s", entity.entity_id)
             if entity.entity_id in requested:
+                LOGGER.info("Repeater target resolved entity_id=%s", entity.entity_id)
                 entity.configure_repeater(level)
 
     hass.services.async_register(

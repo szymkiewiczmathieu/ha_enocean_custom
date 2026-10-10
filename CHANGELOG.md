@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.7.4 - 2026-10-10
+- Normalize and trace repeater service entity targets for live HA diagnosis.
+
 ## 2.7.3 - 2026-10-10
 - Resolve target entities at service-call time after Home Assistant assigns entity IDs.
 
