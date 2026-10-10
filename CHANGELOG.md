@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.6.6 - 2026-10-10
+
+- Add installation-driven Ubiwizz UBID1507C/D2-01-12 two-channel support.
+- Add HOPPE/Ubiwizz F6-10-00 handle states and first-class D5-00-01 contacts.
+- Keep D2 state feedback-only and repeater writes blocked until documented.
+
 ## Unreleased
 
 - Add explicit source-backed `ubiwizz_ubid1507c` metadata for the documented
