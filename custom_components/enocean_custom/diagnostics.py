@@ -11,6 +11,7 @@ from homeassistant.core import HomeAssistant
 
 from .dongle import EnOceanDongle
 from .inbox import get_device_inbox
+from .ubiwizz_repeater import ubiwizz_repeater_diagnostics
 
 TO_REDACT = {
     CONF_DEVICE,
@@ -35,4 +36,5 @@ async def async_get_config_entry_diagnostics(
         "inbox": {
             "observed_senders_count": inbox.observed_senders_count if inbox else 0
         },
+        "ubiwizz_repeater": ubiwizz_repeater_diagnostics(),
     }

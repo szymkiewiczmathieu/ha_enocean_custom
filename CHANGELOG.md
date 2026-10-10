@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+- Add explicit source-backed `ubiwizz_ubid1507c` metadata for the documented
+  UBID1507C `D2-01-12` two-output module. It constrains only explicitly chosen
+  profile rows to channels `0` and `1`; generic D2 profiles and NodOn
+  `D2-01-0A` behavior are not reclassified.
+- Decode HOPPE/Ubiwizz `F6-10-00` handles by the documented RPS DB0 high nibble
+  as `closed`, `open`, `tilt`, or `unknown`, and add first-class D5-00-01
+  `contact` sensor mapping while retaining the legacy `shuttercontact` alias.
+- Document Mathieu's Ubiwizz/NodOn installation, exact D2 feedback semantics,
+  local association guidance, and diagnostics sources. No live deployment or
+  hardware action is performed by this change.
+- Keep the bounded Ubiwizz repeater diagnostic read-only. The supplied Ubiwizz
+  sources do not specify a remote repeater default, read-back, or packet
+  sequence, so diagnostics report `not_documented` and no radio command exists.
+
+- Keep the bounded Ubiwizz repeater policy, static diagnostics, and a
+  diagnostic-only options-flow screen. It accepts only candidate
+  `D2-01-01`/`D2-01-12` labels and requested levels `1`/`2`, reports that a
+  default is `not_documented` and runtime state is unknown, and has no encoder,
+  send, read-back, entity, or persisted-state path.
+- Keep Ubiwizz repeater requests separate from D2 commissioning and its PRESS
+  channel mapping until hardware-captured, model-specific evidence exists.
+
 ## 2.6.3 - 2026-10-03
 
 - Keep privacy-safe diagnostics available when a transmit queue backend does not expose `qsize()`.

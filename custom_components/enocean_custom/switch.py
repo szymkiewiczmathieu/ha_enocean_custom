@@ -26,8 +26,10 @@ from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
 from .enocean_library.utils import combine_hex
 from .learn import register_known_id
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devices
+from .ubiwizz import UBIWIZZ_ACTUATOR_PROFILES, valid_ubiwizz_actuator_channel
 from .yaml_import import track_yaml_device
 
+CONF_ACTUATOR_PROFILE = "actuator_profile"
 CONF_CHANNEL, CONF_SWITCH_TYPE = "channel", "switch_type"
 CONF_EEP = "eep"
 DEFAULT_NAME = "EnOcean Switch"
@@ -37,12 +39,15 @@ SWITCH_TYPES = ("default", "RPS")
 
 
 def _validate_switch_config(config: ConfigType) -> ConfigType:
-    """Restrict rocker simulation to the two buttons defined by F6-02-01."""
+    """Reject channels outside the selected switch/profile contract."""
     channel = config[CONF_CHANNEL]
     if config[CONF_SWITCH_TYPE] == "RPS" and channel not in (0, 1):
         raise vol.Invalid("RPS channel must be 0 or 1")
     if config.get(CONF_EEP) in D2_SINGLE_CHANNEL_EEPS and channel != 0:
         raise vol.Invalid("D2-01-0A supports actuator channel 0 only")
+    profile = config.get(CONF_ACTUATOR_PROFILE)
+    if profile is not None and not valid_ubiwizz_actuator_channel(profile, channel):
+        raise vol.Invalid(f"{profile} supports actuator channels 0 and 1 only")
     return config
 
 
@@ -56,6 +61,7 @@ PLATFORM_SCHEMA = vol.All(
             ),
             vol.Optional(CONF_SWITCH_TYPE, default="default"): vol.In(SWITCH_TYPES),
             vol.Optional(CONF_EEP): vol.Match(r"^[0-9A-F]{2}-[0-9A-F]{2}-[0-9A-F]{2}$"),
+            vol.Optional(CONF_ACTUATOR_PROFILE): vol.In(UBIWIZZ_ACTUATOR_PROFILES),
         }
     ),
     _validate_switch_config,
@@ -111,6 +117,7 @@ async def async_setup_platform(
                 channel,
                 config[CONF_SWITCH_TYPE],
                 config.get(CONF_EEP),
+                config.get(CONF_ACTUATOR_PROFILE),
             )
         ]
     )
@@ -129,6 +136,7 @@ async def async_setup_entry(
             row["channel"],
             row.get("switch_type") or "default",
             (row.get("radio_metadata") or {}).get("eep"),
+            row.get(CONF_ACTUATOR_PROFILE),
         ).set_radio_metadata(row.get("radio_metadata"))
         for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
         if row["platform"] == "switch"
@@ -148,21 +156,32 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
         channel: int,
         switch_type: str,
         eep: str | None = None,
+        actuator_profile: str | None = None,
     ) -> None:
         """Initialize an actuator without claiming an unconfirmed state."""
         if eep in D2_SINGLE_CHANNEL_EEPS and channel != 0:
             raise ValueError(f"{eep} supports actuator channel 0 only")
+        if actuator_profile is not None and not valid_ubiwizz_actuator_channel(
+            actuator_profile, channel
+        ):
+            raise ValueError(
+                f"{actuator_profile} supports actuator channels 0 and 1 only"
+            )
         super().__init__(dev_id, dev_name)
         self._attr_name = dev_name
         self._attr_unique_id = generate_unique_id(dev_id, channel)
         self._attr_is_on = None
         self.channel = channel
         self._profile = switch_type
+        self._actuator_profile = actuator_profile
 
     @property
     def extra_state_attributes(self) -> dict:
-        """Expose feedback metadata once the actuator reports it."""
-        return self.d2_status_attributes
+        """Expose configured profile and feedback metadata when available."""
+        attributes = dict(self.d2_status_attributes)
+        if self._actuator_profile is not None:
+            attributes["configured_actuator_profile"] = self._actuator_profile
+        return attributes
 
     @override
     def turn_on(self, **kwargs: Any) -> None:

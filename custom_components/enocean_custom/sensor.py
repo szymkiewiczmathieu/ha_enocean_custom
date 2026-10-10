@@ -23,6 +23,7 @@ from homeassistant.const import (
     PERCENTAGE,
     STATE_CLOSED,
     STATE_OPEN,
+    STATE_UNKNOWN,
     UnitOfElectricPotential,
     UnitOfEnergy,
     UnitOfPower,
@@ -53,6 +54,8 @@ SENSOR_TYPE_HUMIDITY = "humidity"
 SENSOR_TYPE_POWER = "powersensor"
 SENSOR_TYPE_TEMPERATURE = "temperature"
 SENSOR_TYPE_WINDOWHANDLE = "windowhandle"
+SENSOR_TYPE_CONTACT = "contact"
+# Retain the historical YAML/UI key as an alias for D5-00-01 contacts.
 SENSOR_TYPE_SHUTTERCONTACT: str = "shuttercontact"
 
 ATTR_SETPOINT, ATTR_SLIDESWITCH = "SetPoint", "SlideSwitch"
@@ -105,6 +108,11 @@ SENSOR_DESC_WINDOWHANDLE = EnOceanSensorEntityDescription(
     name="WindowHandle",
     translation_key="window_handle",
 )
+SENSOR_DESC_CONTACT = EnOceanSensorEntityDescription(
+    key="d5_00_01_contact",
+    name="Contact",
+    icon="mdi:door",
+)
 SENSOR_DESC_SHUTTERCONTACT: EnOceanSensorEntityDescription = (
     EnOceanSensorEntityDescription(
         key=str(SENSOR_TYPE_SHUTTERCONTACT),
@@ -118,6 +126,7 @@ SENSOR_TYPES = (
     SENSOR_TYPE_POWER,
     SENSOR_TYPE_TEMPERATURE,
     SENSOR_TYPE_WINDOWHANDLE,
+    SENSOR_TYPE_CONTACT,
     SENSOR_TYPE_SHUTTERCONTACT,
 )
 
@@ -243,6 +252,8 @@ def _entities_from_config(config: ConfigType) -> list[EnOceanSensor]:
         ]
     if sensor_type == SENSOR_TYPE_WINDOWHANDLE:
         return [EnOceanWindowHandle(device_id, name, SENSOR_DESC_WINDOWHANDLE)]
+    if sensor_type == SENSOR_TYPE_CONTACT:
+        return [EnOceanD50001Contact(device_id, name, SENSOR_DESC_CONTACT)]
     return [EnOceanShutterContact(device_id, name, SENSOR_DESC_SHUTTERCONTACT)]
 
 
@@ -416,40 +427,45 @@ class EnOceanHumiditySensor(EnOceanSensor):
 
 
 class EnOceanWindowHandle(EnOceanSensor):
-    """Expose the position of an F6-10-00 mechanical handle."""
+    """Expose an F6-10-00 HOPPE/Ubiwizz window-handle position.
+
+    EEP F6-10-00 defines the final handle direction in the high nibble of RPS
+    DB0. The low nibble is marked don't-care by the profile and is ignored.
+    """
 
     @override
     def value_changed(self, packet) -> None:
-        """Decode closed, open, and tilt positions."""
+        """Decode the documented destination position, or expose unknown."""
         if packet.rorg != RORG.RPS or len(packet.data) < 2:
             return
-        action = (packet.data[1] & 0x70) >> 4
-        positions = {
-            0x07: STATE_CLOSED,
-            0x06: STATE_OPEN,
-            0x05: "tilt",
-            0x04: STATE_OPEN,
-        }
-        if action not in positions:
-            return
-        self._attr_native_value = positions[action]
+        position = {
+            0xC0: STATE_OPEN,
+            0xD0: "tilt",
+            0xE0: STATE_OPEN,
+            0xF0: STATE_CLOSED,
+        }.get(packet.data[1] & 0xF0, STATE_UNKNOWN)
+        self._attr_native_value = position
         self.schedule_update_ha_state()
 
 
-class EnOceanShutterContact(EnOceanSensor):  # D5-00-01
-    """Expose a D5-00-01 single-input contact."""
+class EnOceanD50001Contact(EnOceanSensor):
+    """Expose a D5-00-01 / 1BS contact as open or closed."""
 
     @override
     def value_changed(self, packet) -> None:
-        """Decode the contact bit from a complete 1BS telegram."""
+        """Decode data telegrams; ignore 1BS teach-in and unsupported values."""
         if packet.rorg != RORG.BS1 or len(packet.data) < 2:
             return
         contact_state = {0x09: STATE_CLOSED, 0x08: STATE_OPEN}.get(packet.data[1])
         if contact_state is None:
-            LOGGER.debug("Ignoring unsupported D5 contact value")
+            LOGGER.debug("Ignoring unsupported D5-00-01 contact value")
             return
         self._attr_native_value = contact_state
         self.schedule_update_ha_state()
+
+
+class EnOceanShutterContact(EnOceanD50001Contact):
+    """Legacy ``shuttercontact`` alias for a D5-00-01 contact."""
 
 
 class EnOceanA514Voltage(EnOceanSensor):

@@ -73,6 +73,7 @@
           "qr_code": "Ajouter par code QR",
           "pair_actuator": "Appairer un actionneur (guidé)",
           "commission_existing": "Commissionner un relais D2 existant (assisté)",
+          "ubiwizz_repeater": "Diagnostic répéteur Ubiwizz (aucune commande radio)",
           "manage": "Gérer les équipements de l'interface",
           "import_yaml": "Importer les équipements YAML"
         }
@@ -102,7 +103,7 @@
       },
       "pair_actuator_instructions": {
         "title": "Mettre le module en mode appairage",
-        "description": "Correspondance provisoire soumise à validation terrain : le canal logiciel {software_channel} correspond au canal matériel Ubiwizz {hardware_channel} ; appuyez brièvement {press_count} fois sur PRESS. Ensuite, n'effectuez plus aucun appui physique afin qu'un état local ne soit pas pris pour une conséquence de Home Assistant. Continuez pour lancer la fenêtre de commissioning D2 dirigé de {timeout} secondes."
+        "description": "Guide d'association locale UBID1507C : le canal logiciel {software_channel} correspond à la sortie {hardware_channel}. Le manuel officiel indique d'appuyer brièvement trois fois sur PRESS ; pour la sortie 2, effectuez un appui bref supplémentaire pour la sélectionner, puis actionnez l'émetteur compatible. C'est une procédure manuelle physique, pas une séquence radio générée. Continuez pour démarrer la fenêtre de commissioning D2 dirigé de {timeout} secondes."
       },
       "pair_relay_success": {
         "title": "Contrôle D2 dirigé confirmé",
@@ -193,6 +194,18 @@
         "description": "Aucune preuve D2-01-12 exacte déclarée par radio n'est liée au relais sélectionné {selected_id}, canal {channel}. Confirmez seulement après avoir vérifié le module physique : c'est un relais qui exige un commissioning D2-01-12. C'est une assertion opérateur, pas une preuve radio. Elle n'est persistée qu'après mise en file d'un D2 ON dirigé, ESP3 OK, puis un retour D2 ultérieur correspondant.",
         "data": {"confirm_relay_d2": "Je confirme que ce relais physique exige le commissioning D2-01-12"}
       },
+      "ubiwizz_repeater": {
+        "title": "Diagnostic répéteur Ubiwizz",
+        "description": "Limite de diagnostic uniquement. Choisissez le profil indiqué dans la documentation du module et le niveau à évaluer. Cela n'identifie pas un modèle Ubiwizz, n'observe pas son état répéteur, ne modifie pas sa configuration et n'émet pas de radio.",
+        "data": {
+          "ubiwizz_repeater_eep": "Profil D2 documenté",
+          "ubiwizz_repeater_level": "Niveau répéteur demandé"
+        }
+      },
+      "ubiwizz_repeater_blocked": {
+        "title": "Commande radio du répéteur Ubiwizz indisponible",
+        "description": "Profil demandé : {eep} ; niveau demandé : {level}. Les sources Ubiwizz fournies ne documentent ni valeur par défaut de répéteur distant ni lecture de retour prise en charge ; l'état actuel reste donc inconnu. Aucune commande radio n'a été encodée ou émise, aucune procédure PRESS n'est prescrite et aucune option ou entité n'a été modifiée. Réunissez modèle/révision exacts, procédure constructeur, capture émission/réponse et lecture persistante avant d'ajouter une commande."
+      },
       "delete_confirm": {
         "title": "Supprimer l'équipement ?",
         "description": "Supprimer {name} ({platform}, {captured_id}) ? Cela supprime aussi son entrée dans le registre des entités.",
@@ -219,7 +232,8 @@
       "invalid_device_details": "Les détails de l'équipement sont invalides.",
       "invalid_eep": "L'EEP manuel doit respecter le format hexadécimal exact XX-XX-XX, ex. A5-12-01.",
       "commissioning_identity_mismatch": "L'ID scanné ou saisi ne correspond pas exactement au relais sélectionné dans l'interface. Aucune radio n'a été émise.",
-      "commissioning_identity_conflict": "L'identité scannée contredit une preuve radio ou produit existante. Aucune radio n'a été émise."
+      "commissioning_identity_conflict": "L'identité scannée contredit une preuve radio ou produit existante. Aucune radio n'a été émise.",
+      "invalid_ubiwizz_repeater": "Choisissez exactement D2-01-01 ou D2-01-12 et le niveau répéteur 1 ou 2."
     },
     "abort": {
       "learn_timeout": "Aucun expéditeur EnOcean inconnu n'a été entendu avant expiration du délai.",
@@ -233,7 +247,8 @@
       "device_form_missing": "La session du formulaire a expiré ; recommencez.",
       "yaml_managed": "Cet ID EnOcean est aussi configuré en YAML. Supprimez la configuration YAML avant de supprimer son équipement de l'interface.",
       "no_yaml_devices_to_import": "Aucun équipement YAML ne reste à importer.",
-      "yaml_import_cancelled": "Import YAML annulé. Aucun équipement n'a été modifié."
+      "yaml_import_cancelled": "Import YAML annulé. Aucun équipement n'a été modifié.",
+      "ubiwizz_repeater_request_missing": "La session de diagnostic du répéteur a expiré ; recommencez."
     }
   },
   "services": {
