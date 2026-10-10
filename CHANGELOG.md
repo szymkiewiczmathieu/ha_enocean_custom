@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.6.7 - 2026-10-10
+- Add Home Assistant entity service `enocean_custom.configure_repeater` for Ubiwizz UBID1507C/D2-01-12.
+- Send the published MSC repeater payloads for off, level 1, and level 2.
+
 ## 2.6.6 - 2026-10-10
 
 - Add installation-driven Ubiwizz UBID1507C/D2-01-12 two-channel support.
