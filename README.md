@@ -1,511 +1,108 @@
 # EnOcean Custom
 
-> A serious, local-first EnOcean integration for Home Assistant: reliable USB ownership, guided device learning, diagnostics, native device triggers, and honest radio evidence.
+[![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
+[![Validation](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml)
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
-[![Installations](https://img.shields.io/badge/dynamic/json?color=41BDF5&logo=home-assistant&label=installations&suffix=%20installs&cacheSeconds=15600&url=https://analytics.home-assistant.io/custom_integrations.json&query=$.enocean_custom.total)](https://analytics.home-assistant.io/)
-[![Support via PayPal](https://img.shields.io/badge/Support%20the%20project-PayPal-00457C?logo=paypal&logoColor=white&style=for-the-badge)](https://www.paypal.com/paypalme/mathieuszym)
-[![Validate](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml)
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.7.3-18BCF2.svg)](https://www.home-assistant.io/)
-[![Python](https://img.shields.io/badge/Python-3.14-3776AB.svg)](https://www.python.org/)
+Local-first Home Assistant integration for ESP3 EnOcean USB dongles. It provides
+configuration-entry and YAML setup, guided device learning, diagnostics, native
+rocker triggers, and bounded actuator control without cloud services or
+telemetry.
 
-Robust Apache-2.0 Home Assistant custom integration for EnOcean USB dongles
-using ESP3. It supports UI and YAML configuration, device learning, diagnostics,
-RPS/F6 rockers, D5-00-01 door/window contacts, D2 actuators, switches, lights,
-sensors and climate devices.
+**Current release:** [v2.8.0](CHANGELOG.md) · Apache-2.0 · HACS custom repository
 
-The integration provides controlled serial-port ownership, safe reload/unload
-handling, malformed-packet protection, native device triggers and detailed
-lifecycle diagnostics. It preserves the established `enocean_custom` domain and
-configuration formats while using an entry-owned serial transport.
+## Install
 
-Current release: **v2.6.2**. Compatible with Home Assistant Core 2026.7.3 and
-available through HACS. Compatibility is confirmed by the automated validation
-suite and the live dongle checklist in [PATCH_NOTES.md](PATCH_NOTES.md).
+1. [Install HACS](https://hacs.xyz/docs/setup/download/).
+2. In HACS, add
+   `https://github.com/szymkiewiczmathieu/ha_enocean_custom` as an
+   **Integration** custom repository.
+3. Install **EnOcean Custom**, then restart Home Assistant.
+4. Open **Settings → Devices & services**, add **EnOcean Custom**, and select a
+   persistent serial path such as `/dev/serial/by-id/...`.
 
-## Why this integration is different
+A dongle must have one reader. Do not configure `enocean` and `enocean_custom`
+against the same serial device. If the port changes, use **Reconfigure** on the
+existing entry rather than creating a second entry.
 
-`v1.2.4` treats the USB dongle as a single-owner runtime resource rather than
-just another background thread:
+## Configure devices
 
-- shutdown cancels blocked reads and writes, abandons queued transmissions and
-  refuses new packets as soon as stopping begins;
-- Home Assistant will refuse an unload/reload while the old reader survives;
-- all EnOcean entities become unavailable when the serial worker exits;
-- an unexpected worker exit creates a native Home Assistant Repair issue;
-- config-entry diagnostics distinguish locally queued transmissions from ESP3
-  `OK`/error responses, expose thread health and queue depth, and redact the
-  configured device path;
-- the serial path can be changed through **Reconfigure**, without deleting the
-  config entry;
-- every configured EnOcean ID is exactly four bytes and all protocol-specific
-  ranges are validated before an entity is created;
-- malformed inbound telegrams and rejected outbound commands cannot kill the
-  serial worker or create a false optimistic state;
-- ESP3 responses are correlated in serial-write order, so switch/light state is
-  applied only after the dongle returns `OK`; RPS press/release requires two
-  successful responses;
-- outbound ERP1 frames carry the seven ESP3 optional bytes required by the
-  protocol. Light and switch states remain marked as assumed because ESP3 `OK`
-  confirms dongle acceptance, not remote execution; incoming telegrams can
-  still update their displayed state.
-
-These are software guarantees covered by tests. They do **not** replace the
-live dongle validation checklist in [PATCH_NOTES.md](PATCH_NOTES.md).
-
-## Background
-
-Version 2.0.0 replaces the former implementation with an Apache-2.0 codebase
-using Home Assistant Core 2026.7.3 as its authorized base. Project-specific
-features were ported or independently reimplemented against the EnOcean EEP
-specification. The official Home Assistant EnOcean integration remains active
-and follows a different protocol-library path; this repository is an
-independent custom integration, not its replacement or an official Home
-Assistant project.
-
-## Installation
-
-1. [Install HACS](https://hacs.xyz/docs/setup/download/)
-2. Open HACS in your Home Assistant installation
-3. Add `https://github.com/szymkiewiczmathieu/ha_enocean_custom` as a HACS [custom repository](https://hacs.xyz/docs/faq/custom_repositories): `Integrations > Three Dots > Custom repositories > Integration`
-4. Install `EnOcean Custom`
-
-Do not configure the native `enocean` integration and `enocean_custom` against
-the same serial device. A dongle must have exactly one reader.
-
-### Reconfigure and diagnostics
-
-Open **Settings > Devices & services > EnOcean Custom** and use:
-
-- **Reconfigure** to move from an unstable `/dev/ttyUSB*` path to a persistent
-  `/dev/serial/by-id/*` path;
-- **Download diagnostics** to capture serial lifecycle evidence without sharing
-  the full configured device path. `transmit_queued` means the local worker
-  accepted a packet; `last_response_code=OK` means the dongle accepted the ESP3
-  command. Neither alone proves that the remote actuator executed it.
-
-If the worker stops unexpectedly, Home Assistant raises a Repair issue and all
-EnOcean entities become unavailable. Do not blindly start another reader.
-Resolve the USB/ownership problem first, then reload the config entry. If the
-old thread does not stop within the bounded join, the reload intentionally
-fails instead of opening the port a second time.
-
-## Description
-
-This custom integration contains Apache-2.0 Home Assistant-derived platform code
-and a vendored MIT-licensed snapshot of the
-[`kipe/enocean`](https://github.com/kipe/enocean) library. To use it, specify
-`- platform: enocean_custom` instead of `- platform: enocean` when defining an
-EnOcean entity in `configuration.yaml`.
-
-The repository is licensed under Apache-2.0; third-party attributions are in
-[NOTICE](NOTICE), and the vendored library retains its own
-[MIT license](custom_components/enocean_custom/enocean_library/LICENSE).
-
-### Adding devices from the UI (teach-in)
-
-#### Device Intelligence (v2.1)
-
-Device Intelligence identifies devices locally: no network lookup, no
-telemetry, no automatic UTE acknowledgement, and no new runtime dependency.
-
-- A UTE or enriched 4BS teach-in declares an exact EEP. An ordinary RPS `F6` or
-  1BS `D5` telegram does not, and stays `profile_unknown` rather than guessed.
-- An EURID identifies a radio, an EEP identifies a data profile. Neither
-  identifies or certifies a product, so a declared EEP alone never becomes a
-  Device Registry model.
-- A standardized QR label yields a manufacturer and a Product ID. Only an
-  exactly cataloged Product ID produces a manufacturer/model, and a conflict
-  with the radio teach-in suppresses every model claim and pre-selection.
-- The scanned payload and its `10Z`/`11Z`/`13Z` security containers are never
-  persisted, logged or exported. Diagnostics carry aggregates only.
-- Entities of one sender are grouped in the Home Assistant Device Registry.
-  Historical YAML configuration and older `ui_devices` rows stay valid.
-
-The evidence/support glossary, the full implementation matrix and the bundled
-Product ID catalog with its sources are in
-[docs/device-intelligence.md](docs/device-intelligence.md).
-
-Since `v1.3.0`, devices can also be
-added and removed entirely from **Settings > Devices & services > EnOcean
-Custom > Configure**, without editing `configuration.yaml`. YAML configuration
-keeps working unchanged and cohabits with UI-managed devices on the same
-platform. Migration is always explicit; no YAML device is imported automatically.
-
-1. Open **Configure > Add a device**.
-2. Put the physical device into learning mode and press its button. The
-   integration listens for up to 60 seconds (configurable 15-300 seconds via
-   the `enocean_custom.learn` service's `timeout` field) and captures the
-   first EnOcean sender it does not already know about, from either YAML or
-   the UI.
-3. Fill in the form: platform (`binary_sensor`, `switch`, `light`, `sensor`, or
-   `climate`),
-   name, and platform-specific fields — `device_class` (optional) for
-   `binary_sensor`, `channel` (default `0`) and `switch_type` (`default` or
-   `RPS`, with RPS restricted to channels 0/1) for `switch`, or `sender_id`
-   (required for `light`, typed as four hex bytes like `05:9F:89:34` — the
-   virtual ID used for outbound commands) for `light`. The `sensor` and
-   `climate` detail forms expose the same fields, bounds, and defaults as their
-   YAML platform schemas.
-4. The entity is created immediately with the same `unique_id` a matching
-   YAML definition would produce.
-
-Alternatively, choose **Configure > Add via QR code** and paste the decoded
-text from an [EnOcean Alliance standardized product label](https://www.enocean-alliance.org/wp-content/uploads/2021/05/ProductIDandStandardizedLabelingSpecification-V1.8.pdf). The integration
-requires the mandatory `30S` EURID and `1P` Product ID containers and supports
-32-bit EURIDs encoded as `30S0000AABBCCDD`. Native 48-bit EURIDs are rejected
-because this integration only supports four-byte radio IDs. You can also enter
-the fallback form `AA:BB:CC:DD`. A valid value opens the same device form with
-the extracted ID pre-filled; invalid input never creates an options row.
-
-**Add via QR code is configuration-only and radio-silent.** It does not
-commission a factory-fresh actuator; already-commissioned modules can use it.
-For field evaluation of a physically identified Ubiwizz relay, use **Pair an
-actuator (guided)**. **Commission an existing D2 relay (assisted)** lists only
-UI-managed default switches on channel `0` or `1` that have no contradictory
-radio/product claim. Select exactly one row, then scan or type its exact
-physical QR/ID. A sender mismatch, conflicting Product ID/manufacturer, or a
-known non-D2 profile fails before radio. If the row has no exact
-radio-declared `D2-01-12` proof (as is normal after YAML migration), the
-operator must explicitly assert that the inspected physical module requires
-that D2 relay profile; this is a manual assertion, never radio evidence. An
-unknown Product ID stays unknown and never becomes a model or an EEP claim.
-The selected row retains its entity ID, name, area, labels, history,
-automations, and radio metadata; the manual assertion is the sole allowed
-options mutation, and is persisted only after causal D2 proof.
-
-Use **Configure > Manage UI devices** to remove a device you added from the
-UI; this deletes both its config-entry option entry and its exact entity
-registry row. If the same radio ID is also configured in YAML, removal is
-refused until the YAML configuration is removed.
-
-#### Migrating YAML devices to the UI
-
-Version 2.3 can import legacy `binary_sensor` and `switch` YAML devices while
-preserving their existing `unique_id`, and therefore their entity IDs and
-automations. `sensor`, `light`, and `climate` entries are counted on the import
-screen but remain in YAML. Invalid or partial entries are also counted and
-ignored rather than being imported silently.
-
-Follow this order exactly:
-
-1. Keep the YAML in place and choose **Configure > Import YAML devices**.
-2. Review the per-platform counts and explicitly confirm the import.
-3. Only after the success screen, remove the imported `binary_sensor` and
-   `switch` blocks from YAML. Leave the reported non-importable blocks intact.
-4. Restart Home Assistant.
-5. Verify the entity IDs, entity states, and their automations.
-
-During the overlap Home Assistant can warn about duplicate unique IDs and keep
-the YAML entity active. This is expected. After YAML removal and restart, the
-UI-backed entity takes over the same registry identity. The migration inventory
-is memory-only: it is built when Home Assistant loads your YAML platforms and
-is dropped when the integration unloads, so if you reload or reconfigure the
-entry before importing, restart Home Assistant to see the import entry again.
-It contains no inferred radio metadata.
-
-Three things worth knowing:
-
-- The integration never acknowledges a UTE teach-in in the background. A UTE
-  telegram received outside an explicitly opened session is observed — its
-  EEP is extracted as evidence — but never answered on the radio, so no
-  neighbouring device can pair itself with your dongle unsolicited. Pairing an
-  actuator stays an explicit action: the guided pairing flow, the
-  `enocean_custom.send_teach_in` service, or the `climate_teach_in_actor`
-  services, each of which transmits only when you trigger it.
-- Only one teach-in window can be open at a time, whoever started it (the UI
-  flow or the `enocean_custom.learn` service): a second start is refused until
-  the first window closes. Deleting a UI device makes its EnOcean ID teachable
-  again immediately, without restarting Home Assistant.
-- "Unknown" means the captured ID is absent from every configured device
-  (YAML or UI), not just the platform you're currently adding. Once any
-  entity exists for a given EnOcean ID, teach-in will not offer that ID again
-  — a second entity for an already-known multi-profile device still needs
-  YAML. If the device's identity already exists in the entity registry, the
-  form is refused with an explicit error: teach-in never merges or overwrites
-  an existing device.
-
-### Ubiwizz installation profile and guided actuator pairing
-
-The source-backed installation guide for Mathieu's four UBID1507C modules,
-incoming HOPPE/Ubiwizz handles, existing contacts/switches, and NodOn SmartPlugs
-is in [`docs/ubiwizz-installation.md`](docs/ubiwizz-installation.md). It records
-both official Ubiwizz sources, F6-10-00/D5-00-01 payload mapping, multi-channel
-feedback semantics, diagnostics, and the safety boundary.
-
-**Settings > Devices & services > EnOcean Custom > Configure > Pair an actuator
-(guided)** offers an explicit **Ubiwizz relay** profile. It selects
-`ubiwizz_ubid1507c` and permits only its documented zero-based channels `0` and
-`1`; it does not infer that profile from a D2 telegram, QR code, or EURID.
-
-1. Scan or paste the actuator's EnOcean Alliance commissioning label. You can
-   instead type its four-byte radio ID exactly as `AA:BB:CC:DD`.
-2. Give it a name and select **Ubiwizz relay — commission, then use directed D2
-   control**. The final entity is a default `switch`; the flow never exposes or
-   uses the unsafe guided RPS sender path. The 4BS dimmer option is unchanged.
-3. For physical local association, follow the UBID1507C manual: three short
-   `PRESS` presses enter association; channel 2 requires one further short
-   `PRESS`, then operate the compatible transmitter. This is a local manual
-   procedure, not a generated radio sequence.
-4. During the 120-second window, the existing entry-owned path sends only a
-   directed D2-01 ON command. Confirmation requires all three facts in order:
-   the command was queued, its ESP3 response callback reported OK, and a later
-   D2-01 status from the exact actuator and channel reported output value 100.
-   Wrong, early, OFF, rejected, and timed-out evidence never confirms.
-
-ESP3 `OK` proves transport delivery to the dongle, not physical relay actuation.
-No row is saved and no reload occurs before the flow's existing radio-proof
-gates pass. Power-cycle persistence and factory-reset commissioning remain
-hardware-release checks; this repository makes neither claim. Existing NodOn
-`D2-01-0A` SmartPlug commissioning is explicitly refused by this flow.
-
-### Binary sensors
-
-Binary sensors do not only trigger events but also have a state variable which may be `On` or `Off`. The state attributes `Onoff` and `Which` have been added to identify which pushbutton is being pressed. The state attribute `Repeated telegram` indicates if the received telegram was received by an EnOcean repeater.
-
-#### Device triggers
-
-F6/RPS rockers provide native Home Assistant device triggers for button press,
-button release, and presses on channel 1 or channel 2. Create one from
-**Settings > Devices & services > Automations > Device > Trigger**, then select
-the EnOcean device and the desired button trigger. The resulting automation
-references the Home Assistant device ID, so it is listed under **Used by** on
-the device page. Each trigger can optionally filter the decoded button position
-(`which`: 0, 1, or 10 for multi-touch) and direction (`onoff`: 0 or 1). To
-convert a historical `button_pressed` event trigger without changing its
-semantics, copy its `which` and `onoff` values exactly into these optional
-fields. Leaving both fields unset preserves the broader v2.4.0 behavior.
-
-Home Assistant 2026.7 select capabilities serialize option values as strings,
-so the integration converts the closed lists `"0"`, `"1"`, `"10"` to integers
-before matching event data; arbitrary strings remain invalid. The device
-capabilities API provides field keys and selectors but no integration-specific
-translation namespace for labels, so Home Assistant renders the `which` and
-`onoff` field names directly.
-
-A5-14-01 contacts are excluded because they decode 4BS telegrams and never emit
-the `button_pressed` event. They are recognised by their own unique ID, so a
-rocker keeps its device triggers whatever `device_class` it was configured
-with, including `door`.
-
-### D5-00-01 contact sensors
-
-`device_class: contact` is the first-class D5-00-01 / 1BS mapping: DB0 `0x08`
-reports `open` and `0x09` reports `closed`. The 1BS teach-in values `0x00` and
-`0x01` are ignored. The historical `shuttercontact` device class remains a
-compatible alias, so existing registry identities do not change.
-
-### Passive device inbox and A5-14-01
-
-The options flow keeps a receive-only, in-memory LRU of recently heard senders
-(64 unconfigured senders maximum) and shows last-seen UTC, RSSI and repeater
-count on the radio card. It is cleared on unload, never persisted, and exports
-only an aggregate count in diagnostics. No entity is created merely because a
-sender was observed.
-
-A declared `A5-14-01` maps to a door binary sensor. Its 0–5 V supply monitor is
-available as a disabled-by-default diagnostic voltage sensor; reserved EEP
-error values remain unknown. `D2-34-10` remains unsupported because its DDF
-contains no public bit-level decoder specification. A5-10 profiles remain out
-of the implementation matrix unless a documented real-frame test proves them.
-
-### Ubiwizz repeater boundary
-
-The supplied UBID1507C manual and product page document two `D2-01-12` outputs
-and local association, but do **not** define a remote repeater command,
-read-back, default state, or packet sequence. The optional diagnostic selector
-therefore remains deliberately informational. Candidate EEP labels and levels
-are neither a device identification nor a command contract.
-
-**Configure > Ubiwizz repeater diagnostic** accepts only the bounded legacy
-candidate EEP tokens and requested levels 1 or 2. It reads no repeater state,
-creates no entity, persists no requested level, and sends no ERP1/ESP3
-telegram. Diagnostics expose `documented_default: not_documented`, runtime
-state `unknown`, and radio command `not_implemented`.
-
-Do not add a radio command until an exact module/revision, vendor procedure,
-encoded transmit bytes and destination, captured response/read-back, and
-persistence across power cycle have been validated on hardware. Do not reuse
-USB300 `CO_WR_REPEATER`: it configures the gateway, not a remote Ubiwizz module.
-
-### Power and energy sensors
-
-`device_class: powersensor` exposes separate power and energy entities. It
-continues to decode A5-12-01 meters and also accepts D2-01-0B measurement
-responses (`W`/`kW` for power and `Ws`/`Wh`/`kWh` normalized to `Wh` for
-energy). The configured device-class key remains part of the power entity's
-unique ID; the companion energy entity uses an `-energy` suffix.
-
-### Switches
-
-Switches can be used to emulate physical pushbuttons to control actors for light etc. This way you can send commands from Home Assistant to your EnOcean devices. Each switch needs its own unique EnOcean identifier (ID). The IDs can not be set randomly but depend on the base ID of your EnOcean dongle, see [this community thread](https://community.home-assistant.io/t/enocean-switch/1958/36) for more information.
-To emulate double rocker push buttons, the keywords `switch_type` and `channel` are being used. The definition of a switch may look like this:
+Use **Configure** on the integration to learn a device, add a QR/ID, manage
+UI-backed devices, or import eligible YAML `binary_sensor` and `switch` rows.
+YAML remains supported and can coexist with UI-managed devices.
 
 ```yaml
 switch:
   - platform: enocean_custom
-    name: switch_livingroom
-    switch_type: RPS    # emulate double rocker push button
-    channel: 0          # 0 for left rocker, 1 for right rocker
+    name: Living room rocker
     id: [0xFF, 0xD9, 0x04, 0x81]
+    switch_type: RPS
+    channel: 0
 ```
 
-To teach-in the switch to your EnOcean device, put the device in learning mode and toggle the state of the switch entity in Home Assistant.
+The integration supports binary sensors, switches, lights, sensors, and climate
+entities. Platform-specific schemas, migration boundaries, and the local
+identity model are in [Device Intelligence](docs/device-intelligence.md).
 
-### D2-01-12 actuator feedback
+### Configuration and radio boundaries
 
-Ubiwizz UBID1507C two-channel actuators use documented `D2-01-12` output
-metadata. The explicit `ubiwizz_ubid1507c` profile permits two default-switch
-entities only: channel `0` for output 1 and channel `1` for output 2. It is an
-operator configuration choice, not a radio-derived product identity.
+- **Learn and QR are different operations.** A learn session captures an unknown
+  sender; adding a QR/typed ID is configuration-only and does not commission a
+  factory-fresh actuator.
+- **An EEP is not a product identity.** A sender ID identifies a radio and an
+  EEP identifies a data profile. Model claims require exact Product-ID evidence;
+  manual EEP values remain operator assertions.
+- **No automatic UTE acknowledgement.** Radio transmission happens only through
+  an explicit supported action or service.
+- **ESP3 `OK` is transport evidence, not device evidence.** Switch and light
+  state changes require matching inbound feedback where the profile supports it.
+- **Diagnostics are privacy-aware.** They expose lifecycle and aggregate radio
+  evidence while redacting configured paths and device identifiers.
 
-A default (non-RPS) switch whose `id` matches the actuator sender follows
-feedback for its configured `channel`. A receive-capable light whose `id`
-matches the actuator maps reported 0–100% output to Home Assistant brightness
-0–255. A matching D2-01 `CMD 0x4` status is the only state mutation: ESP3 ACK
-never makes a state optimistic. This includes changes initiated by a wall switch
-paired directly with the actuator.
+## Ubiwizz UBID1507C
 
-After the first valid status, the entity exposes `d2_channel`,
-`d2_output_value`, the power-failure capability/state flags, and `last_status`.
-Malformed feedback and telegrams from other sender IDs are ignored. RPS switch
-behavior is unchanged.
-
-A factory-fresh UBID1507C may require the explicit guided commissioning above;
-direct QR configuration alone does not perform it. Release remains gated on a
-factory-reset UBID1507C test of both physical channels: obtain ESP3 OK for a
-directed D2 ON and matching feedback, power-cycle the module, repeat directed
-control and matching feedback, verify that entity identity is preserved, and
-finish with all CI checks green.
-
-### Climate device
-
-The climate platform supports the historical Thermokon `SRC-D08` controller
-and the bidirectional `A5-20-04` radiator-valve profile. Both use the bounded PI
-controller and transactional ESP3 acknowledgements. `A5-20-04` additionally
-reports valve position, room temperature, local setpoint, and failure code.
-Currently supported HVAC modes are `off` and `heat` with preset modes `comfort`,
-`sleep`, `away` and `boost`.
-
-Configuration variables:
-
-- `device_type`: `"SRC-D08"` or `"A5-20-04"`. The A5-20-04 profile is
-  currently configured through YAML; its `id` is the addressed valve and
-  `id_switch` is the controller sender identity.
-- `name`: entity name
-- `id`: EnOcean ID to send temperature set point commands to the heating controller. Must fit to your [dongle's base ID](https://community.home-assistant.io/t/enocean-switch/1958/36). Commands replicate EnOcean room operating panel telegrams and use EEP A5-10-06 format.
-- `id_switch`: EnOcean ID to send digital switch commands to the heating controller. Must fit to your [dongle's base ID](https://community.home-assistant.io/t/enocean-switch/1958/36).
-- `sensor_entity_id`: Entity ID of the temperature sensor. `SRC-D08` expects an
-  [EnOcean temperature sensor](https://www.home-assistant.io/integrations/enocean/#temperature-sensor),
-  or another entity providing `SlideSwitch` and `SetPoint`. `A5-20-04` only
-  requires a finite temperature state. For `SRC-D08`:
-  - `SlideSwitch`: Set to preset mode comfort if equals `1` and preset mode sleep if equals `0`
-  - `SetPoint`: Value in the range of `0...255` that represents the target temperature set by the room operating panel. Set to a constant value if not needed.
-- `target_temperature_base_value`: Base value for comfort temperature, default: `21`. Make sure to program the heating controller accordingly.
-- `sensor_target_temperature_range`: Scale used to map the sensor's `SetPoint`
-  value (`0...255`) onto a target-temperature span around
-  `target_temperature_base_value`, default: `5`. Make sure to program the
-  heating controller accordingly. This does not set Home Assistant's displayed
-  minimum/maximum, which remain `target_temperature_base_value ± 10 °C`.
-  - Minimum sensor-mapped target: `target_temperature_base_value - sensor_target_temperature_range`
-  - Maximum sensor-mapped target: `target_temperature_base_value + sensor_target_temperature_range`
-- `target_temperature_reduction_night`: Offset for night time reduction of target temperature. Make sure to program the heating controller accordingly.
-  - Night time absolute temperature: `target_temperature_base_value - target_temperature_reduction_night`
-- `temperature_frost_protection`: Target temperature for frost protection, this value will be commanded when the climate entity is switched to HVAC mode `off`. Make sure to program the heating controller accordingly.
-- `command_frequency`: The heating controller requires periodic commands; otherwise the actor switches to contingency operating mode. Default: `minutes: 17`.
-- Heating controller PI parameter: The heating controller `SRC-D08` does not send status telegrams, so there is no information of the current valve position (which is internally calculated by a PI control law). To provide the controller output to Home Assistant, the integration calculates the controller output based on the provided controller parameters:
-  - `pi_control_Kp`: Parameter for the proportional controller (`%/K`), default: `5`. Make sure to program the heating controller accordingly.
-  - `pi_control_Tn`: Parameter for the integral controller (`min`), default: `240`. Make sure to program the heating controller accordingly.
-
-All climate numeric parameters must be finite and remain within the physical
-ranges enforced by the configuration schema. Switching the entity to `off`
-always sends the actor's switch-off telegram, even if the temperature sensor is
-temporarily unavailable.
-
-Example definition of a climate entity:
+The explicit `ubiwizz_ubid1507c` profile represents the documented two-output
+`D2-01-12` module. It permits only channels `0` and `1`; selecting that profile
+is an operator choice and is never inferred from a telegram, QR code, or EURID.
 
 ```yaml
-climate:
+switch:
   - platform: enocean_custom
-    name: heating_controller_livingroom
-    device_type: "SRC-D08"
-    id: [0x0F, 0x53, 0xD6, 0x83]
-    id_switch: [0x12, 0x34, 0x56, 0x78]
-    sensor_entity_id: "sensor.temperature_livingroom"
-    target_temperature_base_value: 21
-    target_temperature_reduction_night: 5
-    sensor_target_temperature_range: 10
-    temperature_frost_protection: 8
-    command_frequency:
-      minutes: 20
-    pi_control_Kp: 5
-    pi_control_Tn: 240
+    name: Ubiwizz output 1
+    id: [0x01, 0x02, 0x03, 0x04]
+    eep: D2-01-12
+    actuator_profile: ubiwizz_ubid1507c
+    channel: 0
 ```
 
-#### Teach-In
+Read [the Ubiwizz installation guide](docs/ubiwizz-installation.md) before
+using local association, directed D2 control, or the repeater service. It
+covers both outputs, HOPPE/Ubiwizz handles, D5-00-01 contacts, NodOn boundaries,
+and the required safety checks.
 
-In order for the heating controller to accept commands received by the climate entity, you need to teach-in the corresponding EnOcean ID. The integration provides entity services to do so. First, you will need to put the heating controller into learning mode, afterwards run the service.
+### Repeater safety limit
 
-Teach-in the temperature sensor for entity `climate.heating_controller_livingroom`:
+The **Ubiwizz repeater diagnostic** in the options flow is deliberately
+read-only: it sends no radio, observes no state, and persists nothing.
 
-```yaml
-service: enocean_custom.climate_teach_in_actor
-target:
-  entity_id:
-    - climate.heating_controller_livingroom
-```
+v2.8.0 also exposes an advanced
+`enocean_custom.repeater_set_level` service for eligible UI-managed Ubiwizz
+switches. It is a live radio configuration write, not a confirmed read-back.
+Use it only after confirming the exact module and a safe test setup. An ESP3
+acknowledgement only proves dongle acceptance; it does not prove the module
+received, retained, or applied a repeater level. The service must not be used
+for generic D2 devices, NodOn SmartPlugs, or to configure the USB gateway.
 
-Repeat the procedure to teach-in the digital switch sensor to the heating controller.
+## Diagnostics and support
 
-Teach-in the digital switch sensor for entity `climate.heating_controller_livingroom`:
+Use **Download diagnostics** when reporting an issue. Include the Home
+Assistant and integration versions, dongle model, exact profile, reproduction
+steps, and redacted logs. See [SUPPORT.md](SUPPORT.md) for the issue checklist
+and support options.
 
-```yaml
-service: enocean_custom.climate_teach_in_actor_switch
-target:
-  entity_id:
-    - climate.heating_controller_livingroom
-```
+## Release and licensing
 
-### Integration services
-
-The climate teach-in services documented above remain available. The old
-`enocean_custom.send_packet` service was removed in `v1.2.4`: it allowed
-arbitrary sender spoofing and malformed calls could terminate the serial
-worker. Normal entities do not use that public service.
-
-`enocean_custom.learn` (added in `v1.3.0`) starts the same listening window
-used by **Configure > Add a device** and fires
-`enocean_custom_device_learned` with `{"id": [...], "hex": "AA:BB:CC:DD"}`
-once an unknown sender is captured. It accepts an optional `timeout` field
-(seconds, 15-300, default 60).
-
-To pair a 4BS Eltako dimmer controlled by an EnOcean light entity:
-
-1. Put the dimmer into learn mode.
-2. Call `enocean_custom.send_teach_in` and target the corresponding `light`
-   entity.
-
-The service broadcasts the
-[EEP 2.6.7 A5-38-08](https://www.enocean-alliance.org/wp-content/uploads/2017/05/EnOcean_Equipment_Profiles_EEP_v2.6.7_public.pdf)
-teach-in telegram with that entity's configured `sender_id`; subsequent
-brightness commands use the same identity.
-
-### Bug fixes
-
-- Stop and join the serial communicator before config-entry reload, preventing
-  stale readers and multiple access to the same USB port.
-- Close serial descriptors opened during config-flow validation.
-- Exception to handle parsing of malformed packets: With the official protocol library, the EnOcean integration would crash when receiving a malformed package. In practice, this happens every few weeks to months for some installations. An exception handler was added to drop malformed packages, see [PR for original protocol library](https://github.com/kipe/enocean/pull/138)
-
-## Support the project
-
-EnOcean Custom is free and open source. If it saves you time, keeps your dongle stable, or helps you automate your home, the best support is:
-
-- ⭐ [Star the repository](https://github.com/szymkiewiczmathieu/ha_enocean_custom)
-- 🐛 [Report a reproducible issue](https://github.com/szymkiewiczmathieu/ha_enocean_custom/issues/new/choose)
-- 💡 [Share a device profile or test result](https://github.com/szymkiewiczmathieu/ha_enocean_custom/discussions)
-- 💸 [Support Mathieu via PayPal](https://www.paypal.com/paypalme/mathieuszym)
-- 💙 PayPal: `mathieu_szym@hotmail.fr`
-
-Donations are optional and never unlock features or priority support. They help fund hardware testing, Home Assistant compatibility work, and maintenance of the protocol stack.
-
+- [CHANGELOG.md](CHANGELOG.md) is the release record.
+- [NOTICE](NOTICE) lists third-party attributions; the vendored EnOcean library
+  retains its MIT license.
+- This is an independent custom integration, not the official Home Assistant
+  EnOcean integration.

@@ -1,33 +1,32 @@
-# Mathieu's Ubiwizz EnOcean installation
+# Ubiwizz EnOcean installation profile
 
-This is an installation profile for the documented equipment: four Ubiwizz
-UBID1507C two-channel micromodules, incoming HOPPE/Ubiwizz window handles,
-existing EnOcean switches/sensors, and existing NodOn SmartPlugs. It is a
-configuration and diagnostics guide, not a hardware certification or a remote
-commissioning protocol.
+This guide covers the documented Ubiwizz UBID1507C two-channel micromodule,
+HOPPE/Ubiwizz handles, D5-00-01 contacts, and existing NodOn SmartPlugs. It is
+an integration and diagnostics guide, not hardware certification or a claim
+that a radio ID identifies a product.
 
 ## Scope and source boundary
 
-| Equipment | Explicit profile/configuration | Integration behavior |
-| --- | --- | --- |
-| Ubiwizz UBID1507C | `ubiwizz_ubid1507c`, `D2-01-12`, two output entities: channels `0` and `1` | Default `switch` entities; D2 output feedback is decoded per channel. |
-| HOPPE/Ubiwizz connected handle | `F6-10-00`, sensor `device_class: windowhandle` | Reports `closed`, `open`, `tilt`, or `unknown`. |
-| Magnetic/contact transmitter | `D5-00-01`, sensor `device_class: contact` | Reports `open` or `closed`; 1BS teach-in values do not change state. |
-| Existing NodOn SmartPlug | `D2-01-0A`, one output channel `0` | Existing switch path remains unchanged; assisted Ubiwizz commissioning refuses this EEP. |
+| Equipment                      | Explicit profile or configuration                      | Integration behavior                                                 |
+| ------------------------------ | ------------------------------------------------------ | -------------------------------------------------------------------- |
+| Ubiwizz UBID1507C              | `ubiwizz_ubid1507c`, `D2-01-12`, channels `0` and `1`  | Two default `switch` entities with channel-specific D2 feedback.     |
+| HOPPE/Ubiwizz connected handle | `F6-10-00`, `sensor` with `device_class: windowhandle` | Reports `closed`, `open`, `tilt`, or `unknown`.                      |
+| Magnetic/contact transmitter   | `D5-00-01`, `sensor` with `device_class: contact`      | Reports `open` or `closed`; 1BS teach-in values do not change state. |
+| Existing NodOn SmartPlug       | `D2-01-0A`, channel `0`                                | Existing switch path only; the Ubiwizz guided flow refuses this EEP. |
 
-The UBID1507C profile is selected explicitly in configuration. It is **not**
-inferred from a D2 telegram, EURID, QR code, or the common `D2-01-12` EEP.
-The official Ubiwizz material documents the two 5 A outputs and `D2-01-12`,
-but an EEP alone is not a product identity.
+The UBID1507C profile must be selected explicitly. It is **not** inferred from
+a D2 telegram, EURID, QR label, or the `D2-01-12` EEP. The official material
+documents two 5 A outputs and `D2-01-12`, but an EEP alone is not a product
+identity.
 
 - [Official UBID1507C manual][ubiwizz-manual]
 - [Official UBID1507C product page][ubiwizz-product]
 
-## UBID1507C output entities and feedback
+## UBID1507C outputs and feedback
 
-Configure one `switch` per output. The profile bounds the channels to `0` and
-`1`; a generic `D2-01-12` switch remains 0–31 because no product model is
-inferred for it.
+Configure one default switch for each output. The explicit profile accepts only
+channels `0` and `1`; an unprofiled generic `D2-01-12` switch retains the
+integration's generic channel range.
 
 ```yaml
 switch:
@@ -46,44 +45,76 @@ switch:
     channel: 1
 ```
 
-Use the same physical sender ID for both outputs and distinct channel-aware
-entity IDs. A D2-01 `CMD 0x4` Actuator Status Response changes only the entity
-with the matching channel. The status output value is the actual entity state:
-`0` is off and any value above `0` is on. Its `d2_channel`,
-`d2_output_value`, power-failure fields, and `last_status` remain diagnostic
-feedback.
+A D2-01 `CMD 0x4` Actuator Status Response updates only the matching channel.
+Output value `0` is off; any value above `0` is on. `d2_channel`,
+`d2_output_value`, power-failure fields, and `last_status` are feedback
+attributes.
 
-An ESP3 `OK` acknowledges delivery to the USB dongle only. It never changes a
-UBID1507C entity state. The entity remains unknown until matching D2 status is
-received, so a local wall-switch change can synchronize Home Assistant without
-an optimistic state claim.
+ESP3 `OK` acknowledges delivery to the USB dongle only. It does not prove that
+the module switched its output, retained a configuration change, or belongs to
+the configured profile. The entity state remains unknown until matching D2
+status is received.
 
-The directed D2 command already implemented by the integration is the only
-mains-control path documented here. This guide adds no raw packet service,
-new relay encoding, or action for a NodeOn plug. Do not test outputs on a live
-mains circuit merely to populate a state; use normal, safe installation and
-hardware-validation procedures.
+### Local association
 
-### Local association guidance
+The UBID1507C manual describes physical local association: make three short
+`PRESS` presses to enter association mode; for output 2, make one further short
+press before operating the compatible transmitter. Verify the actual module
+revision and LED behavior in the manual. This is a physical procedure, not a
+generated radio sequence.
 
-The Ubiwizz manual describes local association with the module's `PRESS`
-button: make three short presses to enter association mode; for the second
-output, make one further short press to move to channel 2, then operate the
-compatible transmitter. Treat this as a physical manual procedure. Verify the
-actual module revision and LED behavior from the manual before operating it.
+The guided Ubiwizz flow uses the existing directed D2 path. It requires, in
+order, a queued command, ESP3 `OK`, and later matching D2 `CMD 0x4` ON feedback
+from the exact actuator and channel. That is evidence for this transaction only;
+it does not prove product identity or persistent factory-reset commissioning.
+Power-cycle validation remains a hardware-release check.
 
-The guided UI relay path records an explicit UBID1507C profile and channels
-`0`/`1`, then uses the existing directed D2 path only. Its confirmation remains
-strict: a queued command, ESP3 `OK`, and a later matching D2 `CMD 0x4`
-ON status are all required. That proves neither permanent association nor
-physical product identity; power-cycle and hardware-release validation remain
-outside this repository.
+## Repeater boundary
 
-## Incoming HOPPE/Ubiwizz handles: F6-10-00
+The options-flow **Ubiwizz repeater diagnostic** is intentionally no-radio. It
+accepts only documented candidate labels and levels for an operator note; it
+reads no repeater state, creates no entity, persists no request, and transmits
+no ERP1 or ESP3 packet.
 
-Create a sensor with `device_class: windowhandle` after explicitly selecting
-or declaring `F6-10-00`. Ordinary RPS telegrams do not declare their EEP, so
-a learned sender is not silently classified as a handle.
+The separately registered `enocean_custom.repeater_set_level` service is a live
+radio configuration write. It is not the diagnostic flow and must be treated as
+an advanced, experimental operation:
+
+- It is meaningful only for a **UI-managed** switch whose
+  `configured_actuator_profile` state attribute is exactly
+  `ubiwizz_ubid1507c`.
+- It accepts `level` `0`, `1`, or `2`. The integration records the requested
+  level and ESP3 transport telemetry; it has no supported remote read-back.
+- The supplied Ubiwizz sources do not document a remote repeater default,
+  packet procedure, module-revision compatibility, or persistence across a
+  power cycle. Do not represent a requested level as the module's state.
+- Never target generic D2 devices, NodOn `D2-01-0A` SmartPlugs, or the USB
+  gateway. `CO_WR_REPEATER` configures the gateway, not a Ubiwizz module.
+- Test only on a known safe installation. This configuration write is not a
+  relay command, but it is a real radio transmission and should not be used to
+  experiment with mains-connected equipment.
+
+Example for an eligible UI-managed switch:
+
+```yaml
+action: enocean_custom.repeater_set_level
+data:
+  entity_id: switch.ubiwizz_kitchen_output_1
+  level: 1
+```
+
+After a call, inspect `repeater_level_requested`, `repeater_last_esp3_ack`,
+`repeater_transmissions`, and `repeater_acknowledgements` on the switch. These
+are local transmission facts only. A true acknowledgement does **not** confirm
+remote reception, active repeater behavior, persistence, or physical output.
+
+## Incoming devices
+
+### HOPPE/Ubiwizz handles: F6-10-00
+
+Create a sensor with `device_class: windowhandle` only after explicitly
+selecting or declaring `F6-10-00`. Ordinary RPS telegrams do not declare their
+EEP and are not silently classified as handles.
 
 ```yaml
 sensor:
@@ -93,25 +124,21 @@ sensor:
     device_class: windowhandle
 ```
 
-The F6-10-00 decoder follows the EEP high nibble of RPS DB0; its low nibble is
-explicitly ignored because the profile marks those bits as don't-care:
+| DB0 high nibble                          | Handle state |
+| ---------------------------------------- | ------------ |
+| `0xC` or `0xE`                           | `open`       |
+| `0xD`                                    | `tilt`       |
+| `0xF`                                    | `closed`     |
+| Other values or a truncated RPS telegram | `unknown`    |
 
-| DB0 high nibble | Handle state |
-| --- | --- |
-| `0xC` or `0xE` | `open` |
-| `0xD` | `tilt` |
-| `0xF` | `closed` |
-| anything else, or a truncated RPS telegram | `unknown` |
+The decoder follows the F6-10-00 high nibble and ignores its documented
+don't-care low nibble.
 
-This mapping is based on the EnOcean Alliance F6-10-00 HOPPE profile's final
-movement direction: left/right means open, up tilt, and down closed. It is
-covered by payload tests that vary the ignored low nibble.
+### D5-00-01 contacts
 
-## D5-00-01 contacts
-
-Use the new first-class `contact` sensor class for a 1BS contact. The old
-`shuttercontact` class remains an alias for existing configurations and
-entities.
+Use `device_class: contact` for a 1BS contact. The historical
+`shuttercontact` class remains an alias for existing configurations and entity
+identities.
 
 ```yaml
 sensor:
@@ -121,40 +148,34 @@ sensor:
     device_class: contact
 ```
 
-| D5 DB0 | Contact state |
-| --- | --- |
-| `0x08` | `open` |
-| `0x09` | `closed` |
-| `0x00` or `0x01` (1BS teach-in) | ignored; retained state |
+| D5 DB0           | Contact state                                  |
+| ---------------- | ---------------------------------------------- |
+| `0x08`           | `open`                                         |
+| `0x09`           | `closed`                                       |
+| `0x00` or `0x01` | Ignored 1BS teach-in; prior state is retained. |
 
-## Diagnostics and safety checklist
+## Safe validation checklist
 
 1. Record each EURID, room, module, output channel, and intended load before
-   adding entities. Do not copy the example IDs above.
-2. For each UBID1507C, create the two explicit profile rows and check that
-   feedback for one channel never changes the other entity.
-3. For each handle, record one closed, open, and tilt telegram before relying
-   on an automation; unsupported RPS values appear as `unknown` instead of
-   reusing a stale position.
-4. Keep NodOn `D2-01-0A` as channel `0` only. Do not select it in the Ubiwizz
-   guided commissioning path.
-5. The `Ubiwizz repeater diagnostic` remains a no-radio boundary. The supplied
-   Ubiwizz sources do not provide a remote repeater command, read-back,
-   default-state claim, or packet sequence. It therefore exposes no write and
-   sends no ERP1/ESP3 packet. Do not substitute the USB dongle's repeater
-   command: that would configure the gateway, not a Ubiwizz module.
-6. Keep repeaters, local association, and mains work separate from Home
-   Assistant deployment. No live HA deployment or hardware action is performed
-   by this repository change.
+   configuring entities. Never reuse the example IDs.
+2. For a UBID1507C, configure both explicit profile rows and verify that status
+   on one channel does not affect the other.
+3. Confirm closed, open, and tilt telegrams for every handle before relying on
+   an automation. Unsupported values intentionally report `unknown`.
+4. Keep NodOn `D2-01-0A` at channel `0` and out of the Ubiwizz guided flow.
+5. For relay control or repeater configuration, treat ESP3 `OK` as dongle
+   transport evidence only. Validate the physical result and power-cycle
+   behavior separately on safe hardware.
+6. Keep local association, repeater experiments, and mains work outside routine
+   Home Assistant deployment. Do not claim hardware certification from this
+   integration's tests or diagnostics.
 
 ## References
 
 - [Ubiwizz UBID1507C manual][ubiwizz-manual]
 - [Ubiwizz UBID1507C product page][ubiwizz-product]
-- [EnOcean Equipment Profiles specification][eep-spec], F6-10-00 (HOPPE) and
-  D5-00-01 (1BS contact)
-- [Home Assistant EnOcean documentation][ha-enocean], which lists F6-10-00
-  HOPPE handles as `windowhandle` sensors.
+- [EnOcean Equipment Profiles specification][eep-spec], F6-10-00 and D5-00-01
+- [Home Assistant EnOcean documentation][ha-enocean]
 
 [ubiwizz-manual]: https://ubiwizz.com/index.php?controller=attachment&id_attachment=927
 [ubiwizz-product]: https://ubiwizz.com/l-offre-produits-ubiwizz/11905-micromodule-radio-enocean-2-canaux-2x5a.html

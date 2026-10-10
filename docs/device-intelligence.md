@@ -6,8 +6,8 @@ dependency, and no automatic UTE acknowledgement or radio transmission.
 
 ## Verdict
 
-A sender ID (EURID) identifies a *radio*, not a model. An EEP identifies a
-*data profile*, not a product, and an EEP known to the EnOcean Alliance is not
+A sender ID (EURID) identifies a _radio_, not a model. An EEP identifies a
+_data profile_, not a product, and an EEP known to the EnOcean Alliance is not
 necessarily decodable by this repository. The integration therefore displays
 five separate things and never collapses them:
 
@@ -28,12 +28,12 @@ to prevent.
 
 ### Evidence — how a profile assertion was obtained
 
-| Value | Meaning |
-| --- | --- |
-| `exact` | A UTE telegram or an enriched 4BS teach-in explicitly carried RORG/FUNC/TYPE. |
-| `assisted` | A valid 32-bit EURID and Product ID came from an Alliance label. |
-| `manual` | The operator selected the profile or configuration details. |
-| `profile_unknown` | The sender is known but its EEP is not proven. |
+| Value             | Meaning                                                                       |
+| ----------------- | ----------------------------------------------------------------------------- |
+| `exact`           | A UTE telegram or an enriched 4BS teach-in explicitly carried RORG/FUNC/TYPE. |
+| `assisted`        | A valid 32-bit EURID and Product ID came from an Alliance label.              |
+| `manual`          | The operator selected the profile or configuration details.                   |
+| `profile_unknown` | The sender is known but its EEP is not proven.                                |
 
 UTE and enriched 4BS declare a profile. An ordinary RPS `F6` or 1BS `D5`
 telegram does not carry its EEP, so it stays `profile_unknown`; there is no
@@ -41,21 +41,21 @@ silent inference and the radio ID is never presented as profile proof.
 
 ### Configuration mode — what the operator must still decide
 
-| Value | Meaning |
-| --- | --- |
-| `automatic` | One platform, no further required parameters. |
-| `assisted` | One platform, but parameters or the device class must be confirmed. |
-| `manual` | The platform is ambiguous or the decoder needs a range/class. |
-| `yaml_only` | Implemented, but with no options-flow surface yet. |
+| Value       | Meaning                                                             |
+| ----------- | ------------------------------------------------------------------- |
+| `automatic` | One platform, no further required parameters.                       |
+| `assisted`  | One platform, but parameters or the device class must be confirmed. |
+| `manual`    | The platform is ambiguous or the decoder needs a range/class.       |
+| `yaml_only` | Implemented, but with no options-flow surface yet.                  |
 
 ### Support — what this repository can actually do
 
-| Value | Meaning |
-| --- | --- |
-| `supported` | An unambiguous implementation exists for the declared EEP. |
-| `manual` | Implemented, but configuration requires a human choice. |
+| Value         | Meaning                                                        |
+| ------------- | -------------------------------------------------------------- |
+| `supported`   | An unambiguous implementation exists for the declared EEP.     |
+| `manual`      | Implemented, but configuration requires a human choice.        |
 | `unsupported` | The EEP is declared and this repository has no decoder for it. |
-| `unknown` | There is not enough evidence to say anything. |
+| `unknown`     | There is not enough evidence to say anything.                  |
 
 Support is derived from the configuration mode in code, so the table below and
 runtime behaviour cannot drift apart.
@@ -65,78 +65,53 @@ runtime behaviour cannot drift apart.
 Each row maps to code present in this repository. It describes neither EnOcean
 Alliance certification nor tested hardware.
 
-| Declared EEP | Implementation in this repository | Platforms | Configuration mode | Support |
-| --- | --- | --- | --- | --- |
-| `F6-02-01` | `binary_sensor.EnOceanBinarySensor` rocker decoding; `switch.py` also simulates this profile | `binary_sensor`, `switch` | `manual` (ambiguous, and ordinary F6 carries no EEP) | `manual` |
-| `F6-02-02` | as above | `binary_sensor`, `switch` | `manual` | `manual` |
-| `F6-10-00` | `sensor.EnOceanWindowHandle`: high nibble `C/E` open, `D` tilt, `F` closed; any other/truncated RPS is `unknown` | `sensor` | `assisted` (device class) | `supported` |
-| `D5-00-01` | `sensor.EnOceanD50001Contact`: `0x08` open / `0x09` closed; legacy `shuttercontact` remains an alias | `sensor` | `assisted` (device class) | `supported` |
-| `A5-10-06` | `sensor.EnOceanTemperatureSensor`, a *generic* linear 8-bit A5 decoder | `sensor` | `manual` (scale and raw range must be supplied) | `manual` |
-| `A5-12-01` | `sensor.EnOceanPowerSensor` / `EnOceanEnergySensor` via `parse_eep(0x12, 0x01)` | `sensor` | `assisted` | `supported` |
-| `A5-14-01` | `binary_sensor.EnOceanA514Contact`; optional disabled-by-default diagnostic `sensor.EnOceanA514Voltage` | `binary_sensor` | `automatic` | `supported` |
-| `A5-20-04` | `climate.EnOceanClimate` valve control | `climate` | `yaml_only` (the options flow persists SRC-D08 only) | `manual` |
-| `A5-38-08` | `light.EnOceanLight` commands and teach-in (transmit only) | `light` | `assisted` (a sender identity is required) | `supported` |
-| `D2-01-0A` | `switch.EnOceanSwitch` D2 CMD `0x1` switching and CMD `0x4` feedback | `switch` | `manual` (EEP does not prove NodOn hardware) | `manual` |
-| `D2-01-0B` | `sensor._decode_d2_measurement` for D2-01 CMD `0x7` | `sensor` | `assisted` | `supported` |
-| `D2-01-12` | switch/light actuator with D2-01 feedback; explicit `ubiwizz_ubid1507c` limits documented UBID1507C rows to channels `0`/`1` | `light`, `switch` | `manual` (two valid platforms; EEP is not hardware identity) | `manual` |
+| Declared EEP | Implementation in this repository                                                                                            | Platforms                 | Configuration mode                                           | Support     |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------ | ----------- |
+| `F6-02-01`   | `binary_sensor.EnOceanBinarySensor` rocker decoding; `switch.py` also simulates this profile                                 | `binary_sensor`, `switch` | `manual` (ambiguous, and ordinary F6 carries no EEP)         | `manual`    |
+| `F6-02-02`   | as above                                                                                                                     | `binary_sensor`, `switch` | `manual`                                                     | `manual`    |
+| `F6-10-00`   | `sensor.EnOceanWindowHandle`: high nibble `C/E` open, `D` tilt, `F` closed; any other/truncated RPS is `unknown`             | `sensor`                  | `assisted` (device class)                                    | `supported` |
+| `D5-00-01`   | `sensor.EnOceanD50001Contact`: `0x08` open / `0x09` closed; legacy `shuttercontact` remains an alias                         | `sensor`                  | `assisted` (device class)                                    | `supported` |
+| `A5-10-06`   | `sensor.EnOceanTemperatureSensor`, a _generic_ linear 8-bit A5 decoder                                                       | `sensor`                  | `manual` (scale and raw range must be supplied)              | `manual`    |
+| `A5-12-01`   | `sensor.EnOceanPowerSensor` / `EnOceanEnergySensor` via `parse_eep(0x12, 0x01)`                                              | `sensor`                  | `assisted`                                                   | `supported` |
+| `A5-14-01`   | `binary_sensor.EnOceanA514Contact`; optional disabled-by-default diagnostic `sensor.EnOceanA514Voltage`                      | `binary_sensor`           | `automatic`                                                  | `supported` |
+| `A5-20-04`   | `climate.EnOceanClimate` valve control                                                                                       | `climate`                 | `yaml_only` (the options flow persists SRC-D08 only)         | `manual`    |
+| `A5-38-08`   | `light.EnOceanLight` commands and teach-in (transmit only)                                                                   | `light`                   | `assisted` (a sender identity is required)                   | `supported` |
+| `D2-01-0A`   | `switch.EnOceanSwitch` D2 CMD `0x1` switching and CMD `0x4` feedback                                                         | `switch`                  | `manual` (EEP does not prove NodOn hardware)                 | `manual`    |
+| `D2-01-0B`   | `sensor._decode_d2_measurement` for D2-01 CMD `0x7`                                                                          | `sensor`                  | `assisted`                                                   | `supported` |
+| `D2-01-12`   | switch/light actuator with D2-01 feedback; explicit `ubiwizz_ubid1507c` limits documented UBID1507C rows to channels `0`/`1` | `light`, `switch`         | `manual` (two valid platforms; EEP is not hardware identity) | `manual`    |
 
 A platform is pre-selected in the options flow only when the mode is
 `automatic` or `assisted` **and** exactly one platform applies. The selection
 always remains changeable, and a manufacturer conflict suppresses it entirely.
 
-### NodOn EnOcean catalogue audit
+### NodOn catalogue boundary
 
-| NodOn model/SKU | EEP / function | Repository status | Fixture / hardware boundary |
-| --- | --- | --- | --- |
-| ASP-2-1-00 / ASP-2-1-10 / ASP-2-1-01 SmartPlug family | `D2-01-0A`: one-channel switching, local-control and status/power-failure parameters | implemented as manual `switch`; no consumption entity | no hardware fixture; safe-load commissioning required |
-| CWS-2-1-01 wall switch | `F6-02-01`: rocker transmitter | manual binary_sensor/switch mapping | no hardware fixture; add captured RPS fixture before claiming support |
-| CCS-2-1-01 card switch | `F6-04-01`: card insertion/removal transmitter | unsupported | no decoder or fixture; add both telegram fixture and decoder test before support |
-| SIN-2-FP-01 pilot-wire module | `D2-01-0C`: heating modes and telemetry | unsupported | no decoder or fixture; add command/status fixtures before support |
-| SIN-2-2-01 lighting relay | `D2-01-12`: ON/OFF actuator | manual mapping, untested | add directed-command and feedback fixtures; physical proof remains pending |
-| SIN-2-RS-01 roller-shutter module | `D2-05-00`: shutter actuator | unsupported | no decoder or fixture; add range/status fixtures before support |
-| CRC-2-6-01 Soft Remote | `D2-03-0A`: scene/button transmitter | unsupported | no decoder or fixture; add button-event fixture before support |
+This bounded inventory records manufacturer documentation, not radio identity,
+implementation support, or hardware certification. A captured EURID is never
+attributed to NodOn from an EEP alone, and ESP3 `OK` remains transport
+acceptance rather than proof that a load switched.
 
-For every row marked unsupported or untested, the required fixture is a
-sanitized telegram fixture containing sender, destination (when applicable),
-RORG/EEP, payload, status direction, and expected decoded event. A fixture is
-not hardware proof: support may be promoted only after decoder tests pass and,
-for actuators, a safe physical ON/OFF plus matching feedback is recorded.
+| Documented product or family                        | EEP / documented function                                                              | Status here                                              | Required evidence before a stronger claim                            |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------- |
+| ASP-2-1-00 / ASP-2-1-10 / ASP-2-1-01 SmartPlug      | `D2-01-0A`; one-channel switching, local control, status, and power-failure parameters | Manual `switch`, channel `0` only; no consumption entity | Captured fixture and safe-load commissioning with matching feedback. |
+| CWS-2-1-01 wall switch                              | `F6-02-01` rocker                                                                      | Manual binary-sensor or switch mapping                   | Captured RPS fixture and decoder test.                               |
+| CCS-2-1-01 card switch                              | `F6-04-01` card insertion/removal                                                      | Unsupported                                              | Telegram fixture and decoder test.                                   |
+| SIN-2-FP-01 pilot-wire module                       | `D2-01-0C` heating modes and telemetry                                                 | Unsupported                                              | Command and status fixtures.                                         |
+| SIN-2-2-01 lighting relay                           | `D2-01-12` ON/OFF actuator                                                             | Manual mapping; untested                                 | Directed-command and feedback fixtures, then safe physical proof.    |
+| SIN-2-RS-01 roller-shutter module                   | `D2-05-00` shutter actuator                                                            | Unsupported                                              | Range and status fixtures.                                           |
+| CRC-2-6-01 Soft Remote                              | `D2-03-0A` scene/button transmitter                                                    | Unsupported                                              | Button-event fixture and decoder test.                               |
+| Other transmitter families listed by the ASP manual | `F6-10-00`, `D5-00-01`, `A5-07-*`, `A5-08-*`, `A5-10-*`, `A5-14-*`                     | Only rows in the implementation matrix are supported     | Exact model evidence plus profile-specific fixture.                  |
 
-The following is the bounded catalogue evidenced by the official ASP-2-1-x0
-manual, not a claim that every NodOn product or radio variant is covered.
+A sanitized fixture must contain the sender, destination when applicable,
+RORG/EEP, payload, status direction, and expected decoded event. It is not
+hardware proof: actuators also need a safe physical ON/OFF test with matching
+feedback.
 
-| NodOn EnOcean product/profile | EEP / functions documented | Repository status | Hardware proof |
-| --- | --- | --- | --- |
-| ASP-2-1-00 / ASP-2-1-10 SmartPlug | `D2-01-0A`: one-channel switching, local-control and status/power-failure parameters | implemented as manual `switch`; no consumption entity | not tested on hardware in this run |
-| Rocker Switch transmitter | `F6-02-01` | manual binary_sensor/switch mapping | no NodOn transmitter fixture |
-| Window handle transmitter | `F6-10-00` | assisted sensor mapping | no NodOn transmitter fixture |
-| Magnetic contact transmitter | `D5-00-01` | assisted sensor mapping | no NodOn transmitter fixture |
-| Other transmitters listed by the ASP manual (`A5-07-*`, `A5-08-*`, `A5-10-*`, `A5-14-*`) | transmitter EEPs are listed by NodOn, but are not product identities | unsupported unless a separate decoder row exists | not tested |
-
-Additional manufacturer-documented EnOcean products (inventory only; not proof
-that a captured EURID is that model):
-
-| NodOn model/SKU | EEP | Function | Commissioning documented | Official manufacturer source | Repository status |
-| --- | --- | --- | --- | --- | --- |
-| CWS-2-1-01 wall switch | F6-02-01 | 1/2-channel rocker transmitter | pair with actuator | [NodOn support: CWS-2-1-01](https://support.nodon.fr/support/solutions/articles/150000192103-interrupteur-mural-enocean-cws-2-1-01-) | manual mapping, untested |
-| CCS-2-1-01 card switch | F6-04-01 | card insertion/removal transmitter | pair with actuator | [NodOn support: CCS-2-1-01](https://support.nodon.fr/support/solutions/articles/150000192099-interrupteur-%25C3%25A0-carte-enocean-ccs-2-1-01-) | unsupported |
-| SIN-2-FP-01 pilot-wire module | D2-01-0C | six heating modes and telemetry | up to 22 controllers | [NodOn support: SIN-2-FP-01](https://support.nodon.fr/support/solutions/articles/150000052161-module-chauffage-fil-pilote-enocean-sin-2-fp-01-) | unsupported; source verified, no fixture |
-| SIN-2-2-01 lighting relay | D2-01-12 | ON/OFF actuator | up to 22 controllers | [NodOn support: SIN-2-2-01](https://support.nodon.fr/support/solutions/articles/150000052164-module-eclairage-on-off-enocean-sin-2-2-01-) | manual mapping, untested |
-| SIN-2-RS-01 roller-shutter module | D2-05-00 | shutter actuator | up to 22 controllers | [NodOn support: SIN-2-RS-01](https://support.nodon.fr/support/solutions/articles/150000052163-module-volet-roulant-enocean-sin-2-rs-01-) | unsupported; source verified, no fixture |
-| Soft Button transmitter (family) | not established by the cited page | product family only; do not infer an EEP | no automatic mapping | source reviewed, no fixture | unsupported |
-| CRC-2-6-01 Soft Remote | `D2-03-0A` | scene/button transmitter | compatible D2-03 actuator | [NodOn support: CRC-2-6-01](https://support.nodon.fr/support/solutions/articles/150000052270-t%C3%A9l%C3%A9commande-soft-remote-enocean-crc-2-6-01-) | unsupported; no fixture |
-
-These rows record manufacturer claims, not implementation or hardware proof.
-
-The manual identifies the SmartPlug as bidirectional and explicitly documents
-`D2-01-0A`; it does not provide evidence that a captured EURID is a NodOn
-product. Therefore manufacturer/model attribution remains unknown unless a
-separate product-identification proof is supplied. ESP3 `OK` is transport
-acceptance, not proof that the load switched.
+Official manufacturer sources: [ASP SmartPlug support](https://support.nodon.fr/support/solutions/articles/150000192097-prise-intelligente-enocean-asp-2-1-00-), [CWS-2-1-01](https://support.nodon.fr/support/solutions/articles/150000192103-interrupteur-mural-enocean-cws-2-1-01-), [CCS-2-1-01](https://support.nodon.fr/support/solutions/articles/150000192099-interrupteur-%25C3%25A0-carte-enocean-ccs-2-1-01-), [SIN-2-FP-01](https://support.nodon.fr/support/solutions/articles/150000052161-module-chauffage-fil-pilote-enocean-sin-2-fp-01-), [SIN-2-2-01](https://support.nodon.fr/support/solutions/articles/150000052164-module-eclairage-on-off-enocean-sin-2-2-01-), [SIN-2-RS-01](https://support.nodon.fr/support/solutions/articles/150000052163-module-volet-roulant-enocean-sin-2-rs-01-), and [CRC-2-6-01](https://support.nodon.fr/support/solutions/articles/150000052270-t%C3%A9l%C3%A9commande-soft-remote-enocean-crc-2-6-01-).
 
 ## Manual EEP entry
 
-`Add device` → learn, QR label or typed ID → the *Name the captured device*
+`Add device` → learn, QR label or typed ID → the _Name the captured device_
 step. That step carries an optional **Manual EEP profile** text field, shown
 **only when neither a radio telegram nor a Product ID has already declared a
 profile**. A declared EEP is never presented as editable, and a manual value
@@ -145,16 +120,16 @@ overwritten by a claim.
 
 The field accepts the canonical `XX-XX-XX` hexadecimal form only. Lowercase is
 accepted and normalized to uppercase; anything else is refused with the
-`invalid_eep` error instead of being coerced. The value is an *assertion*, not
+`invalid_eep` error instead of being coerced. The value is an _assertion_, not
 a measurement, so it never certifies hardware and never resolves a model.
 
-| Submitted value | `evidence` | `eep_source` | `support` |
-| --- | --- | --- | --- |
-| empty | unchanged (`profile_unknown` after a bare learn) | unchanged | unchanged |
-| valid, present in the implementation matrix | `manual` | `manual` | `manual` |
-| valid, absent from the implementation matrix | `manual` | `manual` | `unsupported` |
-| valid, but the metadata carries a manufacturer conflict | `manual` | `manual` | `unknown` |
-| not `XX-XX-XX` | rejected: the form is redisplayed with `invalid_eep` | — | — |
+| Submitted value                                         | `evidence`                                           | `eep_source` | `support`     |
+| ------------------------------------------------------- | ---------------------------------------------------- | ------------ | ------------- |
+| empty                                                   | unchanged (`profile_unknown` after a bare learn)     | unchanged    | unchanged     |
+| valid, present in the implementation matrix             | `manual`                                             | `manual`     | `manual`      |
+| valid, absent from the implementation matrix            | `manual`                                             | `manual`     | `unsupported` |
+| valid, but the metadata carries a manufacturer conflict | `manual`                                             | `manual`     | `unknown`     |
+| not `XX-XX-XX`                                          | rejected: the form is redisplayed with `invalid_eep` | —            | —             |
 
 A manual assertion never pre-selects a platform, even when the EEP maps to a
 single implementation: the operator always chooses it explicitly. Safe QR
@@ -182,13 +157,13 @@ Remote Commissioning associates a Product ID with a Device Description File
 a world catalog: the 2026-08-05 audit found seven XML files in total. Entries
 from its `Examples/` folder are deliberately excluded.
 
-| Product ID | Manufacturer | Model | DDF TX EEP | DDF RX EEP | Support here |
-| --- | --- | --- | --- | --- | --- |
-| `002D00000004` | Afriso | Cositherm 2-Channel | `B0-00-00` | 11 × `A5-10-xx` | `unsupported` |
-| `002D0000000A` | Afriso | Cositherm 2-Channel | `D2-34-10` | `D2-34-10` + 11 × `A5-10-xx` | `unsupported` |
-| `002D00000005` | Afriso | Cositherm 6-Channel | `B0-00-00` | 11 × `A5-10-xx` | `unsupported` |
-| `002D0000000B` | Afriso | Cositherm 6-Channel | `D2-34-10` | `D2-34-10` + 11 × `A5-10-xx` | `unsupported` |
-| `001600013045` | BSC Computer | eTronic window/door contact | `A5-14-01` | — | `supported` |
+| Product ID     | Manufacturer | Model                       | DDF TX EEP | DDF RX EEP                   | Support here  |
+| -------------- | ------------ | --------------------------- | ---------- | ---------------------------- | ------------- |
+| `002D00000004` | Afriso       | Cositherm 2-Channel         | `B0-00-00` | 11 × `A5-10-xx`              | `unsupported` |
+| `002D0000000A` | Afriso       | Cositherm 2-Channel         | `D2-34-10` | `D2-34-10` + 11 × `A5-10-xx` | `unsupported` |
+| `002D00000005` | Afriso       | Cositherm 6-Channel         | `B0-00-00` | 11 × `A5-10-xx`              | `unsupported` |
+| `002D0000000B` | Afriso       | Cositherm 6-Channel         | `D2-34-10` | `D2-34-10` + 11 × `A5-10-xx` | `unsupported` |
+| `001600013045` | BSC Computer | eTronic window/door contact | `A5-14-01` | —                            | `supported`   |
 
 Source: `EnOcean-Alliance/enocean-alliance-ddf`, audited 2026-08-05. Being
 cataloged identifies hardware; it never overrides the decoder verdict, which is
@@ -223,7 +198,7 @@ about the registry, which cannot be made without having read an ID.
   `eep_source`, `manufacturer_id`, `product_id`, `product_reference`,
   `evidence`, `support` and `manufacturer_conflict`. The scanned payload is
   never stored.
-- **No forgeable strings.** `manufacturer`, `model` and `model_id` are *not*
+- **No forgeable strings.** `manufacturer`, `model` and `model_id` are _not_
   persisted. Config entry options are hand-editable in `.storage`, so those
   strings are resolved at runtime from `product_id` against the catalog above.
   A row that tries to persist them is rejected.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, override
 
 import voluptuous as vol
@@ -215,23 +216,28 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
         self._repeater_last_ack: bool | None = None
         self._repeater_transmissions = 0
         self._repeater_acknowledgements = 0
+        self._last_command_esp3_accepted: bool | None = None
+        self._command_sequence = 0
         self._profile = switch_type
         self._actuator_profile = actuator_profile
 
     @property
     def extra_state_attributes(self) -> dict:
-        """Expose configured profile and feedback metadata when available."""
+        """Expose transport and feedback metadata without claiming actuation."""
         attributes = dict(self.d2_status_attributes)
+        if self._last_command_esp3_accepted is not None:
+            attributes["last_command_esp3_accepted"] = self._last_command_esp3_accepted
         if self._actuator_profile is not None:
             attributes["configured_actuator_profile"] = self._actuator_profile
-        attributes.update(
-            {
-                "repeater_level_requested": self._repeater_level,
-                "repeater_last_esp3_ack": self._repeater_last_ack,
-                "repeater_transmissions": self._repeater_transmissions,
-                "repeater_acknowledgements": self._repeater_acknowledgements,
-            }
-        )
+        if self._actuator_profile == "ubiwizz_ubid1507c":
+            attributes.update(
+                {
+                    "repeater_level_requested": self._repeater_level,
+                    "repeater_last_esp3_ack": self._repeater_last_ack,
+                    "repeater_transmissions": self._repeater_transmissions,
+                    "repeater_acknowledgements": self._repeater_acknowledgements,
+                }
+            )
         return attributes
 
     @override
@@ -277,7 +283,10 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
             self.channel,
             bytes(data).hex(" "),
         )
-        self._send_state_packets([(data, optional)])
+        self._send_state_packets(
+            [(data, optional)],
+            completed=self._record_repeater_transport_result,
+        )
 
     def _queue_state_change(self, target: bool) -> None:
         """Encode the configured profile and wait for all ESP3 acknowledgements."""
@@ -319,38 +328,63 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
                     build_radio_optional(self.dev_id),
                 ),
             )
-        self._send_state_packets(list(frames))
+        command_sequence = self._begin_command_transport()
+        self._send_state_packets(
+            list(frames),
+            completed=lambda accepted: self._record_command_transport_result(
+                command_sequence, accepted
+            ),
+        )
+
+    def _begin_command_transport(self) -> int:
+        """Start a transport result transaction without changing relay state."""
+        self._command_sequence += 1
+        self._last_command_esp3_accepted = None
+        return self._command_sequence
+
+    def _record_command_transport_result(
+        self, command_sequence: int, accepted: bool
+    ) -> None:
+        """Record only the newest completed command's transport result."""
+        if command_sequence != self._command_sequence:
+            return
+        self._last_command_esp3_accepted = accepted
+        if not accepted:
+            LOGGER.warning(
+                "EnOcean command for %s was not accepted by the dongle; "
+                "HA state remains based on actuator feedback",
+                self.dev_name,
+            )
+        self.async_write_ha_state()
+
+    def _record_repeater_transport_result(self, accepted: bool) -> None:
+        """Record the MSC command result separately from relay commands."""
+        self._repeater_last_ack = accepted
+        if accepted:
+            self._repeater_acknowledgements += 1
+        self.async_write_ha_state()
 
     def _send_state_packets(
         self,
         packets: list[tuple[list[int], list[int]]],
+        *,
+        completed: Callable[[bool], None] | None = None,
     ) -> None:
-        """Queue a command without treating ESP3 ACK as actuator feedback.
+        """Queue packets and report aggregate ESP3 delivery, not relay state.
 
         The entity state is deliberately changed only by ``value_changed`` after
         a matching D2-01 CMD 0x4 status telegram.  ESP3 acceptance proves only
         transport delivery to the dongle, not physical relay actuation.
         """
         outstanding = len(packets)
+        all_accepted = True
 
         def response_received(accepted: bool) -> None:
-            nonlocal outstanding
-            LOGGER.warning(
-                "Ubiwizz repeater ESP3 response entity=%s accepted=%s",
-                self.entity_id,
-                accepted,
-            )
-            self._repeater_last_ack = accepted
-            if accepted:
-                self._repeater_acknowledgements += 1
-            self.async_write_ha_state()
+            nonlocal all_accepted, outstanding
+            all_accepted = all_accepted and accepted
             outstanding -= 1
-            if outstanding == 0 and not accepted:
-                LOGGER.warning(
-                    "D2 command for %s was not accepted by the dongle; "
-                    "waiting for actuator feedback",
-                    self.dev_name,
-                )
+            if outstanding == 0 and completed is not None:
+                completed(all_accepted)
 
         for data, optional in packets:
             queued = self.send_command(

@@ -1,37 +1,53 @@
 # Changelog
 
+## 2.8.1 - 2026-10-11
+- Harden HA on/off command delivery and separate transport ACKs from actuator feedback.
+- Add regression coverage for directed D2 commands, stale callbacks, RPS multi-frame delivery, and Ubiwizz repeater telemetry.
+- Professionalize the README and consolidate Ubiwizz/device-intelligence documentation.
+
 ## 2.8.0 - 2026-10-11
+
 - Expose repeater level, transmission count, and ESP3 acknowledgement telemetry on each Ubiwizz switch.
 
 ## 2.7.8 - 2026-10-10
+
 - Log ESP3 response acceptance for repeater transmissions.
 
 ## 2.7.7 - 2026-10-10
+
 - Emit repeater transmission evidence at warning level for live verification.
 
 ## 2.7.6 - 2026-10-10
+
 - Use a synchronous, warning-level service callback for deterministic HA dispatch diagnostics.
 
 ## 2.7.5 - 2026-10-10
+
 - Add unambiguous `enocean_custom.repeater_set_level` service for live repeater control.
 
 ## 2.7.4 - 2026-10-10
+
 - Normalize and trace repeater service entity targets for live HA diagnosis.
 
 ## 2.7.3 - 2026-10-10
+
 - Resolve target entities at service-call time after Home Assistant assigns entity IDs.
 
 ## 2.7.2 - 2026-10-10
+
 - Replace the non-targetable entity-service registration with an explicit targetable HA service schema.
 
 ## 2.7.1 - 2026-10-10
+
 - Add explicit MSC repeater transmission logging for live transport verification.
 
 ## 2.7.0 - 2026-10-10
+
 - Register the repeater service during platform setup so Home Assistant exposes it reliably.
 - Infer the Ubiwizz UBID1507C profile for configured RPS actuator rows while preserving explicit profiles and NodOn default rows.
 
 ## 2.6.7 - 2026-10-10
+
 - Add Home Assistant entity service `enocean_custom.configure_repeater` for Ubiwizz UBID1507C/D2-01-12.
 - Send the published MSC repeater payloads for off, level 1, and level 2.
 
@@ -40,30 +56,6 @@
 - Add installation-driven Ubiwizz UBID1507C/D2-01-12 two-channel support.
 - Add HOPPE/Ubiwizz F6-10-00 handle states and first-class D5-00-01 contacts.
 - Keep D2 state feedback-only and repeater writes blocked until documented.
-
-## Unreleased
-
-- Add explicit source-backed `ubiwizz_ubid1507c` metadata for the documented
-  UBID1507C `D2-01-12` two-output module. It constrains only explicitly chosen
-  profile rows to channels `0` and `1`; generic D2 profiles and NodOn
-  `D2-01-0A` behavior are not reclassified.
-- Decode HOPPE/Ubiwizz `F6-10-00` handles by the documented RPS DB0 high nibble
-  as `closed`, `open`, `tilt`, or `unknown`, and add first-class D5-00-01
-  `contact` sensor mapping while retaining the legacy `shuttercontact` alias.
-- Document Mathieu's Ubiwizz/NodOn installation, exact D2 feedback semantics,
-  local association guidance, and diagnostics sources. No live deployment or
-  hardware action is performed by this change.
-- Keep the bounded Ubiwizz repeater diagnostic read-only. The supplied Ubiwizz
-  sources do not specify a remote repeater default, read-back, or packet
-  sequence, so diagnostics report `not_documented` and no radio command exists.
-
-- Keep the bounded Ubiwizz repeater policy, static diagnostics, and a
-  diagnostic-only options-flow screen. It accepts only candidate
-  `D2-01-01`/`D2-01-12` labels and requested levels `1`/`2`, reports that a
-  default is `not_documented` and runtime state is unknown, and has no encoder,
-  send, read-back, entity, or persisted-state path.
-- Keep Ubiwizz repeater requests separate from D2 commissioning and its PRESS
-  channel mapping until hardware-captured, model-specific evidence exists.
 
 ## 2.6.3 - 2026-10-03
 
@@ -75,23 +67,6 @@
 - Add D5-00-01 / 1BS binary sensor decoding: `0x08` open and `0x09` closed.
 - Ignore D5 teach-in frames (`0x00`/`0x01`) so they cannot create false state changes.
 - Include the D2 commissioning identity fix from PR #4.
-
-## 2.5.1 - Unreleased
-
-- Permit an explicitly selected migrated UI `switch/default` on channel `0` or
-  `1` to enter assisted D2 commissioning without delete/recreate or inferred
-  `radio_metadata`. The operator must bind a scanned/typed physical QR/ID to
-  that exact existing sender before any radio; sender, Product ID/manufacturer,
-  known-profile, replacement, and concurrent-mutation conflicts fail closed.
-- When no exact radio-declared `D2-01-12` evidence exists, require an explicit
-  operator relay/profile assertion. It stays flow-local through instructions,
-  ESP3 `OK`, and causal same-sender/channel/OV=100 feedback; only success may
-  persist the bounded `manual` assertion. Timeout, cancellation, close, unload,
-  deletion, or replacement leaves the existing options row unchanged.
-- Keep evidence, configuration, and support distinct: an unknown Product ID
-  remains unknown, no QR/manual action becomes radio evidence, and no
-  manufacturer/model/EEP is inferred. Existing exact radio metadata remains
-  byte-for-byte unchanged.
 
 ## 2.5.0 - 2026-08-31
 
@@ -112,28 +87,6 @@
   triggers, allowing an exact conversion of historical `button_pressed` event
   filters while preserving the broad v2.4.0 behavior when they are omitted.
 - Reject optional channel filters that contradict a fixed channel trigger type.
-
-## 2.4.0 - Unreleased
-
-- Add native Home Assistant device triggers for EnOcean F6/RPS rocker presses,
-  releases, and channel 1/2 presses. Generated automations reference the device
-  registry entry and therefore appear in the device page's "Used by" view.
-- Exclude A5-14-01 contacts, identified by their own unique ID, because they
-  decode 4BS telegrams and never emit rocker events. Rockers keep their device
-  triggers whatever `device_class` they were configured with.
-
-## 2.3.0 - Unreleased
-
-- Add an explicit options-flow import for legacy YAML `binary_sensor` and
-  `switch` devices. It preserves their exact unique IDs, skips existing UI
-  identities, reports invalid and non-importable YAML rows, and never invents
-  radio metadata.
-- Keep the YAML inventory memory-only and clear it on integration unload. The
-  confirmation and result screens document the safe order: import, remove the
-  imported YAML blocks, restart, then verify entity IDs and automations.
-- Add English and French options-flow translations plus unit coverage for
-  identity parity, defaults, confirmation, visibility, duplicates, invalid
-  rows, restart absence, and inventory cleanup.
 
 ## 2.2.0 - 2026-08-05
 

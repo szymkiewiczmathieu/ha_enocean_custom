@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import unittest
 from typing import ClassVar
+from unittest.mock import Mock
 
 import voluptuous as vol
 
@@ -103,9 +104,10 @@ class D201EntrySetupTests(unittest.IsolatedAsyncioTestCase):
             }
 
         added = []
+        hass = Mock()
         # Exercise async_setup_entry and the real EnOceanSwitch constructor.
-        # Only the callback boundary is observed; no radio or HA mutation occurs.
-        await async_setup_entry(object(), Entry(), added.extend)
+        # Only the callback boundary and service registration are observed.
+        await async_setup_entry(hass, Entry(), added.extend)
 
         self.assertEqual(len(added), 2)
         self.assertEqual([entity.channel for entity in added], [0, 31])
