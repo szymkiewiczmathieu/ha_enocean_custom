@@ -1,13 +1,15 @@
-"""Bounded Ubiwizz repeater capability contract.
+"""Ubiwizz repeater capability contract and validated model metadata.
 
-Ubiwizz documentation reports a repeater function disabled by default with
-levels 1 and 2 on some D2-01-01 and D2-01-12 modules. The repository has no
-model-specific, captured radio command or read-back telegram for that function.
+Internet documentation identifies the user's pictured two-channel module as
+Ubiwizz/Decelect UBID1507C, EEP D2-01-12. Its public manual confirms the two
+channels, PRESS commissioning sequence, and compatibility with F6-10-00
+window handles and D5-00-01 contacts. The manual confirms a repeater function
+in the product datasheet, but does not publish a radio write/read-back command.
 
-This module intentionally contains no ESP3 encoder, transport dependency, or
-state mutation. It is the single policy boundary used by diagnostics and the
-options-flow information screen until a hardware-validated protocol contract is
-available.
+The module repeater must therefore not be confused with the USB300 gateway's
+ESP3 CO_WR_REPEATER command: that command configures the gateway, not a remote
+UBID1507C. We keep remote repeater writes blocked until a Ubiwizz-specific
+command or a captured Flexom transaction is available.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from dataclasses import dataclass
 from typing import Any, Final
 
 UBIWIZZ_REPEATER_CANDIDATE_EEPS: Final = ("D2-01-01", "D2-01-12")
+UBIWIZZ_VALIDATED_MODELS: Final = {"D2-01-12": ("UBID1507C", 2)}
 UBIWIZZ_REPEATER_LEVELS: Final = (1, 2)
 UBIWIZZ_REPEATER_DOCUMENTED_DEFAULT: Final = "disabled"
 UBIWIZZ_REPEATER_RUNTIME_STATE: Final = "unknown"
