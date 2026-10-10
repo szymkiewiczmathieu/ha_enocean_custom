@@ -15,6 +15,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ID, CONF_NAME, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_platform
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
@@ -142,6 +143,19 @@ async def async_setup_entry(
         if row["platform"] == "switch"
     ]
     async_add_entities(entities)
+    _register_repeater_service()
+
+
+def _register_repeater_service() -> None:
+    """Expose the documented D2-01-12 MSC repeater command in HA."""
+    platform = entity_platform.async_get_current_platform()
+    platform.async_register_entity_service(
+        "configure_repeater",
+        {
+            vol.Required("level"): vol.All(vol.Coerce(int), vol.In((0, 1, 2))),
+        },
+        "configure_repeater",
+    )
 
 
 class EnOceanSwitch(EnOceanEntity, SwitchEntity):
@@ -192,6 +206,31 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
     def turn_off(self, **kwargs: Any) -> None:
         """Request the OFF state."""
         self._queue_state_change(False)
+
+    def configure_repeater(self, level: int) -> None:
+        """Send the D2-01-12 MSC repeater command from the entity.
+
+        The payload is published by openHAB for NodOn D2-01-12 actuators and
+        matches the Ubiwizz two-channel profile: 00 46 08 01 01/02, with
+        00 46 08 00 00 disabling the repeater. This is a configuration write,
+        not a relay command; no load is switched.
+        """
+        if self._actuator_profile != "ubiwizz_ubid1507c":
+            LOGGER.warning(
+                "Repeater configuration refused for non-Ubiwizz D2 entity %s",
+                self.dev_name,
+            )
+            return
+        gateway = self.hass.data.get(DATA_ENOCEAN, {}).get(ENOCEAN_DONGLE)
+        sender_id = get_gateway_base_id(gateway)
+        if sender_id is None:
+            LOGGER.warning("Repeater configuration skipped: dongle Base ID unavailable")
+            return
+        mode = 0 if level == 0 else 1
+        selected_level = 0 if level == 0 else level
+        data = [RORG.MSC, 0x00, 0x46, 0x08, mode, selected_level, *sender_id, 0x00]
+        optional = build_radio_optional(self.dev_id)
+        self._send_state_packets([(data, optional)])
 
     def _queue_state_change(self, target: bool) -> None:
         """Encode the configured profile and wait for all ESP3 acknowledgements."""
