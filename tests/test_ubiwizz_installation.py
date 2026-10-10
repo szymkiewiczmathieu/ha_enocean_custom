@@ -15,7 +15,7 @@ from custom_components.enocean_custom.sensor import (
     EnOceanD50001Contact,
     EnOceanWindowHandle,
 )
-from custom_components.enocean_custom.switch import EnOceanSwitch, PLATFORM_SCHEMA
+from custom_components.enocean_custom.switch import PLATFORM_SCHEMA, EnOceanSwitch
 from custom_components.enocean_custom.ubiwizz import (
     UBID1507C,
     UBIWIZZ_UBID1507C_MANUAL_URL,
