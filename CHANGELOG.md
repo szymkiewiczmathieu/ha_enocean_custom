@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.7.1 - 2026-10-10
+- Add explicit MSC repeater transmission logging for live transport verification.
+
 ## 2.7.0 - 2026-10-10
 - Register the repeater service during platform setup so Home Assistant exposes it reliably.
 - Infer the Ubiwizz UBID1507C profile for configured RPS actuator rows while preserving explicit profiles and NodOn default rows.
