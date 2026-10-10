@@ -165,9 +165,12 @@ def _register_repeater_service(hass: HomeAssistant, entities: list[Any]) -> None
                 LOGGER.info("Repeater target resolved entity_id=%s", entity.entity_id)
                 entity.configure_repeater(level)
 
+    LOGGER.warning(
+        "Registering EnOcean repeater_set_level service for %d entities", len(entities)
+    )
     hass.services.async_register(
         DOMAIN,
-        "configure_repeater",
+        "repeater_set_level",
         handle_call,
         schema=vol.Schema(
             {

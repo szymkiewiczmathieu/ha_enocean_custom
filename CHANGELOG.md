@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.7.5 - 2026-10-10
+- Add unambiguous `enocean_custom.repeater_set_level` service for live repeater control.
+
 ## 2.7.4 - 2026-10-10
 - Normalize and trace repeater service entity targets for live HA diagnosis.
 
