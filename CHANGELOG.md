@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.8.0 - 2026-10-11
+- Expose repeater level, transmission count, and ESP3 acknowledgement telemetry on each Ubiwizz switch.
+
 ## 2.7.8 - 2026-10-10
 - Log ESP3 response acceptance for repeater transmissions.
 

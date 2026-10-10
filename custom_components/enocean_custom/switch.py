@@ -211,6 +211,10 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
         self._attr_unique_id = generate_unique_id(dev_id, channel)
         self._attr_is_on = None
         self.channel = channel
+        self._repeater_level: int | None = None
+        self._repeater_last_ack: bool | None = None
+        self._repeater_transmissions = 0
+        self._repeater_acknowledgements = 0
         self._profile = switch_type
         self._actuator_profile = actuator_profile
 
@@ -220,6 +224,14 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
         attributes = dict(self.d2_status_attributes)
         if self._actuator_profile is not None:
             attributes["configured_actuator_profile"] = self._actuator_profile
+        attributes.update(
+            {
+                "repeater_level_requested": self._repeater_level,
+                "repeater_last_esp3_ack": self._repeater_last_ack,
+                "repeater_transmissions": self._repeater_transmissions,
+                "repeater_acknowledgements": self._repeater_acknowledgements,
+            }
+        )
         return attributes
 
     @override
@@ -255,6 +267,9 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
         selected_level = 0 if level == 0 else level
         data = [RORG.MSC, 0x00, 0x46, 0x08, mode, selected_level, *sender_id, 0x00]
         optional = build_radio_optional(self.dev_id)
+        self._repeater_level = level
+        self._repeater_transmissions += 1
+        self._repeater_last_ack = None
         LOGGER.warning(
             "Sending Ubiwizz repeater level=%s to %s channel=%s MSC=%s",
             level,
@@ -325,6 +340,10 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
                 self.entity_id,
                 accepted,
             )
+            self._repeater_last_ack = accepted
+            if accepted:
+                self._repeater_acknowledgements += 1
+            self.async_write_ha_state()
             outstanding -= 1
             if outstanding == 0 and not accepted:
                 LOGGER.warning(
