@@ -103,7 +103,7 @@
       },
       "pair_actuator_instructions": {
         "title": "Mettre le module en mode appairage",
-        "description": "Correspondance provisoire soumise à validation terrain : le canal logiciel {software_channel} correspond au canal matériel Ubiwizz {hardware_channel} ; appuyez brièvement {press_count} fois sur PRESS. Ensuite, n'effectuez plus aucun appui physique afin qu'un état local ne soit pas pris pour une conséquence de Home Assistant. Continuez pour lancer la fenêtre de commissioning D2 dirigé de {timeout} secondes."
+        "description": "Guide d'association locale UBID1507C : le canal logiciel {software_channel} correspond à la sortie {hardware_channel}. Le manuel officiel indique d'appuyer brièvement trois fois sur PRESS ; pour la sortie 2, effectuez un appui bref supplémentaire pour la sélectionner, puis actionnez l'émetteur compatible. C'est une procédure manuelle physique, pas une séquence radio générée. Continuez pour démarrer la fenêtre de commissioning D2 dirigé de {timeout} secondes."
       },
       "pair_relay_success": {
         "title": "Contrôle D2 dirigé confirmé",
@@ -204,7 +204,7 @@
       },
       "ubiwizz_repeater_blocked": {
         "title": "Commande radio du répéteur Ubiwizz indisponible",
-        "description": "Profil demandé : {eep} ; niveau demandé : {level}. Le défaut documenté est désactivé, mais Home Assistant ne dispose d'aucune lecture de retour prise en charge et l'état actuel reste inconnu. Aucune commande radio n'a été encodée ou émise, aucune procédure PRESS n'est prescrite et aucune option ou entité n'a été modifiée. Réunissez modèle/révision exacts, procédure constructeur, capture émission/réponse et lecture persistante avant d'ajouter une commande."
+        "description": "Profil demandé : {eep} ; niveau demandé : {level}. Les sources Ubiwizz fournies ne documentent ni valeur par défaut de répéteur distant ni lecture de retour prise en charge ; l'état actuel reste donc inconnu. Aucune commande radio n'a été encodée ou émise, aucune procédure PRESS n'est prescrite et aucune option ou entité n'a été modifiée. Réunissez modèle/révision exacts, procédure constructeur, capture émission/réponse et lecture persistante avant d'ajouter une commande."
       },
       "delete_confirm": {
         "title": "Supprimer l'équipement ?",

@@ -29,7 +29,7 @@ ubiwizz_repeater_diagnostics = _POLICY.ubiwizz_repeater_diagnostics
 
 
 class UbiwizzRepeaterPolicyTests(unittest.TestCase):
-    """Only documented candidates and levels reach the no-radio UI boundary."""
+    """Only bounded candidates and levels reach the no-radio UI boundary."""
 
     def test_accepts_only_exact_candidate_profiles_and_levels(self) -> None:
         self.assertEqual(
@@ -58,7 +58,7 @@ class UbiwizzRepeaterPolicyTests(unittest.TestCase):
             ubiwizz_repeater_diagnostics(),
             {
                 "candidate_eep_profiles": ["D2-01-01", "D2-01-12"],
-                "documented_default": "disabled",
+                "documented_default": "not_documented",
                 "requested_levels": [1, 2],
                 "runtime_state": "unknown",
                 "radio_command": "not_implemented",

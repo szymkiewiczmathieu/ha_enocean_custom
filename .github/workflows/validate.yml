@@ -65,6 +65,7 @@ jobs:
             custom_components/enocean_custom/schema.py
             custom_components/enocean_custom/sensor.py
             custom_components/enocean_custom/switch.py
+            custom_components/enocean_custom/ubiwizz.py
             custom_components/enocean_custom/ubiwizz_repeater.py
             custom_components/enocean_custom/enocean_library/communicators/communicator.py
             custom_components/enocean_custom/enocean_library/communicators/serialcommunicator.py

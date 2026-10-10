@@ -1,15 +1,15 @@
-"""Ubiwizz repeater capability contract and validated model metadata.
+"""Ubiwizz repeater diagnostic boundary.
 
-Internet documentation identifies the user's pictured two-channel module as
-Ubiwizz/Decelect UBID1507C, EEP D2-01-12. Its public manual confirms the two
-channels, PRESS commissioning sequence, and compatibility with F6-10-00
-window handles and D5-00-01 contacts. The manual confirms a repeater function
-in the product datasheet, but does not publish a radio write/read-back command.
+The supplied UBID1507C manual and product page document a two-channel
+D2-01-12 actuator and local association steps. They do not define a remote
+repeater read/write protocol, a default state, or a packet sequence. The
+existing diagnostic selector is therefore kept only as a bounded operator note:
+it sends no radio and makes no state/model claim.
 
-The module repeater must therefore not be confused with the USB300 gateway's
-ESP3 CO_WR_REPEATER command: that command configures the gateway, not a remote
-UBID1507C. We keep remote repeater writes blocked until a Ubiwizz-specific
-command or a captured Flexom transaction is available.
+The module repeater must not be confused with the USB300 gateway's ESP3
+CO_WR_REPEATER command: that command configures the gateway, not a remote
+Ubiwizz device. Remote repeater writes remain blocked until a Ubiwizz-specific
+command and read-back are captured and validated.
 """
 
 from __future__ import annotations
@@ -18,9 +18,8 @@ from dataclasses import dataclass
 from typing import Any, Final
 
 UBIWIZZ_REPEATER_CANDIDATE_EEPS: Final = ("D2-01-01", "D2-01-12")
-UBIWIZZ_VALIDATED_MODELS: Final = {"D2-01-12": ("UBID1507C", 2)}
 UBIWIZZ_REPEATER_LEVELS: Final = (1, 2)
-UBIWIZZ_REPEATER_DOCUMENTED_DEFAULT: Final = "disabled"
+UBIWIZZ_REPEATER_DOCUMENTED_DEFAULT: Final = "not_documented"
 UBIWIZZ_REPEATER_RUNTIME_STATE: Final = "unknown"
 UBIWIZZ_REPEATER_RADIO_COMMAND: Final = "not_implemented"
 

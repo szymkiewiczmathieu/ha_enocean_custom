@@ -80,7 +80,8 @@ from .sensor import (
     CONF_RANGE_TO,
     SENSOR_TYPES,
 )
-from .switch import CONF_CHANNEL, CONF_SWITCH_TYPE, SWITCH_TYPES
+from .switch import CONF_ACTUATOR_PROFILE, CONF_CHANNEL, CONF_SWITCH_TYPE, SWITCH_TYPES
+from .ubiwizz import UBID1507C
 from .ubiwizz_repeater import (
     UBIWIZZ_REPEATER_CANDIDATE_EEPS,
     UBIWIZZ_REPEATER_LEVELS,
@@ -598,8 +599,8 @@ class EnOceanOptionsFlow(OptionsFlow):
                 {
                     vol.Required(CONF_CHANNEL, default=0): selector.NumberSelector(
                         selector.NumberSelectorConfig(
-                            min=0,
-                            max=1,
+                            min=min(UBID1507C.output_channels),
+                            max=max(UBID1507C.output_channels),
                             step=1,
                             mode=selector.NumberSelectorMode.BOX,
                         )
@@ -645,9 +646,12 @@ class EnOceanOptionsFlow(OptionsFlow):
         if user_input is None:
             return self._show_pair_actuator_details()
 
-        maximum = 1 if self._pairing_actuator_type == _ACTUATOR_RELAY else 31
+        if self._pairing_actuator_type == _ACTUATOR_RELAY:
+            valid_channels = UBID1507C.output_channels
+        else:
+            valid_channels = tuple(range(32))
         channel = _exact_int(user_input.get(CONF_CHANNEL, 0))
-        if channel is None or not 0 <= channel <= maximum:
+        if channel is None or channel not in valid_channels:
             return self._show_pair_actuator_details(
                 errors={CONF_CHANNEL: "invalid_channel"}
             )
@@ -671,6 +675,11 @@ class EnOceanOptionsFlow(OptionsFlow):
                     "platform": platform,
                     "name": self._pending_name,
                     "channel": channel,
+                    CONF_ACTUATOR_PROFILE: (
+                        UBID1507C.profile_id
+                        if self._pairing_actuator_type == _ACTUATOR_RELAY
+                        else None
+                    ),
                     "switch_type": switch_type,
                     "sender_id": sender_id,
                     CONF_RADIO_METADATA: self._radio_metadata,
@@ -853,7 +862,6 @@ class EnOceanOptionsFlow(OptionsFlow):
                 "timeout": str(round(PAIRING_TIMEOUT)),
                 "software_channel": str(self._pairing_device.get("channel", 0)),
                 "hardware_channel": str(self._pairing_device.get("channel", 0) + 1),
-                "press_count": str(self._pairing_device.get("channel", 0) + 3),
             },
         )
 

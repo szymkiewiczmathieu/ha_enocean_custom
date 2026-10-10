@@ -16,6 +16,7 @@ from .device_intelligence import (
     Evidence,
     SupportVerdict,
 )
+from .ubiwizz import UBIWIZZ_ACTUATOR_PROFILES, valid_ubiwizz_actuator_channel
 
 
 def exact_finite_int(value: object) -> int:
@@ -122,6 +123,17 @@ def _validate_platform_fields(device: dict) -> dict:
         eep = (device.get(CONF_RADIO_METADATA) or {}).get("eep")
         if eep == "D2-01-0A" and device["channel"] != 0:
             raise vol.Invalid("D2-01-0A supports actuator channel 0 only")
+        actuator_profile = device.get("actuator_profile")
+        if actuator_profile is not None:
+            if not valid_ubiwizz_actuator_channel(actuator_profile, device["channel"]):
+                raise vol.Invalid(
+                    f"{actuator_profile} supports actuator channels 0 and 1 only"
+                )
+            profile_eep = UBIWIZZ_ACTUATOR_PROFILES[actuator_profile].eep
+            if eep is not None and eep != profile_eep:
+                raise vol.Invalid(
+                    f"{actuator_profile} requires the {profile_eep} EEP when set"
+                )
     if device["platform"] == "light" and not device.get("sender_id"):
         raise vol.Invalid("sender_id is required for light devices")
     if device["platform"] == "climate":
@@ -141,6 +153,7 @@ def _validate_platform_fields(device: dict) -> dict:
             "powersensor",
             "temperature",
             "windowhandle",
+            "contact",
             "shuttercontact",
         ):
             raise vol.Invalid("unsupported sensor device_class")
@@ -169,6 +182,9 @@ UI_DEVICE_SCHEMA = vol.Schema(
             vol.Optional("device_class", default=None): vol.Any(None, cv.string),
             vol.Optional("channel", default=0): vol.All(
                 exact_finite_int, vol.Range(min=0, max=31)
+            ),
+            vol.Optional("actuator_profile", default=None): vol.Any(
+                None, vol.In(UBIWIZZ_ACTUATOR_PROFILES)
             ),
             vol.Optional("switch_type", default=None): vol.Any(
                 None, vol.In(("default", "RPS"))

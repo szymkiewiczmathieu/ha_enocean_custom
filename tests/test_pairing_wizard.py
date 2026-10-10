@@ -313,6 +313,7 @@ class PairingWizardTests(unittest.IsolatedAsyncioTestCase):
         rows = result["data"][CONF_UI_DEVICES]
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["switch_type"], "default")
+        self.assertEqual(rows[0]["actuator_profile"], "ubiwizz_ubid1507c")
         self.assertEqual(
             rows[0][CONF_RADIO_METADATA], flow._pairing_device[CONF_RADIO_METADATA]
         )

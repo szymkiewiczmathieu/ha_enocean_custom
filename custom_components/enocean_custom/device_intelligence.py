@@ -135,7 +135,7 @@ EEP_IMPLEMENTATIONS: Mapping[str, EEPImplementation] = MappingProxyType(
         "F6-02-02": EEPImplementation(("binary_sensor", "switch"), ConfigMode.MANUAL),
         # sensor.EnOceanWindowHandle; only the sensor device_class must be set.
         "F6-10-00": EEPImplementation(("sensor",), ConfigMode.ASSISTED),
-        # sensor.EnOceanShutterContact.
+        # sensor.EnOceanD50001Contact; ``shuttercontact`` remains a legacy alias.
         "D5-00-01": EEPImplementation(("sensor",), ConfigMode.ASSISTED),
         # sensor.EnOceanTemperatureSensor is a generic linear 8-bit A5 decoder
         # whose scale and raw range must be supplied, so it is never automatic.

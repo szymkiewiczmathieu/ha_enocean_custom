@@ -103,7 +103,7 @@
       },
       "pair_actuator_instructions": {
         "title": "Put the module into pairing mode",
-        "description": "Draft field-gated mapping: software channel {software_channel} maps to Ubiwizz hardware channel {hardware_channel}; press PRESS briefly {press_count} times. Then make no further physical presses, so local status cannot be mistaken for Home Assistant causality. Continue to start the {timeout}-second directed-D2 commissioning window."
+        "description": "UBID1507C local-association guidance: software channel {software_channel} is output {hardware_channel}. The official manual says press PRESS briefly three times; for output 2, make one extra short PRESS to select it, then operate the compatible transmitter. This is a physical manual procedure, not a generated radio sequence. Continue to start the {timeout}-second directed-D2 commissioning window."
       },
       "pair_relay_success": {
         "title": "Directed D2 control confirmed",
@@ -204,7 +204,7 @@
       },
       "ubiwizz_repeater_blocked": {
         "title": "Ubiwizz repeater radio command unavailable",
-        "description": "Requested profile: {eep}; requested level: {level}. The documented default is disabled, but Home Assistant has no supported read-back and the current state remains unknown. No radio command was encoded or sent, no PRESS procedure is prescribed, and no options or entity were changed. Collect an exact model/revision, vendor procedure, transmit/response capture and a persistent read-back before adding a command."
+        "description": "Requested profile: {eep}; requested level: {level}. The supplied Ubiwizz sources do not document a remote repeater default or a supported read-back, so the current state remains unknown. No radio command was encoded or sent, no PRESS procedure is prescribed, and no options or entity were changed. Collect an exact model/revision, vendor procedure, transmit/response capture and a persistent read-back before adding a command."
       },
       "delete_confirm": {
         "title": "Remove device?",

@@ -69,8 +69,8 @@ Alliance certification nor tested hardware.
 | --- | --- | --- | --- | --- |
 | `F6-02-01` | `binary_sensor.EnOceanBinarySensor` rocker decoding; `switch.py` also simulates this profile | `binary_sensor`, `switch` | `manual` (ambiguous, and ordinary F6 carries no EEP) | `manual` |
 | `F6-02-02` | as above | `binary_sensor`, `switch` | `manual` | `manual` |
-| `F6-10-00` | `sensor.EnOceanWindowHandle` | `sensor` | `assisted` (device class) | `supported` |
-| `D5-00-01` | `sensor.EnOceanShutterContact` | `sensor` | `assisted` (device class) | `supported` |
+| `F6-10-00` | `sensor.EnOceanWindowHandle`: high nibble `C/E` open, `D` tilt, `F` closed; any other/truncated RPS is `unknown` | `sensor` | `assisted` (device class) | `supported` |
+| `D5-00-01` | `sensor.EnOceanD50001Contact`: `0x08` open / `0x09` closed; legacy `shuttercontact` remains an alias | `sensor` | `assisted` (device class) | `supported` |
 | `A5-10-06` | `sensor.EnOceanTemperatureSensor`, a *generic* linear 8-bit A5 decoder | `sensor` | `manual` (scale and raw range must be supplied) | `manual` |
 | `A5-12-01` | `sensor.EnOceanPowerSensor` / `EnOceanEnergySensor` via `parse_eep(0x12, 0x01)` | `sensor` | `assisted` | `supported` |
 | `A5-14-01` | `binary_sensor.EnOceanA514Contact`; optional disabled-by-default diagnostic `sensor.EnOceanA514Voltage` | `binary_sensor` | `automatic` | `supported` |
@@ -78,7 +78,7 @@ Alliance certification nor tested hardware.
 | `A5-38-08` | `light.EnOceanLight` commands and teach-in (transmit only) | `light` | `assisted` (a sender identity is required) | `supported` |
 | `D2-01-0A` | `switch.EnOceanSwitch` D2 CMD `0x1` switching and CMD `0x4` feedback | `switch` | `manual` (EEP does not prove NodOn hardware) | `manual` |
 | `D2-01-0B` | `sensor._decode_d2_measurement` for D2-01 CMD `0x7` | `sensor` | `assisted` | `supported` |
-| `D2-01-12` | switch/light actuator with D2-01 feedback | `light`, `switch` | `manual` (two valid platforms) | `manual` |
+| `D2-01-12` | switch/light actuator with D2-01 feedback; explicit `ubiwizz_ubid1507c` limits documented UBID1507C rows to channels `0`/`1` | `light`, `switch` | `manual` (two valid platforms; EEP is not hardware identity) | `manual` |
 
 A platform is pre-selected in the options flow only when the mode is
 `automatic` or `assisted` **and** exactly one platform applies. The selection
@@ -274,6 +274,9 @@ YAML blocks → restart Home Assistant → verify entities and automations**.
 
 ## Sources
 
+- Ubiwizz UBID1507C manual: <https://ubiwizz.com/index.php?controller=attachment&id_attachment=927>
+- Ubiwizz UBID1507C product page: <https://ubiwizz.com/l-offre-produits-ubiwizz/11905-micromodule-radio-enocean-2-canaux-2x5a.html>
+- EnOcean Equipment Profiles specification (F6-10-00, D5-00-01): <https://www.enocean-alliance.org/wp-content/uploads/2017/05/EnOcean_Equipment_Profiles_EEP_v2.6.7_public.pdf>
 - NodOn product pages: <https://nodon.fr/en/products/enocean-wall-switch>, <https://nodon.fr/en/products/enocean-card-switch>, <https://nodon.fr/en/products/enocean-pilot-wire-heating-module>, <https://nodon.fr/en/products/enocean-on-off-lighting-relay-switch>, <https://nodon.fr/en/products/enocean-roller-shutter-relay-switch>, <https://nodon.fr/en/products/enocean-soft-button>
 - EnOcean Alliance, EEP database: <https://www.enocean-alliance.org/products/eeps>
 - EnOcean Alliance, Product ID and labelling: <https://www.enocean-alliance.org/productid>

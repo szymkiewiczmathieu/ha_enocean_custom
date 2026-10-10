@@ -225,50 +225,39 @@ Three things worth knowing:
   form is refused with an explicit error: teach-in never merges or overwrites
   an existing device.
 
-### Guided actuator pairing
+### Ubiwizz installation profile and guided actuator pairing
+
+The source-backed installation guide for Mathieu's four UBID1507C modules,
+incoming HOPPE/Ubiwizz handles, existing contacts/switches, and NodOn SmartPlugs
+is in [`docs/ubiwizz-installation.md`](docs/ubiwizz-installation.md). It records
+both official Ubiwizz sources, F6-10-00/D5-00-01 payload mapping, multi-channel
+feedback semantics, diagnostics, and the safety boundary.
 
 **Settings > Devices & services > EnOcean Custom > Configure > Pair an actuator
-(guided)** now offers the Ubiwizz relay path first. This is a draft pending the
-hardware release gate below; it does not claim that D2 commissioning works on a
-factory-reset module until field validation proves it.
+(guided)** offers an explicit **Ubiwizz relay** profile. It selects
+`ubiwizz_ubid1507c` and permits only its documented zero-based channels `0` and
+`1`; it does not infer that profile from a D2 telegram, QR code, or EURID.
 
 1. Scan or paste the actuator's EnOcean Alliance commissioning label. You can
    instead type its four-byte radio ID exactly as `AA:BB:CC:DD`.
-2. Give it a name and select its family:
-   - **Ubiwizz relay — commission, then use directed D2 control** prepares a
-     final `switch_type: default` switch. It never exposes or uses the unsafe
-     guided RPS sender path.
-   - **4BS dimmer (e.g. Eltako)** creates a `light`; enter the required
-     four-byte outbound `sender_id` and optionally select channel `0`–`31`.
-3. The field-gated mapping is software channel `0` → hardware channel 1 →
-   **PRESS ×3**, and software channel `1` → hardware channel 2 → **PRESS ×4**.
-   After starting radio progress, make no further physical presses. This keeps
-   a locally generated status from being mistaken for Home Assistant causality.
-4. During the 120-second window, the entry-owned dongle sends a directed D2-01
-   ON command to the actuator. Confirmation requires all three facts in order:
+2. Give it a name and select **Ubiwizz relay — commission, then use directed D2
+   control**. The final entity is a default `switch`; the flow never exposes or
+   uses the unsafe guided RPS sender path. The 4BS dimmer option is unchanged.
+3. For physical local association, follow the UBID1507C manual: three short
+   `PRESS` presses enter association; channel 2 requires one further short
+   `PRESS`, then operate the compatible transmitter. This is a local manual
+   procedure, not a generated radio sequence.
+4. During the 120-second window, the existing entry-owned path sends only a
+   directed D2-01 ON command. Confirmation requires all three facts in order:
    the command was queued, its ESP3 response callback reported OK, and a later
-   D2-01 status from the exact actuator and channel reported output value 100,
-   exactly matching the directed ON command.
+   D2-01 status from the exact actuator and channel reported output value 100.
    Wrong, early, OFF, rejected, and timed-out evidence never confirms.
-5. For an Eltako dimmer, the wizard calls the existing
-   `enocean_custom.send_teach_in` entity service three times, about five
-   seconds apart. A5-38-08 provides no confirmation telegram: the final screen
-   therefore asks you to verify physically that the dimmer responds.
 
-For a new relay, no row is saved and no reload occurs before radio proof. A
-successful close saves one final default row once. On timeout, retry changes
-nothing; keep may save that requested row while explicitly leaving
-commissioning unproven; cancel discards it. **Commission an existing D2 relay
-(assisted)** sends the same radio process only after the operator has selected
-one persisted UI row and bound its exact physical QR/ID. A row with exact
-radio-declared `D2-01-12` evidence proceeds without altering its metadata. A
-migration row without it needs an explicit physical D2 relay/profile assertion;
-that bounded `manual` metadata is written only after ESP3 `OK` and later
-matching channel/OV=100 feedback. Timeout, cancellation, flow close, unload,
-or concurrent change leaves its options row byte-for-byte unchanged. The flow
-never adds, replaces, or deletes the row, and concurrent deletion/mutation
-aborts honestly without resurrection. Closing the flow cancels its
-task/listener and stops future sends. The 4BS dimmer path is unchanged.
+ESP3 `OK` proves transport delivery to the dongle, not physical relay actuation.
+No row is saved and no reload occurs before the flow's existing radio-proof
+gates pass. Power-cycle persistence and factory-reset commissioning remain
+hardware-release checks; this repository makes neither claim. Existing NodOn
+`D2-01-0A` SmartPlug commissioning is explicitly refused by this flow.
 
 ### Binary sensors
 
@@ -299,9 +288,12 @@ the `button_pressed` event. They are recognised by their own unique ID, so a
 rocker keeps its device triggers whatever `device_class` it was configured
 with, including `door`.
 
-### Support for shutter contacts
+### D5-00-01 contact sensors
 
-Add support for shutter contacts with EnOcean Equipment Profile EEP: D5-00-01. The sensor state can be `Open` or `Closed`.
+`device_class: contact` is the first-class D5-00-01 / 1BS mapping: DB0 `0x08`
+reports `open` and `0x09` reports `closed`. The 1BS teach-in values `0x00` and
+`0x01` are ignored. The historical `shuttercontact` device class remains a
+compatible alias, so existing registry identities do not change.
 
 ### Passive device inbox and A5-14-01
 
@@ -319,24 +311,22 @@ of the implementation matrix unless a documented real-frame test proves them.
 
 ### Ubiwizz repeater boundary
 
-Some Ubiwizz module documentation reports a repeater function that is disabled
-by default, offers levels 1 and 2, and occurs on modules documented as
-`D2-01-01` or `D2-01-12`. Those EEPs are candidate documentation labels only:
-they neither identify a Ubiwizz model nor prove that a specific module supports
-the repeater function.
+The supplied UBID1507C manual and product page document two `D2-01-12` outputs
+and local association, but do **not** define a remote repeater command,
+read-back, default state, or packet sequence. The optional diagnostic selector
+therefore remains deliberately informational. Candidate EEP labels and levels
+are neither a device identification nor a command contract.
 
-**Configure > Ubiwizz repeater diagnostic** accepts only those exact candidate
-EEP tokens and requested levels 1 or 2. It is deliberately informational: it
-reads no repeater state, creates no entity, persists no requested level, and
-sends no ERP1/ESP3 telegram. It does not prescribe or reuse the existing D2
-commissioning/channel mapping or PRESS procedure. Diagnostics expose only this
-static policy: documented default `disabled`, runtime state `unknown`, and
-radio command `not_implemented`.
+**Configure > Ubiwizz repeater diagnostic** accepts only the bounded legacy
+candidate EEP tokens and requested levels 1 or 2. It reads no repeater state,
+creates no entity, persists no requested level, and sends no ERP1/ESP3
+telegram. Diagnostics expose `documented_default: not_documented`, runtime
+state `unknown`, and radio command `not_implemented`.
 
-Do not add a radio command until the exact module/revision, manufacturer
-procedure, encoded transmit bytes and destination, captured response/read-back,
-and persistence across power cycle have been validated on hardware. Until then,
-follow the manufacturer documentation outside this integration.
+Do not add a radio command until an exact module/revision, vendor procedure,
+encoded transmit bytes and destination, captured response/read-back, and
+persistence across power cycle have been validated on hardware. Do not reuse
+USB300 `CO_WR_REPEATER`: it configures the gateway, not a remote Ubiwizz module.
 
 ### Power and energy sensors
 
@@ -364,12 +354,17 @@ To teach-in the switch to your EnOcean device, put the device in learning mode a
 
 ### D2-01-12 actuator feedback
 
-Ubiwizz UBID1507C two-channel actuators report their actual output state with
-EEP D2-01-12 VLD telegrams. A default (non-RPS) switch whose `id` matches the
-actuator sender follows feedback for its configured `channel`. A receive-capable
-light whose `id` matches the actuator maps the reported 0–100% output value to
-Home Assistant brightness 0–255. This includes changes initiated by a wall
-switch paired directly with the actuator.
+Ubiwizz UBID1507C two-channel actuators use documented `D2-01-12` output
+metadata. The explicit `ubiwizz_ubid1507c` profile permits two default-switch
+entities only: channel `0` for output 1 and channel `1` for output 2. It is an
+operator configuration choice, not a radio-derived product identity.
+
+A default (non-RPS) switch whose `id` matches the actuator sender follows
+feedback for its configured `channel`. A receive-capable light whose `id`
+matches the actuator maps reported 0–100% output to Home Assistant brightness
+0–255. A matching D2-01 `CMD 0x4` status is the only state mutation: ESP3 ACK
+never makes a state optimistic. This includes changes initiated by a wall switch
+paired directly with the actuator.
 
 After the first valid status, the entity exposes `d2_channel`,
 `d2_output_value`, the power-failure capability/state flags, and `last_status`.
