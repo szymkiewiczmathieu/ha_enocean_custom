@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.7.0 - 2026-10-10
+- Register the repeater service during platform setup so Home Assistant exposes it reliably.
+- Infer the Ubiwizz UBID1507C profile for configured RPS actuator rows while preserving explicit profiles and NodOn default rows.
+
 ## 2.6.7 - 2026-10-10
 - Add Home Assistant entity service `enocean_custom.configure_repeater` for Ubiwizz UBID1507C/D2-01-12.
 - Send the published MSC repeater payloads for off, level 1, and level 2.

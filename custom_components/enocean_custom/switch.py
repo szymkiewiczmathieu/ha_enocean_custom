@@ -137,13 +137,16 @@ async def async_setup_entry(
             row["channel"],
             row.get("switch_type") or "default",
             (row.get("radio_metadata") or {}).get("eep"),
-            row.get(CONF_ACTUATOR_PROFILE),
+            row.get(CONF_ACTUATOR_PROFILE)
+            or ("ubiwizz_ubid1507c" if row.get("switch_type") == "RPS" else None),
         ).set_radio_metadata(row.get("radio_metadata"))
         for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
         if row["platform"] == "switch"
     ]
-    async_add_entities(entities)
+    # Register before adding entities: HA's current platform context is only
+    # guaranteed during platform setup, not after entity creation.
     _register_repeater_service()
+    async_add_entities(entities)
 
 
 def _register_repeater_service() -> None:
