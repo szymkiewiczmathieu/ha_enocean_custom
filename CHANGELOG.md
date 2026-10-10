@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.7.8 - 2026-10-10
+- Log ESP3 response acceptance for repeater transmissions.
+
 ## 2.7.7 - 2026-10-10
 - Emit repeater transmission evidence at warning level for live verification.
 

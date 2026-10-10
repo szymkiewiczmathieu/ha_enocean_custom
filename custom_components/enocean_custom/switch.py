@@ -320,6 +320,11 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
 
         def response_received(accepted: bool) -> None:
             nonlocal outstanding
+            LOGGER.warning(
+                "Ubiwizz repeater ESP3 response entity=%s accepted=%s",
+                self.entity_id,
+                accepted,
+            )
             outstanding -= 1
             if outstanding == 0 and not accepted:
                 LOGGER.warning(
