@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.7.6 - 2026-10-10
+- Use a synchronous, warning-level service callback for deterministic HA dispatch diagnostics.
+
 ## 2.7.5 - 2026-10-10
 - Add unambiguous `enocean_custom.repeater_set_level` service for live repeater control.
 
