@@ -436,18 +436,14 @@ class EnOceanWindowHandle(EnOceanSensor):
     @override
     def value_changed(self, packet) -> None:
         """Decode the documented destination position, or expose unknown."""
-        if packet.rorg != RORG.RPS:
+        if packet.rorg != RORG.RPS or len(packet.data) < 2:
             return
-        position = (
-            {
-                0xC0: STATE_OPEN,
-                0xD0: "tilt",
-                0xE0: STATE_OPEN,
-                0xF0: STATE_CLOSED,
-            }.get(packet.data[1] & 0xF0, STATE_UNKNOWN)
-            if len(packet.data) >= 2
-            else STATE_UNKNOWN
-        )
+        position = {
+            0xC0: STATE_OPEN,
+            0xD0: "tilt",
+            0xE0: STATE_OPEN,
+            0xF0: STATE_CLOSED,
+        }.get(packet.data[1] & 0xF0, STATE_UNKNOWN)
         self._attr_native_value = position
         self.schedule_update_ha_state()
 
