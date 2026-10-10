@@ -34,7 +34,9 @@ class UbiwizzInstallationProfileTests(TestCase):
         self.assertEqual(UBID1507C.manual_url, UBIWIZZ_UBID1507C_MANUAL_URL)
         self.assertEqual(UBID1507C.product_url, UBIWIZZ_UBID1507C_PRODUCT_URL)
 
-    def test_explicit_profile_accepts_two_channels_and_rejects_other_values(self) -> None:
+    def test_explicit_profile_accepts_two_channels_and_rejects_other_values(
+        self,
+    ) -> None:
         for channel in UBID1507C.output_channels:
             config = PLATFORM_SCHEMA(
                 {
@@ -61,7 +63,9 @@ class UbiwizzInstallationProfileTests(TestCase):
                 }
             )
 
-    def test_persisted_profile_validates_channel_without_reclassifying_generic_d2(self) -> None:
+    def test_persisted_profile_validates_channel_without_reclassifying_generic_d2(
+        self,
+    ) -> None:
         base = {
             "id": [1, 2, 3, 4],
             "platform": "switch",
@@ -76,13 +80,9 @@ class UbiwizzInstallationProfileTests(TestCase):
         with self.assertRaisesRegex(vol.Invalid, "channels 0 and 1 only"):
             UI_DEVICE_SCHEMA({**base, "channel": 2})
         with self.assertRaisesRegex(vol.Invalid, "requires the D2-01-12 EEP"):
-            UI_DEVICE_SCHEMA(
-                {**base, "radio_metadata": {"eep": "A5-12-01"}}
-            )
+            UI_DEVICE_SCHEMA({**base, "radio_metadata": {"eep": "A5-12-01"}})
 
-        generic = EnOceanSwitch(
-            [1, 2, 3, 4], "generic D2", 31, "default", "D2-01-12"
-        )
+        generic = EnOceanSwitch([1, 2, 3, 4], "generic D2", 31, "default", "D2-01-12")
         self.assertEqual(generic.channel, 31)
 
     def test_channels_update_only_from_their_own_d2_status_feedback(self) -> None:
@@ -144,7 +144,9 @@ class HoppeAndContactEepTests(TestCase):
             (0xF3, "closed"),
             (0xB0, "unknown"),
         ):
-            entity.value_changed(SimpleNamespace(rorg=RORG.RPS, data=[RORG.RPS, payload]))
+            entity.value_changed(
+                SimpleNamespace(rorg=RORG.RPS, data=[RORG.RPS, payload])
+            )
             self.assertEqual(entity.native_value, expected)
 
         entity.value_changed(SimpleNamespace(rorg=RORG.RPS, data=[RORG.RPS]))
