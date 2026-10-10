@@ -81,6 +81,12 @@ from .sensor import (
     SENSOR_TYPES,
 )
 from .switch import CONF_CHANNEL, CONF_SWITCH_TYPE, SWITCH_TYPES
+from .ubiwizz_repeater import (
+    UBIWIZZ_REPEATER_CANDIDATE_EEPS,
+    UBIWIZZ_REPEATER_LEVELS,
+    UbiwizzRepeaterDiagnosticRequest,
+    parse_ubiwizz_repeater_request,
+)
 from .yaml_import import yaml_inventory
 
 _FLOW_OWNER = "options_flow"
@@ -94,6 +100,8 @@ _ACTUATOR_RELAY = "relay_d2"
 _ACTUATOR_DIMMER = "dimmer_4bs"
 _D2_RELAY_EEP = "D2-01-12"
 _D2_ASP_EEP = "D2-01-0A"
+_CONF_UBIWIZZ_REPEATER_EEP = "ubiwizz_repeater_eep"
+_CONF_UBIWIZZ_REPEATER_LEVEL = "ubiwizz_repeater_level"
 _FAILURE_RETRY = "retry"
 _FAILURE_KEEP = "keep"
 _FAILURE_DELETE = "delete"
@@ -204,6 +212,30 @@ def _pairing_failure_schema() -> vol.Schema:
                     translation_key="pairing_failure_action",
                 )
             )
+        }
+    )
+
+
+def _ubiwizz_repeater_schema() -> vol.Schema:
+    """Return a diagnostic-only request form with no radio command option."""
+    return vol.Schema(
+        {
+            vol.Required(_CONF_UBIWIZZ_REPEATER_EEP): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        {"value": eep, "label": eep}
+                        for eep in UBIWIZZ_REPEATER_CANDIDATE_EEPS
+                    ]
+                )
+            ),
+            vol.Required(_CONF_UBIWIZZ_REPEATER_LEVEL): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        {"value": str(level), "label": str(level)}
+                        for level in UBIWIZZ_REPEATER_LEVELS
+                    ]
+                )
+            ),
         }
     )
 
@@ -350,6 +382,7 @@ class EnOceanOptionsFlow(OptionsFlow):
         self._pairing_command_accepted = False
         self._pairing_response_token: object | None = None
         self._pairing_unsubscribe = None
+        self._ubiwizz_repeater_request: UbiwizzRepeaterDiagnosticRequest | None = None
         self._yaml_import_result: dict[str, int] | None = None
 
     def _pending_yaml_rows(self) -> list[dict[str, Any]]:
@@ -412,6 +445,7 @@ class EnOceanOptionsFlow(OptionsFlow):
             "qr_code",
             "pair_actuator",
             "commission_existing",
+            "ubiwizz_repeater",
             "manage",
         ]
         if self._pending_yaml_rows():
@@ -419,6 +453,42 @@ class EnOceanOptionsFlow(OptionsFlow):
         return self.async_show_menu(
             step_id="init",
             menu_options=menu_options,
+        )
+
+    async def async_step_ubiwizz_repeater(self, user_input=None):
+        """Collect a repeater diagnostic request without sending or persisting it."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            request = parse_ubiwizz_repeater_request(
+                user_input.get(_CONF_UBIWIZZ_REPEATER_EEP),
+                user_input.get(_CONF_UBIWIZZ_REPEATER_LEVEL),
+            )
+            if request is not None:
+                self._ubiwizz_repeater_request = request
+                return await self.async_step_ubiwizz_repeater_blocked()
+            errors["base"] = "invalid_ubiwizz_repeater"
+        return self.async_show_form(
+            step_id="ubiwizz_repeater",
+            data_schema=_ubiwizz_repeater_schema(),
+            errors=errors,
+        )
+
+    async def async_step_ubiwizz_repeater_blocked(self, user_input=None):
+        """Enforce the explicit no-radio, no-mutation repeater boundary."""
+        request = self._ubiwizz_repeater_request
+        if request is None:
+            return self.async_abort(reason="ubiwizz_repeater_request_missing")
+        if user_input is not None:
+            return self.async_create_entry(
+                title="", data=dict(self.config_entry.options)
+            )
+        return self.async_show_form(
+            step_id="ubiwizz_repeater_blocked",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "eep": request.eep,
+                "level": str(request.requested_level),
+            },
         )
 
     async def async_step_import_yaml(self, user_input=None):

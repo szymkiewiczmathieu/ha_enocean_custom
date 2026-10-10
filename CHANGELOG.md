@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Add a bounded Ubiwizz repeater policy, static diagnostics, and a diagnostic-only
+  options-flow screen. It accepts only candidate `D2-01-01`/`D2-01-12` labels
+  and requested levels `1`/`2`, reports a documented disabled default and
+  unknown runtime state, and has no encoder, send, read-back, entity, or
+  persisted-state path.
+- Keep Ubiwizz repeater requests separate from D2 commissioning and its PRESS
+  channel mapping until hardware-captured, model-specific evidence exists.
+
 ## 2.6.3 - 2026-10-03
 
 - Keep privacy-safe diagnostics available when a transmit queue backend does not expose `qsize()`.

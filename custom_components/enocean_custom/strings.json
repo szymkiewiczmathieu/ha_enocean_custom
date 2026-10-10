@@ -73,6 +73,7 @@
           "qr_code": "Add via QR code",
           "pair_actuator": "Pair an actuator (guided; no automatic UTE)",
           "commission_existing": "Commission an existing D2 relay (assisted; no automatic UTE)",
+          "ubiwizz_repeater": "Ubiwizz repeater diagnostic (no radio command)",
           "manage": "Manage UI devices",
           "import_yaml": "Import YAML devices"
         }
@@ -193,6 +194,18 @@
         "description": "No exact radio-declared D2-01-12 proof is bound to selected relay {selected_id}, channel {channel}. Confirm only after checking the physical module: it is a relay requiring D2-01-12 commissioning. This is an operator assertion, not radio evidence. It is persisted only after queued directed D2 ON, ESP3 OK, and later matching D2 feedback.",
         "data": {"confirm_relay_d2": "I confirm this physical relay requires D2-01-12 commissioning"}
       },
+      "ubiwizz_repeater": {
+        "title": "Ubiwizz repeater diagnostic",
+        "description": "Diagnostic boundary only. Choose the profile written in the module documentation and the level you intend to evaluate. This does not identify a Ubiwizz model, observe its repeater state, change its configuration, or send radio.",
+        "data": {
+          "ubiwizz_repeater_eep": "Documented D2 profile",
+          "ubiwizz_repeater_level": "Requested repeater level"
+        }
+      },
+      "ubiwizz_repeater_blocked": {
+        "title": "Ubiwizz repeater radio command unavailable",
+        "description": "Requested profile: {eep}; requested level: {level}. The documented default is disabled, but Home Assistant has no supported read-back and the current state remains unknown. No radio command was encoded or sent, no PRESS procedure is prescribed, and no options or entity were changed. Collect an exact model/revision, vendor procedure, transmit/response capture and a persistent read-back before adding a command."
+      },
       "delete_confirm": {
         "title": "Remove device?",
         "description": "Remove {name} ({platform}, {captured_id})? This also deletes its entity registry entry.",
@@ -219,7 +232,8 @@
       "invalid_device_details": "The device details are invalid.",
       "invalid_eep": "The manual EEP must use the exact XX-XX-XX hexadecimal format, e.g. A5-12-01.",
       "commissioning_identity_mismatch": "The scanned or typed ID does not exactly match the selected UI relay. No radio was sent.",
-      "commissioning_identity_conflict": "The scanned identity contradicts existing radio or product evidence. No radio was sent."
+      "commissioning_identity_conflict": "The scanned identity contradicts existing radio or product evidence. No radio was sent.",
+      "invalid_ubiwizz_repeater": "Choose exactly D2-01-01 or D2-01-12 and repeater level 1 or 2."
     },
     "abort": {
       "learn_timeout": "No unknown EnOcean sender was heard before the timeout.",
@@ -233,7 +247,8 @@
       "device_form_missing": "The device form session expired; start again.",
       "yaml_managed": "This EnOcean ID is also configured in YAML. Remove the YAML configuration before deleting its UI device.",
       "no_yaml_devices_to_import": "No YAML devices remain to import.",
-      "yaml_import_cancelled": "YAML import cancelled. No devices were changed."
+      "yaml_import_cancelled": "YAML import cancelled. No devices were changed.",
+      "ubiwizz_repeater_request_missing": "The repeater diagnostic session expired; start again."
     }
   },
   "services": {

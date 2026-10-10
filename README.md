@@ -317,6 +317,27 @@ error values remain unknown. `D2-34-10` remains unsupported because its DDF
 contains no public bit-level decoder specification. A5-10 profiles remain out
 of the implementation matrix unless a documented real-frame test proves them.
 
+### Ubiwizz repeater boundary
+
+Some Ubiwizz module documentation reports a repeater function that is disabled
+by default, offers levels 1 and 2, and occurs on modules documented as
+`D2-01-01` or `D2-01-12`. Those EEPs are candidate documentation labels only:
+they neither identify a Ubiwizz model nor prove that a specific module supports
+the repeater function.
+
+**Configure > Ubiwizz repeater diagnostic** accepts only those exact candidate
+EEP tokens and requested levels 1 or 2. It is deliberately informational: it
+reads no repeater state, creates no entity, persists no requested level, and
+sends no ERP1/ESP3 telegram. It does not prescribe or reuse the existing D2
+commissioning/channel mapping or PRESS procedure. Diagnostics expose only this
+static policy: documented default `disabled`, runtime state `unknown`, and
+radio command `not_implemented`.
+
+Do not add a radio command until the exact module/revision, manufacturer
+procedure, encoded transmit bytes and destination, captured response/read-back,
+and persistence across power cycle have been validated on hardware. Until then,
+follow the manufacturer documentation outside this integration.
+
 ### Power and energy sensors
 
 `device_class: powersensor` exposes separate power and energy entities. It
