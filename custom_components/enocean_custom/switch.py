@@ -148,13 +148,13 @@ async def async_setup_entry(
 
 def _register_repeater_service(hass: HomeAssistant, entities: list[Any]) -> None:
     """Expose a targetable HA service for the Ubiwizz MSC command."""
-    entity_map = {entity.entity_id: entity for entity in entities}
+    entity_list = entities
 
     async def handle_call(call: ServiceCall) -> None:
         level = call.data["level"]
-        for entity_id in call.data["entity_id"]:
-            entity = entity_map.get(entity_id)
-            if entity is not None:
+        requested = set(call.data["entity_id"])
+        for entity in entity_list:
+            if entity.entity_id in requested:
                 entity.configure_repeater(level)
 
     hass.services.async_register(

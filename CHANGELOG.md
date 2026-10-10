@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.7.3 - 2026-10-10
+- Resolve target entities at service-call time after Home Assistant assigns entity IDs.
+
 ## 2.7.2 - 2026-10-10
 - Replace the non-targetable entity-service registration with an explicit targetable HA service schema.
 
