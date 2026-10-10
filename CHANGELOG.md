@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.7.7 - 2026-10-10
+- Emit repeater transmission evidence at warning level for live verification.
+
 ## 2.7.6 - 2026-10-10
 - Use a synchronous, warning-level service callback for deterministic HA dispatch diagnostics.
 

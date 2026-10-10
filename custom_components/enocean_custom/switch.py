@@ -255,7 +255,7 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
         selected_level = 0 if level == 0 else level
         data = [RORG.MSC, 0x00, 0x46, 0x08, mode, selected_level, *sender_id, 0x00]
         optional = build_radio_optional(self.dev_id)
-        LOGGER.info(
+        LOGGER.warning(
             "Sending Ubiwizz repeater level=%s to %s channel=%s MSC=%s",
             level,
             self.dev_name,
