@@ -1450,6 +1450,7 @@ def _assert_options_schemas_are_ws_serializable() -> None:
     flow = options_flow.EnOceanOptionsFlow()
     schemas = [
         options_flow._qr_code_schema(),
+        options_flow._ute_discovery_schema(),
         options_flow._pair_actuator_type_schema(),
         options_flow._pairing_failure_schema(),
         options_flow._commission_existing_schema({"0": "Existing relay"}),

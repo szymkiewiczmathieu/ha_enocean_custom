@@ -73,8 +73,8 @@
           "qr_code": "Add via QR code",
           "pair_actuator": "Pair an actuator (guided; no automatic UTE)",
           "commission_existing": "Commission an existing D2 relay (assisted; no automatic UTE)",
-          "ute_discover": "Discover and associate a new D2 relay by UTE",
-          "ute_commission": "Commission a Ubiwizz module via UTE",
+          "ute_discover": "Associate a Ubiwizz module by directed UTE response",
+          "ute_commission": "Open a Ubiwizz directed UTE listener",
           "ubiwizz_repeater": "Ubiwizz repeater diagnostic (no radio command)",
           "manage": "Manage UI devices",
           "import_yaml": "Import YAML devices"
@@ -197,13 +197,13 @@
         "data": {"confirm_relay_d2": "I confirm this physical relay requires D2-01-12 commissioning"}
       },
       "ute_discover": {
-        "title": "Associate a Ubiwizz UBID1507C output by UTE",
-        "description": "Choose output 1 or 2, then put that exact UBID1507C output in local association mode: press PRESS briefly three times for output 1; after the same three presses, make one extra short PRESS for output 2. During the 60-second session, Home Assistant broadcasts D4 CMD 0 UTE queries using the resolved dongle Base ID and waits for the actuator's addressed D4 CMD 1 reply. The actuator must reply within 500 ms of a query; Home Assistant allows the EEP requester limit of 700 ms per physical transmission before retrying. The switch is saved only after an accepted matching CMD 1 and ESP3 OK. No D2 relay command is sent.",
-        "data": {"name": "Name", "channel": "UBID1507C output"}
+        "title": "Associate a Ubiwizz UBID1507C output by directed UTE response",
+        "description": "Enter the exact module EURID from its label, choose the output to configure, then start this listener before the local PRESS sequence: three short PRESS presses for output 1; the same three plus one extra short PRESS for output 2. Home Assistant sends no broadcast UTE telegram. When the entered module broadcasts the exact D4/A0 request `A0 02 46 00 12 01 D2`, it immediately sends the directed accepted D4/91 response using the dongle Base ID. Output 1 or 2 is separate from UTE byte `02`. The switch is saved only after the dongle accepts D4/91; verify normal D2 feedback afterwards because ESP3 OK is not hardware proof. No D2 relay command is sent.",
+        "data": {"name": "Name", "qr_code": "Module EURID or commissioning label", "channel": "Output to configure"}
       },
       "ute_commission": {
-        "title": "Commission a Ubiwizz module via UTE",
-        "description": "Put output 1 in local learn mode with three short PRESS presses, or put output 2 in mode with the same three presses plus one extra short PRESS. This action broadcasts one standard D4 CMD 0 query and waits for the module's addressed CMD 1 response: the module must respond within 500 ms and Home Assistant allows 700 ms from the physical write. No D2 relay command is sent.",
+        "title": "Open a directed UTE listener for a configured Ubiwizz module",
+        "description": "Open the listener before the physical PRESS sequence: three short presses for output 1, or the same three plus one extra short press for output 2. The configured module must broadcast the exact D4/A0 request; Home Assistant then sends its directed D4/91 response using the resolved dongle Base ID. It does not broadcast a UTE query or send a D2 relay command. ESP3 OK proves only dongle transport; verify D2 feedback afterwards.",
         "data": {"entity_id": "Ubiwizz switch"}
       },
       "ubiwizz_repeater": {
@@ -228,7 +228,7 @@
     },
     "progress": {
       "waiting_for_device": "Press the button on the device now. Waiting up to 60 seconds for an unknown EnOcean sender.",
-      "waiting_for_ute_response": "During this {timeout}-second Ubiwizz association session, Home Assistant broadcasts D4 CMD 0 queries for the selected output and waits for an addressed D4 CMD 1 response. Each query allows the EEP requester limit of 700 ms after its physical transmission.",
+      "waiting_for_ute_request": "During this {timeout}-second Ubiwizz association session, complete the local PRESS sequence. Home Assistant is listening only for the entered module's broadcast D4/A0 request and will immediately return directed D4/91.",
       "pairing_actuator": "Pairing in progress for up to {timeout} seconds. Commands are sent repeatedly; keep the module in pairing mode."
     },
     "error": {
@@ -237,6 +237,7 @@
       "invalid_channel": "Channel must be an exact integer between 0 and 31.",
       "invalid_sender_id": "Sender ID must be 4 hex bytes, e.g. 05:9F:89:34.",
       "invalid_qr_code": "The value is neither a supported EnOcean Alliance commissioning QR payload nor an ID formatted as AA:BB:CC:DD.",
+      "invalid_ute_target": "Enter the exact four-byte module EURID as AA:BB:CC:DD or a supported commissioning label.",
       "invalid_exact_integer": "Value must be an exact integer within the displayed bounds.",
       "invalid_number": "Value must be a finite number within the displayed bounds.",
       "invalid_temperature_range": "Minimum temperature must be lower than maximum temperature.",
@@ -262,13 +263,12 @@
       "no_yaml_devices_to_import": "No YAML devices remain to import.",
       "yaml_import_cancelled": "YAML import cancelled. No devices were changed.",
       "ubiwizz_repeater_request_missing": "The repeater diagnostic session expired; start again.",
-      "ute_commission_started": "UTE commissioning query queued. Check the EnOcean logs and module response.",
-      "ute_discovery_timeout": "No valid addressed D4 CMD 1 UTE response was received during the 60-second association session. No device was saved.",
-      "ute_discovery_base_id_unavailable": "The dongle Base ID is unavailable, so no D4 CMD 0 query was sent and no device was saved.",
-      "ute_discovery_transport_rejected": "The D4 CMD 0 query was not accepted by the dongle. No device was saved.",
-      "ute_discovery_response_rejected": "The actuator rejected the D4 CMD 0 query. No device was saved.",
+      "ute_commission_started": "Directed UTE listener opened. Complete the local PRESS sequence; matching D4/A0 will trigger a directed D4/91 response. Check state and D2 feedback afterwards.",
+      "ute_discovery_timeout": "No matching broadcast D4/A0 request was received during the 30-second association session. No device was saved.",
+      "ute_discovery_base_id_unavailable": "The dongle Base ID is unavailable, so the directed UTE listener was not opened and no device was saved.",
+      "ute_discovery_transport_rejected": "The directed D4/91 response was not accepted by the dongle. No device was saved.",
       "ute_discovery_collision": "This output identity and channel already exist. No device was saved.",
-      "ute_discovery_failed": "UTE discovery ended without a verified association. No device was saved."
+      "ute_discovery_failed": "UTE association ended without a verified directed response. No device was saved."
     }
   },
   "services": {
@@ -289,8 +289,8 @@
       "description": "Send an A5-38-08 4BS teach-in telegram using the selected light entity's sender ID."
     },
     "commission_ute": {
-      "name": "Commission Ubiwizz by UTE",
-      "description": "After putting the selected UBID1507C output into its documented local association mode (three short PRESS presses for output 1; the same three plus one extra short PRESS for output 2), send one standard broadcast D4 CMD 0 Universal Teach-in query. The query uses the resolved dongle Base ID and awaits the module's addressed CMD 1 response. The module must respond within 500 ms; this action allows 700 ms from the physical write. It never sends a D2 relay command."
+      "name": "Commission Ubiwizz by directed UTE response",
+      "description": "Open a listener for the selected UBID1507C output before its documented local association sequence (three short PRESS presses for output 1; the same three plus one extra short PRESS for output 2). When that configured module broadcasts the exact D4/A0 request, send the directed accepted D4/91 response using the resolved dongle Base ID and the module EURID. It never sends a broadcast UTE query or a D2 relay command. ESP3 acceptance proves only dongle transport; verify normal D2 feedback afterwards."
     },
     "reload": {
       "name": "Reload EnOcean YAML platforms",

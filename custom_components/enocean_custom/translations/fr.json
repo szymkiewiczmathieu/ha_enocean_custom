@@ -73,8 +73,8 @@
           "qr_code": "Ajouter par code QR",
           "pair_actuator": "Appairer un actionneur (guidé)",
           "commission_existing": "Commissionner un relais D2 existant (assisté)",
-          "ute_discover": "Découvrir et associer un nouveau relais D2 via UTE",
-          "ute_commission": "Commissionner un module Ubiwizz via UTE",
+          "ute_discover": "Associer un module Ubiwizz par réponse UTE dirigée",
+          "ute_commission": "Ouvrir un écouteur UTE dirigé Ubiwizz",
           "ubiwizz_repeater": "Diagnostic répéteur Ubiwizz (aucune commande radio)",
           "manage": "Gérer les équipements de l'interface",
           "import_yaml": "Importer les équipements YAML"
@@ -197,13 +197,13 @@
         "data": {"confirm_relay_d2": "Je confirme que ce relais physique exige le commissioning D2-01-12"}
       },
       "ute_discover": {
-        "title": "Associer une sortie Ubiwizz UBID1507C par UTE",
-        "description": "Choisissez la sortie 1 ou 2, puis mettez exactement cette sortie UBID1507C en mode d'association locale : appuyez brièvement trois fois sur PRESS pour la sortie 1 ; après les mêmes trois appuis, faites un appui bref supplémentaire pour la sortie 2. Pendant la session de 60 secondes, Home Assistant diffuse des requêtes UTE D4 CMD 0 avec l'ID de base résolu du dongle et attend la réponse D4 CMD 1 adressée de l'actionneur. L'actionneur doit répondre dans les 500 ms après une requête ; Home Assistant respecte la limite EEP de 700 ms pour l'émetteur après chaque émission physique avant réessai. Le relais n'est enregistré qu'après un CMD 1 accepté correspondant et ESP3 OK. Aucune commande de relais D2 n'est envoyée.",
-        "data": {"name": "Nom", "channel": "Sortie UBID1507C"}
+        "title": "Associer une sortie Ubiwizz UBID1507C par réponse UTE dirigée",
+        "description": "Saisissez l'EURID exact du module depuis son étiquette, choisissez la sortie à configurer, puis ouvrez cet écouteur avant la séquence PRESS locale : trois appuis brefs sur PRESS pour la sortie 1 ; les mêmes trois plus un appui bref supplémentaire pour la sortie 2. Home Assistant ne diffuse aucun télégramme UTE. Quand le module saisi diffuse la requête D4/A0 exacte `A0 02 46 00 12 01 D2`, il envoie immédiatement la réponse D4/91 acceptée et dirigée avec l'ID de base du dongle. La sortie 1 ou 2 est distincte de l'octet UTE `02`. Le relais n'est enregistré qu'après acceptation de D4/91 par le dongle ; vérifiez ensuite le retour D2 car ESP3 OK ne prouve pas le matériel. Aucune commande de relais D2 n'est envoyée.",
+        "data": {"name": "Nom", "qr_code": "EURID du module ou étiquette de commissioning", "channel": "Sortie à configurer"}
       },
       "ute_commission": {
-        "title": "Commissionner un module Ubiwizz via UTE",
-        "description": "Mettez la sortie 1 en mode apprentissage local avec trois appuis brefs sur PRESS, ou la sortie 2 avec les mêmes trois appuis plus un appui bref supplémentaire. Cette action diffuse une requête D4 CMD 0 standard et attend la réponse CMD 1 adressée du module : le module doit répondre dans les 500 ms et Home Assistant laisse 700 ms après l'écriture physique. Aucune commande de relais D2 n'est envoyée.",
+        "title": "Ouvrir un écouteur UTE dirigé pour un module Ubiwizz configuré",
+        "description": "Ouvrez l'écouteur avant la séquence PRESS physique : trois appuis brefs pour la sortie 1, ou les mêmes trois plus un appui bref supplémentaire pour la sortie 2. Le module configuré doit diffuser la requête D4/A0 exacte ; Home Assistant envoie alors sa réponse D4/91 dirigée avec l'ID de base résolu du dongle. Il ne diffuse pas de requête UTE et n'envoie pas de commande de relais D2. ESP3 OK ne prouve que le transport du dongle ; vérifiez ensuite le retour D2.",
         "data": {"entity_id": "Actionneur Ubiwizz"}
       },
       "ubiwizz_repeater": {
@@ -228,7 +228,7 @@
     },
     "progress": {
       "waiting_for_device": "Appuyez maintenant sur le bouton de l'équipement. Attente jusqu'à 60 secondes d'un expéditeur EnOcean inconnu.",
-      "waiting_for_ute_response": "Pendant cette session d'association Ubiwizz de {timeout} secondes, Home Assistant diffuse des requêtes D4 CMD 0 pour la sortie choisie et attend une réponse D4 CMD 1 adressée. Chaque requête laisse la limite EEP de 700 ms après son émission physique.",
+      "waiting_for_ute_request": "Pendant cette session d'association Ubiwizz de {timeout} secondes, effectuez la séquence PRESS locale. Home Assistant écoute uniquement la requête D4/A0 diffusée par le module saisi et renverra immédiatement D4/91 dirigé.",
       "pairing_actuator": "Appairage en cours pendant au plus {timeout} secondes. Les commandes sont répétées ; garde le module en mode appairage."
     },
     "error": {
@@ -237,6 +237,7 @@
       "invalid_channel": "Le canal doit être un entier exact entre 0 et 31.",
       "invalid_sender_id": "L'ID émetteur doit être 4 octets hex, ex. 05:9F:89:34.",
       "invalid_qr_code": "La valeur n'est ni un QR de commissioning EnOcean Alliance pris en charge, ni un ID au format AA:BB:CC:DD.",
+      "invalid_ute_target": "Saisissez l'EURID exact à quatre octets au format AA:BB:CC:DD ou une étiquette de commissioning prise en charge.",
       "invalid_exact_integer": "La valeur doit être un entier exact dans les limites affichées.",
       "invalid_number": "La valeur doit être un nombre fini dans les limites affichées.",
       "invalid_temperature_range": "La température minimale doit être inférieure à la température maximale.",
@@ -262,13 +263,12 @@
       "no_yaml_devices_to_import": "Aucun équipement YAML ne reste à importer.",
       "yaml_import_cancelled": "Import YAML annulé. Aucun équipement n'a été modifié.",
       "ubiwizz_repeater_request_missing": "La session de diagnostic du répéteur a expiré ; recommence.",
-      "ute_commission_started": "Requête de commissioning UTE mise en file. Vérifiez les journaux EnOcean et la réponse du module.",
-      "ute_discovery_timeout": "Aucune réponse UTE D4 CMD 1 adressée valide n'a été reçue pendant la session d'association de 60 secondes. Aucun équipement n'a été enregistré.",
-      "ute_discovery_base_id_unavailable": "L'identifiant de base du dongle est indisponible ; aucune requête D4 CMD 0 n'a été envoyée et aucun équipement n'a été enregistré.",
-      "ute_discovery_transport_rejected": "La requête D4 CMD 0 n'a pas été acceptée par le dongle. Aucun équipement n'a été enregistré.",
-      "ute_discovery_response_rejected": "L'actionneur a rejeté la requête D4 CMD 0. Aucun équipement n'a été enregistré.",
+      "ute_commission_started": "Écouteur UTE dirigé ouvert. Effectuez la séquence PRESS locale ; la requête D4/A0 correspondante déclenchera une réponse D4/91 dirigée. Vérifiez ensuite le retour D2.",
+      "ute_discovery_timeout": "Aucune requête D4/A0 diffusée correspondante n'a été reçue pendant la session d'association de 30 secondes. Aucun équipement n'a été enregistré.",
+      "ute_discovery_base_id_unavailable": "L'identifiant de base du dongle est indisponible ; l'écouteur UTE dirigé n'a pas été ouvert et aucun équipement n'a été enregistré.",
+      "ute_discovery_transport_rejected": "La réponse D4/91 dirigée n'a pas été acceptée par le dongle. Aucun équipement n'a été enregistré.",
       "ute_discovery_collision": "Cette identité de sortie et ce canal existent déjà. Aucun équipement n'a été enregistré.",
-      "ute_discovery_failed": "La découverte UTE s'est terminée sans association vérifiée. Aucun équipement n'a été enregistré."
+      "ute_discovery_failed": "L'association UTE s'est terminée sans réponse dirigée vérifiée. Aucun équipement n'a été enregistré."
     }
   },
   "services": {
@@ -290,7 +290,7 @@
     },
     "commission_ute": {
       "name": "Appairer Ubiwizz par UTE",
-      "description": "Après avoir placé la sortie UBID1507C sélectionnée dans son mode d'association locale documenté (trois appuis brefs sur PRESS pour la sortie 1 ; les mêmes trois plus un appui bref supplémentaire pour la sortie 2), envoie une requête standard D4 CMD 0 Universal Teach-in diffusée. La requête utilise l'ID de base résolu du dongle et attend la réponse CMD 1 adressée du module. Le module doit répondre dans les 500 ms ; cette action laisse 700 ms après l'écriture physique. Elle n'envoie jamais de commande de relais D2."
+      "description": "Ouvre un écouteur pour la sortie UBID1507C sélectionnée avant sa séquence d'association locale documentée (trois appuis brefs sur PRESS pour la sortie 1 ; les mêmes trois plus un appui bref supplémentaire pour la sortie 2). Quand ce module configuré diffuse la requête D4/A0 exacte, envoie la réponse D4/91 acceptée et dirigée avec l'ID de base résolu du dongle et l'EURID du module. Cette action ne diffuse jamais de requête UTE et n'envoie jamais de commande de relais D2. L'acceptation ESP3 ne prouve que le transport du dongle ; vérifiez ensuite le retour D2 normal."
     },
     "reload": {
       "name": "Recharger les plateformes YAML EnOcean",

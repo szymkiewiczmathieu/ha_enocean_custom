@@ -55,28 +55,39 @@ the module switched its output, retained a configuration change, or belongs to
 the configured profile. The entity state remains unknown until matching D2
 status is received.
 
-### Local association
+### Directed UTE association
 
-The UBID1507C manual describes physical local association: make three short
+The UBID1507C manual describes the local physical sequence: make three short
 `PRESS` presses to enter association mode; for output 2, make one further short
 press before operating the compatible transmitter. Verify the actual module
 revision and LED behavior in the manual.
 
-After selecting the exact `ubiwizz_ubid1507c` entity and output, call the
-entity-scoped `enocean_custom.commission_ute` action while that output is in
-learn mode. It sends one standards-defined broadcast UTE D4 CMD 0 query for
-`D2-01-12` and the selected channel. Its ERP1 sender is the resolved dongle
-Base ID, which is the identity the module can learn. The module answers with an
-addressed D4 CMD 1 response from its own EURID, echoing the EEP and selected
-channel. EEP 2.6.7 gives the module at most 500 ms after receiving a query to
-respond; the gateway, as query sender, allows the 700 ms requester limit from
-the physical transmission. The entity records the ESP3 acknowledgement and
-response outcome separately.
+For Home Assistant association, start **Associate Ubiwizz via directed UTE
+response** before that PRESS sequence. The form requires the module EURID from
+its label (a typed `AA:BB:CC:DD` ID or supported 30S/1P label) and separately
+asks which relay output (`0` or `1`) to configure. The output choice is **not**
+the UTE byte `02`.
 
-This commissioning action never sends a D2 relay command. Normal `turn_on` and
-`turn_off` control remains the separate directed D2 path, and ESP3 `OK` on
-that path is only transport evidence. After any commissioning result, verify
-physical operation and power-cycle behavior on safe hardware.
+A field capture of this UBID1507C flow shows the module broadcasting a
+bidirectional D4/A0 UTE request. The integration accepts it only when its
+sender matches the entered EURID and its fields match `A0 02 46 00 12 01 D2`.
+It then queues the directed accepted D4/91 response, with the dongle Base ID as
+sender and the module EURID as destination:
+
+```text
+D4 91 02 46 00 12 01 D2 <dongle Base ID> 00
+optional: 03 <module EURID> FF 00
+```
+
+The listener sends no broadcast UTE telegram and does not guess an EURID from
+unrelated traffic. It opens before PRESS because the UTE responder deadline is
+short once D4/A0 arrives. An ESP3 `OK` proves only that the dongle accepted the
+D4/91 response; it cannot prove the module retained the association. Verify
+normal directed D2 feedback and safe `turn_on`/`turn_off` control afterwards.
+
+This association action never sends a D2 relay command. Normal `turn_on` and
+`turn_off` control remains the separate directed D2 path, and ESP3 `OK` on that
+path is also only transport evidence.
 
 ## Repeater boundary
 

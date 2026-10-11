@@ -1,4 +1,4 @@
-"""Focused standard-UTE commissioning regression coverage."""
+"""Focused directed-UTE commissioning regression coverage."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT))
 
 try:
     from homeassistant.config_entries import ConfigEntries, ConfigEntry
+    from homeassistant.const import EntityCategory
     from homeassistant.core import HomeAssistant
     from homeassistant.data_entry_flow import FlowResultType
     from homeassistant.exceptions import HomeAssistantError
@@ -25,6 +26,7 @@ try:
     from homeassistant.helpers.dispatcher import async_dispatcher_send
 
     from custom_components.enocean_custom import options_flow, switch
+    from custom_components.enocean_custom.button import UTECommissionButton
     from custom_components.enocean_custom.const import (
         DATA_ENOCEAN,
         DOMAIN,
@@ -45,8 +47,8 @@ try:
     )
     from custom_components.enocean_custom.switch import EnOceanSwitch
     from custom_components.enocean_custom.ute import (
-        build_ute_teach_in_query,
-        parse_ute_teach_in_response,
+        build_ute_teach_in_response,
+        parse_ute_teach_in_request,
     )
 
     HA_AVAILABLE = True
@@ -54,11 +56,16 @@ except ModuleNotFoundError:  # pragma: no cover - bare environment
     HA_AVAILABLE = False
 
 TARGET_ID = [0x00, 0x3A, 0xFC, 0x98]
+OTHER_ID = [0x00, 0x3A, 0xFC, 0x99]
 BASE_ID = [0xA1, 0xB2, 0xC3, 0xD4]
+# Keep module importable in the CI environment that intentionally lacks HA.
+UTE_RORG_VLD = 0xD2
+UTE_REQUEST_FIELDS = [0xA0, 0x02, 0x46, 0x00, 0x12, 0x01, UTE_RORG_VLD]
+UTE_RESPONSE_FIELDS = [0x91, 0x02, 0x46, 0x00, 0x12, 0x01, UTE_RORG_VLD]
 
 
 class FakeDongle:
-    """Capture queued UTE packets and manually drive lifecycle callbacks."""
+    """Capture queued UTE packets and manually drive ESP3 callbacks."""
 
     def __init__(self, base_id: list[int] | None = None) -> None:
         self.base_id = base_id
@@ -74,22 +81,22 @@ class FakeDongle:
         return self.queue_result
 
 
-def _ute_response(
+def _ute_request(
     *,
     target: list[int] = TARGET_ID,
-    destination: list[int] = BASE_ID,
-    channel: int = 0,
+    destination: list[int] | None = None,
+    flags: int = 0xA0,
+    number_of_channels: int = 0x02,
     eep_type: int = 0x12,
-    manufacturer_id: int = 0,
-    result: int = 0x01,
+    manufacturer_id: int = 0x046,
 ) -> UTETeachInPacket:
-    """Build an addressed D4 CMD 1 response to a gateway D4 CMD 0 query."""
+    """Build the UBID1507C broadcast D4/A0 request seen after PRESS mode."""
     return UTETeachInPacket(
         PACKET.RADIO_ERP1,
         data=[
             RORG.UTE,
-            0x81 | (result << 4),
-            channel,
+            flags,
+            number_of_channels,
             manufacturer_id & 0xFF,
             (manufacturer_id >> 8) & 0x07,
             eep_type,
@@ -98,99 +105,91 @@ def _ute_response(
             *target,
             0x00,
         ],
-        optional=[0x03, *destination, 0xFF, 0x00],
+        optional=[0x01, *(destination or [0xFF, 0xFF, 0xFF, 0xFF]), 0x40, 0x00],
     )
 
 
 @unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
 class UtePacketTests(unittest.TestCase):
-    """Prove UTE bytes and exact response binding independently of the flow."""
+    """Prove exact D4/A0 request matching and directed D4/91 response bytes."""
 
-    def test_d4_cmd0_query_is_broadcast_for_d2_01_12(self) -> None:
-        packet = build_ute_teach_in_query(
+    def test_directed_response_matches_field_capture(self) -> None:
+        response = build_ute_teach_in_response(
             sender_id=BASE_ID,
+            target_id=TARGET_ID,
             eep="D2-01-12",
-            channel=1,
+            number_of_channels=2,
+            manufacturer_id=0x046,
         )
 
-        self.assertEqual(packet.packet_type, PACKET.RADIO_ERP1)
+        self.assertEqual(response.packet_type, PACKET.RADIO_ERP1)
         self.assertEqual(
-            packet.data,
-            [
-                RORG.UTE,
-                0x80,
-                0x01,
-                0x00,
-                0x00,
-                0x12,
-                0x01,
-                RORG.VLD,
-                *BASE_ID,
-                0x00,
-            ],
+            response.data, [RORG.UTE, *UTE_RESPONSE_FIELDS, *BASE_ID, 0x00]
         )
-        self.assertEqual(
-            packet.optional,
-            [0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00],
-        )
+        self.assertEqual(response.optional, [0x03, *TARGET_ID, 0xFF, 0x00])
 
-    def test_query_rejects_missing_or_invalid_base_id(self) -> None:
-        for sender in (None, [0xA1, 0xB2, 0xC3], [0xA1, 0xB2, 0xC3, 0x100]):
-            with self.subTest(sender=sender), self.assertRaises(ValueError):
-                build_ute_teach_in_query(
-                    sender_id=sender,
-                    eep="D2-01-12",
-                    channel=0,
-                )
-
-    def test_response_parser_requires_every_query_binding_field(self) -> None:
-        response = _ute_response(channel=1)
-        parsed = parse_ute_teach_in_response(
-            response,
-            requester_id=BASE_ID,
+    def test_request_parser_binds_label_eurid_and_every_ute_field(self) -> None:
+        request = _ute_request()
+        parsed = parse_ute_teach_in_request(
+            request,
+            target_id=TARGET_ID,
             eep="D2-01-12",
-            channel=1,
-            manufacturer_id=0,
+            number_of_channels=2,
+            manufacturer_id=0x046,
         )
         self.assertIsNotNone(parsed)
         assert parsed is not None
         self.assertEqual(parsed["sender_id"], TARGET_ID)
-        self.assertEqual(parsed["destination"], BASE_ID)
-        self.assertEqual(parsed["response_code"], 0x01)
+        self.assertEqual(parsed["number_of_channels"], 2)
+        self.assertEqual(parsed["manufacturer_id"], 0x046)
+        self.assertEqual(parsed["eep"], "D2-01-12")
 
-        for wrong_response in (
-            _ute_response(destination=[0x01, 0x02, 0x03, 0x04], channel=1),
-            _ute_response(channel=0),
-            _ute_response(channel=1, eep_type=0x11),
-            _ute_response(channel=1, manufacturer_id=1),
-            _ute_response(channel=1, result=0x00),
+        for wrong_request in (
+            _ute_request(target=OTHER_ID),
+            _ute_request(destination=BASE_ID),
+            _ute_request(flags=0x80),
+            _ute_request(number_of_channels=1),
+            _ute_request(eep_type=0x11),
+            _ute_request(manufacturer_id=0),
         ):
-            with self.subTest(response=wrong_response.data):
-                if wrong_response.data[1] == 0x81:
-                    self.assertIsNotNone(
-                        parse_ute_teach_in_response(
-                            wrong_response,
-                            requester_id=BASE_ID,
-                            eep="D2-01-12",
-                            channel=1,
-                            manufacturer_id=0,
-                        )
+            with self.subTest(request=wrong_request.data):
+                self.assertIsNone(
+                    parse_ute_teach_in_request(
+                        wrong_request,
+                        target_id=TARGET_ID,
+                        eep="D2-01-12",
+                        number_of_channels=2,
+                        manufacturer_id=0x046,
                     )
-                else:
-                    self.assertIsNone(
-                        parse_ute_teach_in_response(
-                            wrong_response,
-                            requester_id=BASE_ID,
-                            eep="D2-01-12",
-                            channel=1,
-                            manufacturer_id=0,
-                        )
-                    )
+                )
+
+    def test_response_rejects_missing_or_invalid_ids(self) -> None:
+        for sender, target in (
+            (None, TARGET_ID),
+            ([0xA1, 0xB2, 0xC3], TARGET_ID),
+            (BASE_ID, [0x00, 0x3A, 0xFC]),
+            (BASE_ID, [0x00, 0x3A, 0xFC, 0x100]),
+        ):
+            with (
+                self.subTest(sender=sender, target=target),
+                self.assertRaises(ValueError),
+            ):
+                build_ute_teach_in_response(
+                    sender_id=sender,
+                    target_id=target,
+                    eep="D2-01-12",
+                    number_of_channels=2,
+                    manufacturer_id=0x046,
+                )
+
+    def test_commission_button_uses_home_assistant_enum(self) -> None:
+        button = UTECommissionButton(SimpleNamespace(), TARGET_ID, "Ubiwizz", 0)
+        self.assertIs(button.entity_category, EntityCategory.CONFIG)
 
 
 @unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
 class UteDiscoveryFlowTests(unittest.IsolatedAsyncioTestCase):
-    """Exercise the bounded gateway-query / actuator-response association flow."""
+    """Exercise explicit-EURID UTE request -> directed-response association."""
 
     async def asyncSetUp(self) -> None:
         self._config_dir = TemporaryDirectory()
@@ -236,17 +235,19 @@ class UteDiscoveryFlowTests(unittest.IsolatedAsyncioTestCase):
         self._flows.append(flow)
         return flow
 
-    async def _start(self, flow, *, name="New relay", channel=0):
-        result = await flow.async_step_ute_discover({"name": name, "channel": channel})
+    async def _start(self, flow, *, name="New relay", channel=0, target=TARGET_ID):
+        result = await flow.async_step_ute_discover(
+            {
+                "name": name,
+                "qr_code": ":".join(f"{byte:02X}" for byte in target),
+                "channel": channel,
+            }
+        )
         self.assertEqual(result["type"], FlowResultType.SHOW_PROGRESS)
         self.assertEqual(result["step_id"], "ute_discover_progress")
         self.assertTrue(get_learn_manager(self.hass).is_active)
         dongle = flow.config_entry.runtime_data
-        self.assertEqual(len(dongle.sent), 1)
-        self.assertEqual(dongle.sent[0].data[0:3], [RORG.UTE, 0x80, channel])
-        written = dongle.written_callbacks[0]
-        self.assertIsNotNone(written)
-        written()
+        self.assertEqual(dongle.sent, [])
         return dongle
 
     async def _finished_result(self, flow):
@@ -255,26 +256,26 @@ class UteDiscoveryFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(progressed["type"], FlowResultType.SHOW_PROGRESS_DONE)
         return await flow.async_step_ute_discover_result()
 
-    async def test_matched_cmd1_and_esp3_ok_create_selected_output(self):
+    async def test_exact_d4_a0_and_esp3_ok_create_selected_output(self):
         entry = self._entry()
         flow = self._flow(entry)
         dongle = await self._start(flow, name="Boiler output 2", channel=1)
 
         async_dispatcher_send(
-            self.hass,
-            SIGNAL_RECEIVE_MESSAGE,
-            _ute_response(channel=0),
+            self.hass, SIGNAL_RECEIVE_MESSAGE, _ute_request(target=OTHER_ID)
         )
         async_dispatcher_send(
-            self.hass,
-            SIGNAL_RECEIVE_MESSAGE,
-            _ute_response(channel=1, destination=[0x01, 0x02, 0x03, 0x04]),
+            self.hass, SIGNAL_RECEIVE_MESSAGE, _ute_request(number_of_channels=1)
         )
+        self.assertEqual(dongle.sent, [])
         self.assertTrue(get_learn_manager(self.hass).is_active)
 
-        async_dispatcher_send(
-            self.hass, SIGNAL_RECEIVE_MESSAGE, _ute_response(channel=1)
+        async_dispatcher_send(self.hass, SIGNAL_RECEIVE_MESSAGE, _ute_request())
+        self.assertEqual(len(dongle.sent), 1)
+        self.assertEqual(
+            dongle.sent[0].data, [RORG.UTE, *UTE_RESPONSE_FIELDS, *BASE_ID, 0x00]
         )
+        self.assertEqual(dongle.sent[0].optional, [0x03, *TARGET_ID, 0xFF, 0x00])
         dongle.response_callbacks[0](True)
         result = await self._finished_result(flow)
 
@@ -285,7 +286,8 @@ class UteDiscoveryFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(row["platform"], "switch")
         self.assertEqual(row["actuator_profile"], "ubiwizz_ubid1507c")
         self.assertEqual(row["radio_metadata"]["eep"], "D2-01-12")
-        self.assertEqual(row["radio_metadata"]["manufacturer_id"], 0)
+        self.assertEqual(row["radio_metadata"]["manufacturer_id"], 0x046)
+        self.assertNotIn("channel", row["radio_metadata"])
         self.assertEqual(entry.options[CONF_UI_DEVICES], [])
 
     async def test_same_module_can_add_its_other_output(self):
@@ -300,7 +302,7 @@ class UteDiscoveryFlowTests(unittest.IsolatedAsyncioTestCase):
                 "radio_metadata": {
                     "sender_id": TARGET_ID,
                     "eep": "D2-01-12",
-                    "manufacturer_id": 0,
+                    "manufacturer_id": 0x046,
                     "evidence": "exact",
                     "eep_source": "radio_declared",
                 },
@@ -309,9 +311,7 @@ class UteDiscoveryFlowTests(unittest.IsolatedAsyncioTestCase):
         entry = self._entry([existing])
         flow = self._flow(entry)
         dongle = await self._start(flow, channel=1)
-        async_dispatcher_send(
-            self.hass, SIGNAL_RECEIVE_MESSAGE, _ute_response(channel=1)
-        )
+        async_dispatcher_send(self.hass, SIGNAL_RECEIVE_MESSAGE, _ute_request())
         dongle.response_callbacks[0](True)
 
         result = await self._finished_result(flow)
@@ -322,13 +322,21 @@ class UteDiscoveryFlowTests(unittest.IsolatedAsyncioTestCase):
             [(TARGET_ID, 0), (TARGET_ID, 1)],
         )
 
-    async def test_no_base_id_transport_rejection_timeout_and_rejection_do_not_save(
+    async def test_invalid_target_queue_rejection_timeout_and_collision_do_not_save(
         self,
     ):
+        entry = self._entry()
+        invalid_flow = self._flow(entry)
+        invalid = await invalid_flow.async_step_ute_discover(
+            {"name": "Invalid", "qr_code": "not-an-eurid", "channel": 0}
+        )
+        self.assertEqual(invalid["type"], FlowResultType.FORM)
+        self.assertEqual(invalid["errors"], {"qr_code": "invalid_ute_target"})
+
         no_base_entry = self._entry(base_id=None)
         no_base_flow = self._flow(no_base_entry)
         no_base = await no_base_flow.async_step_ute_discover(
-            {"name": "No base", "channel": 0}
+            {"name": "No base", "qr_code": "00:3A:FC:98", "channel": 0}
         )
         self.assertEqual(no_base["type"], FlowResultType.ABORT)
         self.assertEqual(no_base["reason"], "ute_discovery_base_id_unavailable")
@@ -336,24 +344,35 @@ class UteDiscoveryFlowTests(unittest.IsolatedAsyncioTestCase):
         rejected_entry = self._entry()
         rejected_entry.runtime_data.queue_result = False
         rejected_flow = self._flow(rejected_entry)
-        started = await rejected_flow.async_step_ute_discover(
-            {"name": "Rejected", "channel": 0}
-        )
-        self.assertEqual(started["type"], FlowResultType.SHOW_PROGRESS)
+        rejected_dongle = await self._start(rejected_flow)
+        async_dispatcher_send(self.hass, SIGNAL_RECEIVE_MESSAGE, _ute_request())
+        self.assertEqual(len(rejected_dongle.sent), 1)
         rejected = await self._finished_result(rejected_flow)
         self.assertEqual(rejected["type"], FlowResultType.ABORT)
         self.assertEqual(rejected["reason"], "ute_discovery_transport_rejected")
 
-        response_entry = self._entry()
-        response_flow = self._flow(response_entry)
-        response_dongle = await self._start(response_flow, channel=0)
-        async_dispatcher_send(
-            self.hass, SIGNAL_RECEIVE_MESSAGE, _ute_response(channel=0, result=0x03)
+        collision_entry = self._entry(
+            [
+                UI_DEVICE_SCHEMA(
+                    {
+                        "id": TARGET_ID,
+                        "platform": "switch",
+                        "name": "Already configured",
+                        "channel": 0,
+                        "switch_type": "default",
+                        "actuator_profile": "ubiwizz_ubid1507c",
+                        "radio_metadata": {"eep": "D2-01-12"},
+                    }
+                )
+            ]
         )
-        response_dongle.response_callbacks[0](True)
-        response_result = await self._finished_result(response_flow)
-        self.assertEqual(response_result["type"], FlowResultType.ABORT)
-        self.assertEqual(response_result["reason"], "ute_discovery_response_rejected")
+        collision_flow = self._flow(collision_entry)
+        collision_dongle = await self._start(collision_flow, channel=0)
+        async_dispatcher_send(self.hass, SIGNAL_RECEIVE_MESSAGE, _ute_request())
+        self.assertEqual(collision_dongle.sent, [])
+        collision = await self._finished_result(collision_flow)
+        self.assertEqual(collision["type"], FlowResultType.ABORT)
+        self.assertEqual(collision["reason"], "ute_discovery_collision")
 
         timeout_entry = self._entry()
         timeout_flow = self._flow(timeout_entry)
@@ -368,9 +387,7 @@ class UteDiscoveryFlowTests(unittest.IsolatedAsyncioTestCase):
         entry = self._entry()
         flow = self._flow(entry)
         dongle = await self._start(flow, channel=0)
-        async_dispatcher_send(
-            self.hass, SIGNAL_RECEIVE_MESSAGE, _ute_response(channel=0)
-        )
+        async_dispatcher_send(self.hass, SIGNAL_RECEIVE_MESSAGE, _ute_request())
         response_callback = dongle.response_callbacks[0]
         flow.async_remove()
         response_callback(True)
@@ -382,7 +399,7 @@ class UteDiscoveryFlowTests(unittest.IsolatedAsyncioTestCase):
 
 @unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
 class UteCommissioningActionTests(unittest.IsolatedAsyncioTestCase):
-    """Keep the entity action scoped, callback-driven, and D2-command-free."""
+    """Keep the entity action targeted, callback-driven, and D2-command-free."""
 
     def _entity(self, base_id: list[int] | None = None):
         dongle = FakeDongle(base_id)
@@ -405,36 +422,43 @@ class UteCommissioningActionTests(unittest.IsolatedAsyncioTestCase):
         for entity in getattr(self, "_entities", []):
             entity._cancel_ute_commission_timeout()
 
-    async def test_action_starts_deadline_only_when_query_is_written(self):
+    async def test_action_listens_then_sends_exact_directed_response(self):
         entity, dongle = self._entity(BASE_ID)
         self._entities = [entity]
 
         await entity.async_start_ute_commissioning()
         self.assertEqual(
-            entity.extra_state_attributes["ute_commissioning_state"], "queued"
-        )
-        self.assertEqual(dongle.sent[0].data[0:3], [RORG.UTE, 0x80, 1])
-
-        dongle.written_callbacks[0]()
-        self.assertEqual(
-            entity.extra_state_attributes["ute_commissioning_state"], "awaiting_esp3"
-        )
-        dongle.response_callbacks[0](True)
-        self.assertEqual(
             entity.extra_state_attributes["ute_commissioning_state"],
-            "awaiting_ute_response",
+            "awaiting_ute_request",
+        )
+        self.assertEqual(dongle.sent, [])
+
+        entity.value_changed(_ute_request(target=OTHER_ID))
+        entity.value_changed(_ute_request(number_of_channels=1))
+        self.assertEqual(dongle.sent, [])
+
+        entity.value_changed(_ute_request())
+        self.assertEqual(
+            entity.extra_state_attributes["ute_commissioning_state"], "response_queued"
+        )
+        self.assertEqual(
+            dongle.sent[0].data, [RORG.UTE, *UTE_RESPONSE_FIELDS, *BASE_ID, 0x00]
+        )
+        self.assertEqual(dongle.sent[0].optional, [0x03, *TARGET_ID, 0xFF, 0x00])
+        self.assertEqual(
+            entity.extra_state_attributes["ute_commissioning_response_code"], 0x01
+        )
+        self.assertEqual(
+            entity.extra_state_attributes["ute_commissioning_transmissions"], 1
         )
 
-        entity.value_changed(_ute_response(channel=1))
+        dongle.response_callbacks[0](True)
         attributes = entity.extra_state_attributes
-        self.assertEqual(attributes["ute_commissioning_state"], "accepted")
+        self.assertEqual(attributes["ute_commissioning_state"], "response_sent")
         self.assertTrue(attributes["ute_commissioning_last_esp3_ack"])
-        self.assertEqual(attributes["ute_commissioning_response_code"], 0x01)
-        self.assertEqual(attributes["ute_commissioning_transmissions"], 1)
+        self.assertFalse(any(packet.data[0] == RORG.VLD for packet in dongle.sent))
 
-    async def test_absent_base_unsupported_entity_and_bad_responses_do_not_confirm(
-        self,
-    ):
+    async def test_absent_base_unsupported_and_late_request_do_not_confirm(self):
         entity, dongle = self._entity(None)
         self._entities = [entity]
         await entity.async_start_ute_commissioning()
@@ -451,38 +475,16 @@ class UteCommissioningActionTests(unittest.IsolatedAsyncioTestCase):
             await unsupported.async_start_ute_commissioning()
         self.assertEqual(unsupported_dongle.sent, [])
 
-        entity, dongle = self._entity(BASE_ID)
-        self._entities.append(entity)
-        await entity.async_start_ute_commissioning()
-        dongle.written_callbacks[0]()
-        dongle.response_callbacks[0](True)
-        entity.value_changed(_ute_response(channel=0))
-        entity.value_changed(_ute_response(channel=1, eep_type=0x11))
-        self.assertEqual(
-            entity.extra_state_attributes["ute_commissioning_state"],
-            "awaiting_ute_response",
-        )
-        entity.value_changed(_ute_response(channel=1, result=0x03))
-        self.assertEqual(
-            entity.extra_state_attributes["ute_commissioning_state"],
-            "response_rejected",
-        )
-
-    async def test_late_response_after_700ms_deadline_is_ignored(self):
-        entity, dongle = self._entity(BASE_ID)
-        self._entities = [entity]
-        with patch.object(switch, "UTE_QUERY_MAX_RESPONSE_SECONDS", 0.001):
-            await entity.async_start_ute_commissioning()
-            dongle.written_callbacks[0]()
-            dongle.response_callbacks[0](True)
+        late, late_dongle = self._entity(BASE_ID)
+        self._entities.append(late)
+        with patch.object(switch, "UTE_ASSOCIATION_WINDOW_SECONDS", 0.001):
+            await late.async_start_ute_commissioning()
             await asyncio.sleep(0.01)
         self.assertEqual(
-            entity.extra_state_attributes["ute_commissioning_state"], "response_timeout"
+            late.extra_state_attributes["ute_commissioning_state"], "request_timeout"
         )
-        entity.value_changed(_ute_response(channel=1))
-        self.assertEqual(
-            entity.extra_state_attributes["ute_commissioning_state"], "response_timeout"
-        )
+        late.value_changed(_ute_request())
+        self.assertEqual(late_dongle.sent, [])
 
 
 if __name__ == "__main__":

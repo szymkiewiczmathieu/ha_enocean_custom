@@ -39,15 +39,15 @@ send_teach_in:
       integration: enocean_custom
 
 commission_ute:
-  name: Commission Ubiwizz by UTE
+  name: Commission Ubiwizz by directed UTE response
   description: >-
-    After putting the selected UBID1507C output into its documented local
-    association mode (three short PRESS presses for output 1; the same three
-    plus one extra short PRESS for output 2), send one standard broadcast D4
-    CMD 0 Universal Teach-in query. The query uses the resolved dongle Base ID
-    and awaits the module's addressed CMD 1 response. The module must respond
-    within 500 ms; this action allows 700 ms from the physical write. It never
-    sends a D2 relay command.
+    Open a listener for the selected UBID1507C output before its documented
+    local association sequence (three short PRESS presses for output 1; the
+    same three plus one extra short PRESS for output 2). When that configured
+    module broadcasts the exact D4/A0 request, send the directed accepted D4/91
+    response using the resolved dongle Base ID and the module EURID. It never
+    sends a broadcast UTE query or a D2 relay command. ESP3 acceptance proves
+    only dongle transport; verify normal D2 feedback afterwards.
   target:
     entity:
       domain: switch

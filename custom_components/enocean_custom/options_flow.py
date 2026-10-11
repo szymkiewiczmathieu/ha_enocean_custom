@@ -89,12 +89,7 @@ from .ubiwizz_repeater import (
     UbiwizzRepeaterDiagnosticRequest,
     parse_ubiwizz_repeater_request,
 )
-from .ute import (
-    UTE_MANUFACTURER_ID_UNSPECIFIED,
-    UTE_QUERY_MAX_RESPONSE_SECONDS,
-    build_ute_teach_in_query,
-    parse_ute_teach_in_response,
-)
+from .ute import build_ute_teach_in_response, parse_ute_teach_in_request
 from .yaml_import import yaml_inventory
 
 _FLOW_OWNER = "options_flow"
@@ -118,11 +113,9 @@ PAIRING_TIMEOUT = 120.0
 PAIRING_RELAY_INTERVAL = 4.0
 PAIRING_DIMMER_INTERVAL = 5.0
 PAIRING_DIMMER_ATTEMPTS = 3
-# Association remains available long enough for the operator to perform the
-# UBID1507C physical PRESS sequence. Each individual broadcast query still gets
-# the EEP 2.6.7 query-side 700 ms response deadline.
-UTE_DISCOVERY_TIMEOUT = 60.0
-UTE_DISCOVERY_QUERY_RETRY_SECONDS = 1.0
+# Association remains open long enough for the operator to complete the local
+# UBID1507C PRESS sequence. D4/A0 is answered immediately when received.
+UTE_DISCOVERY_TIMEOUT = 30.0
 
 
 def _unique_id_for(device: dict[str, Any]) -> str:
@@ -216,6 +209,9 @@ def _ute_discovery_schema() -> vol.Schema:
     return vol.Schema(
         {
             vol.Required(CONF_NAME): selector.TextSelector(
+                selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+            ),
+            vol.Required(_CONF_QR_CODE): selector.TextSelector(
                 selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
             ),
             vol.Required(CONF_CHANNEL, default=0): selector.NumberSelector(
@@ -416,16 +412,13 @@ class EnOceanOptionsFlow(OptionsFlow):
         self._pairing_unsubscribe = None
         self._ute_discovery_name: str | None = None
         self._ute_discovery_channel: int | None = None
+        self._ute_discovery_target_id: list[int] | None = None
         self._ute_discovery_sender_id: list[int] | None = None
         self._ute_discovery_generation = 0
         self._ute_discovery_task: asyncio.Task[None] | None = None
         self._ute_discovery_outcome: str | None = None
         self._ute_discovery_device: dict[str, Any] | None = None
-        self._ute_discovery_query_token: object | None = None
-        self._ute_discovery_query_written = False
-        self._ute_discovery_query_esp3_accepted: bool | None = None
-        self._ute_discovery_query_timeout: asyncio.TimerHandle | None = None
-        self._ute_discovery_retry: asyncio.TimerHandle | None = None
+        self._ute_discovery_response_token: object | None = None
         self._ute_discovery_owner = f"{_FLOW_OWNER}:ute:{id(self)}"
         self._ubiwizz_repeater_request: UbiwizzRepeaterDiagnosticRequest | None = None
         self._yaml_import_result: dict[str, int] | None = None
@@ -512,26 +505,34 @@ class EnOceanOptionsFlow(OptionsFlow):
         )
 
     async def async_step_ute_discover(self, user_input=None):
-        """Open an operator-controlled UTE association session for one output."""
+        """Open a targeted UTE listener for one explicit Ubiwizz output."""
         if user_input is not None:
             channel = _exact_int(user_input.get(CONF_CHANNEL))
+            target_id = _parse_commissioning_code(user_input.get(_CONF_QR_CODE))
             if channel not in UBID1507C.output_channels:
                 return self._show_ute_discovery_form(
                     errors={CONF_CHANNEL: "invalid_channel"}
                 )
+            if target_id is None:
+                return self._show_ute_discovery_form(
+                    errors={_CONF_QR_CODE: "invalid_ute_target"}
+                )
             self._ute_discovery_name = user_input[CONF_NAME]
             self._ute_discovery_channel = channel
+            self._ute_discovery_target_id = target_id
             self._ute_discovery_outcome = None
             self._ute_discovery_device = None
+            self._ute_discovery_response_token = None
             self._ute_discovery_task = None
             return await self.async_step_ute_discover_progress()
         return self._show_ute_discovery_form()
 
     async def async_step_ute_discover_progress(self, user_input=None):
-        """Broadcast CMD 0 queries while the 60-second Ubiwizz window is open."""
+        """Listen before the local PRESS sequence; do not broadcast a UTE query."""
         if (
             self._ute_discovery_name is None
             or self._ute_discovery_channel not in UBID1507C.output_channels
+            or self._ute_discovery_target_id is None
         ):
             return self.async_abort(reason="device_form_missing")
         task = self._ute_discovery_task
@@ -544,9 +545,6 @@ class EnOceanOptionsFlow(OptionsFlow):
             self._ute_discovery_generation += 1
             generation = self._ute_discovery_generation
             self._ute_discovery_sender_id = sender_id
-            self._ute_discovery_query_token = None
-            self._ute_discovery_query_written = False
-            self._ute_discovery_query_esp3_accepted = None
             if not manager.start_ute(
                 UTE_DISCOVERY_TIMEOUT,
                 owner=self._ute_discovery_owner,
@@ -556,18 +554,16 @@ class EnOceanOptionsFlow(OptionsFlow):
             ):
                 return self.async_abort(reason="learn_in_progress")
             task = self.hass.async_create_task(
-                manager.wait(), "EnOcean gateway-initiated UTE discovery"
+                manager.wait(), "EnOcean targeted UTE association"
             )
             task.add_done_callback(
                 lambda _task: self._ute_discovery_window_finished(generation)
             )
             self._ute_discovery_task = task
-            if not self._send_ute_discovery_query(generation):
-                self._complete_ute_discovery(generation, "transport_rejected")
         if not task.done():
             return self.async_show_progress(
                 step_id="ute_discover_progress",
-                progress_action="waiting_for_ute_response",
+                progress_action="waiting_for_ute_request",
                 progress_task=task,
                 description_placeholders={"timeout": str(round(UTE_DISCOVERY_TIMEOUT))},
             )
@@ -575,93 +571,22 @@ class EnOceanOptionsFlow(OptionsFlow):
             self._ute_discovery_outcome = "timeout"
         return self.async_show_progress_done(next_step_id="ute_discover_result")
 
-    def _send_ute_discovery_query(self, generation: int) -> bool:
-        """Queue one broadcast CMD 0 query for the current user session."""
-        manager = get_learn_manager(self.hass)
-        sender_id = self._ute_discovery_sender_id
+    def _ute_discovery_device_from_request(self) -> dict[str, Any] | None:
+        """Build one explicit Ubiwizz row after the exact D4/A0 is observed."""
+        target_id = self._ute_discovery_target_id
         channel = self._ute_discovery_channel
         if (
-            generation != self._ute_discovery_generation
-            or self._ute_discovery_outcome is not None
-            or not manager.is_active
-            or manager.owner != self._ute_discovery_owner
-            or manager.session_kind != "ute"
-            or sender_id is None
+            not isinstance(target_id, list)
+            or len(target_id) != 4
+            or any(type(byte) is not int or not 0 <= byte <= 0xFF for byte in target_id)
             or channel not in UBID1507C.output_channels
-        ):
-            return False
-        try:
-            query = build_ute_teach_in_query(
-                sender_id=sender_id,
-                eep=UBID1507C.eep,
-                channel=channel,
-            )
-        except ValueError:
-            return False
-        token = object()
-        self._ute_discovery_query_token = token
-        self._ute_discovery_query_written = False
-        self._ute_discovery_query_esp3_accepted = None
-        gateway = self.config_entry.runtime_data
-        queued = gateway.send(
-            query,
-            response_callback=lambda accepted: self._ute_discovery_transport_received(
-                generation, token, accepted
-            ),
-            written_callback=lambda: self._ute_discovery_query_written_callback(
-                generation, token
-            ),
-        )
-        if not queued:
-            self._ute_discovery_query_token = None
-        return bool(queued)
-
-    @callback
-    def _ute_discovery_query_written_callback(
-        self, generation: int, token: object
-    ) -> None:
-        """Start the 700 ms requester deadline from the physical transmission."""
-        manager = get_learn_manager(self.hass)
-        if (
-            generation != self._ute_discovery_generation
-            or token is not self._ute_discovery_query_token
-            or self._ute_discovery_outcome is not None
-            or not manager.is_active
-            or manager.owner != self._ute_discovery_owner
-        ):
-            return
-        self._ute_discovery_query_written = True
-        if self._ute_discovery_query_timeout is not None:
-            self._ute_discovery_query_timeout.cancel()
-        self._ute_discovery_query_timeout = self.hass.loop.call_later(
-            UTE_QUERY_MAX_RESPONSE_SECONDS,
-            self._ute_discovery_query_timed_out,
-            generation,
-            token,
-        )
-
-    def _ute_discovery_device_from_response(
-        self, response: dict[str, object]
-    ) -> dict[str, Any] | None:
-        """Build one explicit Ubiwizz switch row from the matched CMD 1 reply."""
-        sender_id = response.get("sender_id")
-        channel = self._ute_discovery_channel
-        manufacturer_id = response.get("manufacturer_id")
-        if (
-            not isinstance(sender_id, list)
-            or len(sender_id) != 4
-            or any(type(byte) is not int or not 0 <= byte <= 0xFF for byte in sender_id)
-            or channel not in UBID1507C.output_channels
-            or type(manufacturer_id) is not int
-            or not 0 <= manufacturer_id <= 0x7FF
         ):
             return None
         metadata = safe_metadata(
             radio=RadioIdentity(
-                sender_id=tuple(sender_id),
+                sender_id=(target_id[0], target_id[1], target_id[2], target_id[3]),
                 eep=UBID1507C.eep,
-                manufacturer_id=manufacturer_id,
-                channel=channel,
+                manufacturer_id=UBID1507C.ute_manufacturer_id,
                 evidence=Evidence.EXACT,
                 eep_source="radio_declared",
             )
@@ -669,7 +594,7 @@ class EnOceanOptionsFlow(OptionsFlow):
         try:
             return UI_DEVICE_SCHEMA(
                 {
-                    "id": sender_id,
+                    "id": target_id,
                     "platform": "switch",
                     "name": self._ute_discovery_name,
                     "channel": channel,
@@ -683,115 +608,86 @@ class EnOceanOptionsFlow(OptionsFlow):
 
     @callback
     def _ute_discovery_packet_received(self, generation: int, packet: object) -> None:
-        """Accept only the exact addressed CMD 1 reply to the live CMD 0 query."""
+        """Send D4/91 only for the target's exact broadcast D4/A0 request."""
         manager = get_learn_manager(self.hass)
-        token = self._ute_discovery_query_token
         sender_id = self._ute_discovery_sender_id
-        channel = self._ute_discovery_channel
+        target_id = self._ute_discovery_target_id
         if (
             generation != self._ute_discovery_generation
             or self._ute_discovery_outcome is not None
-            or token is None
-            or not self._ute_discovery_query_written
+            or self._ute_discovery_response_token is not None
             or not manager.is_active
             or manager.owner != self._ute_discovery_owner
             or manager.session_kind != "ute"
             or sender_id is None
-            or channel not in UBID1507C.output_channels
+            or target_id is None
         ):
             return
-        response = parse_ute_teach_in_response(
-            packet,
-            requester_id=sender_id,
-            eep=UBID1507C.eep,
-            channel=channel,
-            manufacturer_id=UTE_MANUFACTURER_ID_UNSPECIFIED,
-        )
-        if response is None:
+        if (
+            parse_ute_teach_in_request(
+                packet,
+                target_id=target_id,
+                eep=UBID1507C.eep,
+                number_of_channels=UBID1507C.ute_number_of_channels,
+                manufacturer_id=UBID1507C.ute_manufacturer_id,
+            )
+            is None
+        ):
             return
-        if response["response_code"] != 0x01:
-            self._complete_ute_discovery(generation, "response_rejected")
-            return
-        device = self._ute_discovery_device_from_response(response)
+        device = self._ute_discovery_device_from_request()
         if device is None or self._options_with_added_device(device) is None:
             self._complete_ute_discovery(generation, "collision")
             return
+        try:
+            response = build_ute_teach_in_response(
+                sender_id=sender_id,
+                target_id=target_id,
+                eep=UBID1507C.eep,
+                number_of_channels=UBID1507C.ute_number_of_channels,
+                manufacturer_id=UBID1507C.ute_manufacturer_id,
+            )
+        except ValueError:
+            self._complete_ute_discovery(generation, "invalid_request")
+            return
+
+        token = object()
+        self._ute_discovery_response_token = token
         self._ute_discovery_device = device
-        if self._ute_discovery_query_timeout is not None:
-            self._ute_discovery_query_timeout.cancel()
-            self._ute_discovery_query_timeout = None
-        if self._ute_discovery_query_esp3_accepted is True:
-            self._complete_ute_discovery(generation, "success")
+        gateway = self.config_entry.runtime_data
+        queued = gateway.send(
+            response,
+            response_callback=lambda accepted: self._ute_discovery_transport_received(
+                generation, token, accepted
+            ),
+        )
+        if not queued:
+            self._complete_ute_discovery(generation, "transport_rejected")
 
     @callback
     def _ute_discovery_transport_received(
         self, generation: int, token: object, accepted: bool
     ) -> None:
-        """Require the dongle's ESP3 result for the exact broadcast query."""
+        """Persist only after the dongle accepts the directed D4/91 response."""
         manager = get_learn_manager(self.hass)
         if (
             generation != self._ute_discovery_generation
-            or token is not self._ute_discovery_query_token
+            or token is not self._ute_discovery_response_token
             or self._ute_discovery_outcome is not None
             or not manager.is_active
             or manager.owner != self._ute_discovery_owner
             or manager.session_kind != "ute"
         ):
             return
-        if accepted is not True:
-            self._complete_ute_discovery(generation, "transport_rejected")
-            return
-        self._ute_discovery_query_esp3_accepted = True
-        if self._ute_discovery_device is not None:
-            self._complete_ute_discovery(generation, "success")
-
-    @callback
-    def _ute_discovery_query_timed_out(self, generation: int, token: object) -> None:
-        """Retry a silent query without extending the 60-second user session."""
-        manager = get_learn_manager(self.hass)
-        if (
-            generation != self._ute_discovery_generation
-            or token is not self._ute_discovery_query_token
-            or self._ute_discovery_outcome is not None
-            or self._ute_discovery_device is not None
-            or not manager.is_active
-            or manager.owner != self._ute_discovery_owner
-        ):
-            return
-        self._ute_discovery_query_timeout = None
-        self._ute_discovery_query_token = None
-        self._ute_discovery_retry = self.hass.loop.call_later(
-            UTE_DISCOVERY_QUERY_RETRY_SECONDS,
-            self._retry_ute_discovery_query,
-            generation,
+        self._complete_ute_discovery(
+            generation, "success" if accepted is True else "transport_rejected"
         )
 
     @callback
-    def _retry_ute_discovery_query(self, generation: int) -> None:
-        """Send the next bounded CMD 0 attempt while the user window is alive."""
-        self._ute_discovery_retry = None
-        if not self._send_ute_discovery_query(generation):
-            self._complete_ute_discovery(generation, "transport_rejected")
-
-    @callback
     def _ute_discovery_window_finished(self, generation: int) -> None:
-        """Cancel per-query callbacks once the bounded user window closes."""
+        """Invalidate an expired listener's delayed transport callbacks."""
         if generation != self._ute_discovery_generation:
             return
-        self._cancel_ute_discovery_query_callbacks()
-
-    @callback
-    def _cancel_ute_discovery_query_callbacks(self) -> None:
-        """Cancel transient query timers without changing the user-window state."""
-        if self._ute_discovery_query_timeout is not None:
-            self._ute_discovery_query_timeout.cancel()
-            self._ute_discovery_query_timeout = None
-        if self._ute_discovery_retry is not None:
-            self._ute_discovery_retry.cancel()
-            self._ute_discovery_retry = None
-        self._ute_discovery_query_token = None
-        self._ute_discovery_query_written = False
-        self._ute_discovery_query_esp3_accepted = None
+        self._ute_discovery_response_token = None
 
     @callback
     def _complete_ute_discovery(self, generation: int, outcome: str) -> None:
@@ -799,18 +695,18 @@ class EnOceanOptionsFlow(OptionsFlow):
         if generation != self._ute_discovery_generation:
             return
         self._ute_discovery_outcome = outcome
-        self._cancel_ute_discovery_query_callbacks()
+        self._ute_discovery_response_token = None
         get_learn_manager(self.hass).stop(owner=self._ute_discovery_owner)
 
     @callback
     def _cancel_ute_discovery_session(self) -> None:
         """Invalidate delayed UTE callbacks when the options flow is discarded."""
         self._ute_discovery_generation += 1
-        self._cancel_ute_discovery_query_callbacks()
+        self._ute_discovery_response_token = None
         get_learn_manager(self.hass).stop(owner=self._ute_discovery_owner)
 
     async def async_step_ute_discover_result(self, user_input=None):
-        """Atomically save the one switch proved by CMD 1 and ESP3 OK."""
+        """Persist one explicitly identified module after its D4/91 is accepted."""
         if self._ute_discovery_outcome == "success" and self._ute_discovery_device:
             updated_options = self._options_with_added_device(
                 self._ute_discovery_device
@@ -823,8 +719,8 @@ class EnOceanOptionsFlow(OptionsFlow):
                 "timeout": "ute_discovery_timeout",
                 "base_id_unavailable": "ute_discovery_base_id_unavailable",
                 "transport_rejected": "ute_discovery_transport_rejected",
-                "response_rejected": "ute_discovery_response_rejected",
                 "collision": "ute_discovery_collision",
+                "invalid_request": "ute_discovery_failed",
             }.get(self._ute_discovery_outcome or "", "ute_discovery_failed")
         )
 

@@ -52,13 +52,13 @@ identity model are in [Device Intelligence](docs/device-intelligence.md).
   EEP identifies a data profile. Model claims require exact Product-ID evidence;
   manual EEP values remain operator assertions.
 - **No automatic UTE acknowledgement.** Radio transmission happens only through
-  an explicit supported action or service. The Ubiwizz `commission_ute` action
-  sends a gateway-initiated broadcast D4 CMD 0 query for its selected output;
-  the actuator returns the addressed CMD 1 response. For UBID1507C local
-  association, use three short `PRESS` presses for output 1, or those three
-  presses plus one more for output 2. The actuator response limit is 500 ms;
-  the gateway allows the EEP query-sender limit of 700 ms after wire write.
-  Unsolicited UTE requests are never acknowledged.
+  an explicit supported action or service. For UBID1507C, start the explicit
+  listener before the local association sequence (three short `PRESS` presses
+  for output 1, or those three presses plus one more for output 2). The module
+  must broadcast the exact D4/A0 request from its entered/configured EURID;
+  Home Assistant then sends the accepted directed D4/91 response from the
+  resolved dongle Base ID to that EURID. It never broadcasts a UTE query, and
+  unsolicited UTE requests are never acknowledged.
 - **ESP3 `OK` is transport evidence, not device evidence.** Switch and light
   state changes require matching inbound feedback where the profile supports it.
 - **Diagnostics are privacy-aware.** They expose lifecycle and aggregate radio

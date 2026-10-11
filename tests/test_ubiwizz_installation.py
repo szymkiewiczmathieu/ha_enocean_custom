@@ -31,6 +31,8 @@ class UbiwizzInstallationProfileTests(TestCase):
         self.assertEqual(UBID1507C.eep, "D2-01-12")
         self.assertEqual(UBID1507C.output_channels, (0, 1))
         self.assertEqual(UBID1507C.rated_output_current_a, 5)
+        self.assertEqual(UBID1507C.ute_number_of_channels, 2)
+        self.assertEqual(UBID1507C.ute_manufacturer_id, 0x046)
         self.assertEqual(UBID1507C.manual_url, UBIWIZZ_UBID1507C_MANUAL_URL)
         self.assertEqual(UBID1507C.product_url, UBIWIZZ_UBID1507C_PRODUCT_URL)
 

@@ -33,6 +33,8 @@ class UbiwizzActuatorProfile:
     eep: str
     output_channels: tuple[int, ...]
     rated_output_current_a: int
+    ute_number_of_channels: int
+    ute_manufacturer_id: int
     manual_url: str
     product_url: str
 
@@ -43,6 +45,9 @@ UBID1507C: Final = UbiwizzActuatorProfile(
     eep=UBIWIZZ_UBID1507C_EEP,
     output_channels=(0, 1),
     rated_output_current_a=5,
+    # Field-verified UTE request values, distinct from output channel 0 or 1.
+    ute_number_of_channels=2,
+    ute_manufacturer_id=0x046,
     manual_url=UBIWIZZ_UBID1507C_MANUAL_URL,
     product_url=UBIWIZZ_UBID1507C_PRODUCT_URL,
 )

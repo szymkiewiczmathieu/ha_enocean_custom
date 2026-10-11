@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
@@ -45,7 +46,7 @@ async def async_setup_entry(
 class UTECommissionButton(EnOceanEntity, ButtonEntity):
     """Visible action delegating to the matching protected switch service."""
 
-    _attr_entity_category = "config"
+    _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:radio-tower"
 
     def __init__(

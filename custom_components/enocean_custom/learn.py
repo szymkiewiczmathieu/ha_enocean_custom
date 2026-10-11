@@ -124,14 +124,15 @@ class LearnManager:
         owner: str,
         packet_callback: Callable[[Any], None],
     ) -> bool:
-        """Open an exclusive UTE response-listening session.
+        """Open an exclusive UTE request-listening session.
 
         The normal learn listener captures the first unknown sender. A UTE
-        session instead delegates every telegram to its owner, which has sent
-        the gateway-initiated D4 CMD 0 query and must match its addressed CMD 1
-        response. The manager never answers an inbound UTE telegram itself.
-        Both session types share one slot, so an ordinary learn window cannot
-        consume a commissioning response.
+        session instead delegates every telegram to its owner, which has an
+        explicit module EURID and must match that module's broadcast D4/A0
+        request before returning a directed D4/91 response. The manager never
+        answers an inbound UTE telegram itself. Both session types share one
+        slot, so an ordinary learn window cannot consume a commissioning
+        request.
         """
         if self.is_active:
             return False
