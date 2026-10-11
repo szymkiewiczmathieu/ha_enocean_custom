@@ -202,7 +202,7 @@
       },
       "ute_discover_confirm": {
         "title": "Send the directed UTE association telegram now",
-        "description": "Confirm only after the local PRESS sequence is active. Home Assistant will immediately send exactly `D4 91 02 46 00 12 01 D2 <dongle Base ID> 00` to the entered EURID with ERP1 optional data `03 <module EURID> FF 00`. It sends no broadcast UTE query and no D2 relay command. The switch is saved only after ESP3 OK, which proves dongle transport only; verify normal D2 feedback afterwards.",
+        "description": "Confirm only after the local PRESS sequence is active. Home Assistant will immediately send exactly `D4 91 02 46 00 12 01 D2 [dongle Base ID] 00` to the entered EURID with ERP1 optional data `03 [module EURID] FF 00`. It sends no broadcast UTE query and no D2 relay command. The switch is saved only after ESP3 OK, which proves dongle transport only; verify normal D2 feedback afterwards.",
         "data": {"ute_ready": "I have completed the local PRESS association sequence and am ready to send"}
       },
       "ubiwizz_repeater": {

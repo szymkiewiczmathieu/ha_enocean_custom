@@ -24,6 +24,8 @@ CLIMATE_PATH = ROOT / "custom_components/enocean_custom/climate.py"
 SWITCH_PATH = ROOT / "custom_components/enocean_custom/switch.py"
 INIT_PATH = ROOT / "custom_components/enocean_custom/__init__.py"
 MANIFEST_PATH = ROOT / "custom_components/enocean_custom/manifest.json"
+README_PATH = ROOT / "README.md"
+CHANGELOG_PATH = ROOT / "CHANGELOG.md"
 SERVICES_PATH = ROOT / "custom_components/enocean_custom/services.yaml"
 STRINGS_PATH = ROOT / "custom_components/enocean_custom/strings.json"
 EN_TRANSLATION_PATH = ROOT / "custom_components/enocean_custom/translations/en.json"
@@ -73,9 +75,15 @@ def _load_dongle_members(*names):
         "Callable": typing.Callable,
         "SerialCommunicator": Mock(),
         "SIGNAL_DONGLE_STATUS": "dongle_status",
+        "SIGNAL_RECEIVE_MESSAGE": "receive_message",
         "dispatcher_send": Mock(),
         "samefile": Mock(),
         "serial": serial,
+        "RadioPacket": type("RadioPacket", (), {}),
+        "ResponsePacket": type("ResponsePacket", (), {}),
+        "datetime": Mock(),
+        "UTC": object(),
+        "packet_observation": Mock(),
     }
     exec(compile(isolated, str(DONGLE_PATH), "exec"), namespace)  # noqa: S102
     return namespace
@@ -256,6 +264,25 @@ class DongleLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(list(dongle._pending_response_callbacks), [response_callback])
         dongle.hass.loop.call_soon_threadsafe.assert_called_once_with(written_callback)
         self.assertEqual(dongle._queued_response_callbacks, {})
+
+    def test_packet_callback_ignores_a_closed_home_assistant_loop(self):
+        """A late serial packet during shutdown must not poison the parser."""
+        namespace = _load_dongle_members("callback")
+        dongle = namespace["EnOceanDongle"]()
+        dongle.hass = Mock()
+        dongle._inbox = None
+        dongle._received_packets = 0
+        dongle._last_packet_at = None
+        packet = namespace["RadioPacket"]()
+        packet.packet_type = "radio"
+        namespace["dispatcher_send"].side_effect = RuntimeError("Event loop is closed")
+
+        dongle.callback(packet)
+
+        self.assertEqual(dongle._received_packets, 1)
+        namespace["_LOGGER"].debug.assert_any_call(
+            "Home Assistant loop closed before packet dispatch"
+        )
 
     def test_diagnostics_redact_path_from_thread_name(self):
         namespace = _load_dongle_members("available", "diagnostics")
@@ -810,6 +837,12 @@ class ReleaseHardeningTests(unittest.TestCase):
             ["beautifulsoup4==4.13.3", "lxml==6.1.1", "pyserial==3.5"],
         )
         self.assertIs(manifest["single_config_entry"], True)
+
+    def test_release_documentation_matches_manifest_version(self):
+        version = json.loads(MANIFEST_PATH.read_text())["version"]
+
+        self.assertIn(f"**Current release:** [v{version}]", README_PATH.read_text())
+        self.assertIn(f"## {version} -", CHANGELOG_PATH.read_text())
 
     def test_unsafe_raw_packet_service_is_not_registered(self):
         self.assertNotIn("send_packet", INIT_PATH.read_text())

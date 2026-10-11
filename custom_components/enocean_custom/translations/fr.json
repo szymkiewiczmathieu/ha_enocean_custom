@@ -202,7 +202,7 @@
       },
       "ute_discover_confirm": {
         "title": "Envoyer maintenant le télégramme d'association UTE dirigé",
-        "description": "Confirmez seulement après avoir activé la séquence PRESS locale. Home Assistant enverra immédiatement et exactement `D4 91 02 46 00 12 01 D2 <ID de base du dongle> 00` vers l'EURID saisi, avec les données optionnelles ERP1 `03 <EURID du module> FF 00`. Il n'envoie ni requête UTE diffusée ni commande de relais D2. Le relais n'est enregistré qu'après ESP3 OK, qui ne prouve que le transport du dongle ; vérifiez ensuite le retour D2 normal.",
+        "description": "Confirmez seulement après avoir activé la séquence PRESS locale. Home Assistant enverra immédiatement et exactement `D4 91 02 46 00 12 01 D2 [ID de base du dongle] 00` vers l'EURID saisi, avec les données optionnelles ERP1 `03 [EURID du module] FF 00`. Il n'envoie ni requête UTE diffusée ni commande de relais D2. Le relais n'est enregistré qu'après ESP3 OK, qui ne prouve que le transport du dongle ; vérifiez ensuite le retour D2 normal.",
         "data": {"ute_ready": "J'ai terminé la séquence PRESS locale et je suis prêt à envoyer"}
       },
       "ubiwizz_repeater": {

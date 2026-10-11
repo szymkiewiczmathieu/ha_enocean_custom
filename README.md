@@ -8,7 +8,7 @@ configuration-entry and YAML setup, guided device learning, diagnostics, native
 rocker triggers, and bounded actuator control without cloud services or
 telemetry.
 
-**Current release:** [v2.8.1](CHANGELOG.md) · Apache-2.0 · HACS custom repository
+**Current release:** [v2.9.6](CHANGELOG.md) · Apache-2.0 · HACS custom repository
 
 ## Install
 
@@ -55,7 +55,7 @@ identity model are in [Device Intelligence](docs/device-intelligence.md).
   exact label EURID in the guided flow, complete the documented local association
   sequence (three short `PRESS` presses for output 1, plus one more for output
   2), then explicitly confirm. Home Assistant immediately sends one directed
-  standard `D4 91 02 46 00 12 01 D2 <dongle Base ID> 00` UTE telegram to that
+  standard `D4 91 02 46 00 12 01 D2 [dongle Base ID] 00` UTE telegram to that
   EURID. It neither waits for nor acknowledges an incoming D4/A0 request, never
   broadcasts UTE, and never sends a D2 relay command from this association flow.
 - **ESP3 `OK` is transport evidence, not device evidence.** Switch and light

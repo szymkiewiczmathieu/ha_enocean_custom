@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.9.6 - 2026-10-11
+
+- Ignore the benign late serial-to-Home-Assistant dispatch race when the event
+  loop has already closed; parsing and lifecycle counters remain intact.
+- Render literal UTE byte placeholders with square brackets in source strings,
+  translations, and installation documentation.
+- Align the public release marker with the manifest and cite the ESP3 framing
+  specification alongside the EEP reference.
+
 ## 2.9.0 - 2026-10-11
 
 - Add standards-based UTE discovery and association for Ubiwizz UBID1507C/D2-01-12.

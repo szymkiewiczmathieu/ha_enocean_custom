@@ -203,7 +203,10 @@ class EnOceanDongle:
                 self.hass.loop.call_soon_threadsafe(self._inbox.observe, observation)
             except RuntimeError:
                 _LOGGER.debug("Home Assistant loop closed before inbox update")
-        dispatcher_send(self.hass, SIGNAL_RECEIVE_MESSAGE, packet)
+        try:
+            dispatcher_send(self.hass, SIGNAL_RECEIVE_MESSAGE, packet)
+        except RuntimeError:
+            _LOGGER.debug("Home Assistant loop closed before packet dispatch")
 
     def _communicator_stopped(self, error: str | None) -> None:
         """Record worker termination and hand notification to HA's event loop."""

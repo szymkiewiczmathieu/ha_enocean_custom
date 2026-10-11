@@ -72,8 +72,8 @@ The guided flow immediately queues one standard directed UTE telegram with the
 resolved dongle Base ID as sender and the entered module EURID as destination:
 
 ```text
-D4 91 02 46 00 12 01 D2 <dongle Base ID> 00
-optional: 03 <module EURID> FF 00
+D4 91 02 46 00 12 01 D2 [dongle Base ID] 00
+optional: 03 [module EURID] FF 00
 ```
 
 The ERP1 data after the D4 RORG starts exactly `91 02 46 00 12 01 D2`. The flow
@@ -167,10 +167,12 @@ sensor:
 
 - [Ubiwizz UBID1507C manual][ubiwizz-manual]
 - [Ubiwizz UBID1507C product page][ubiwizz-product]
-- [EnOcean Equipment Profiles specification][eep-spec], F6-10-00 and D5-00-01
+- [EnOcean Serial Protocol 3 specification][esp3-spec], ERP1 framing and optional data
+- [EnOcean Equipment Profiles specification][eep-spec], F6-10-00, D5-00-01, and D2-01
 - [Home Assistant EnOcean documentation][ha-enocean]
 
 [ubiwizz-manual]: https://ubiwizz.com/index.php?controller=attachment&id_attachment=927
 [ubiwizz-product]: https://ubiwizz.com/l-offre-produits-ubiwizz/11905-micromodule-radio-enocean-2-canaux-2x5a.html
+[esp3-spec]: https://www.enocean.com/wp-content/uploads/Knowledge-Base/EnOceanSerialProtocol3-1.pdf
 [eep-spec]: https://www.enocean-alliance.org/wp-content/uploads/2017/05/EnOcean_Equipment_Profiles_EEP_v2.6.7_public.pdf
 [ha-enocean]: https://www.home-assistant.io/integrations/enocean/
