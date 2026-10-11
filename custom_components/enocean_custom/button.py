@@ -40,7 +40,9 @@ async def async_setup_entry(
                 int(row["channel"]),
             )
         )
-    async_add_entities(entities)
+    # Entity-scoped commissioning is intentionally disabled; use the guided
+    # target-EURID flow so an unknown/reset module can be commissioned safely.
+    async_add_entities([])
 
 
 class UTECommissionButton(EnOceanEntity, ButtonEntity):
