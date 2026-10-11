@@ -495,7 +495,6 @@ class EnOceanOptionsFlow(OptionsFlow):
             "pair_actuator",
             "commission_existing",
             "ute_discover",
-            "ute_commission",
             "ubiwizz_repeater",
             "manage",
         ]
