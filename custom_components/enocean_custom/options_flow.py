@@ -173,7 +173,17 @@ def _parse_commissioning_code(value: Any) -> list[int] | None:
     IDs only, so a genuine 48-bit EURID is rejected instead of truncated.
     """
     parsed = parse_commissioning_identity(value)
-    return list(parsed.sender_id) if parsed else None
+    if parsed:
+        return list(parsed.sender_id)
+
+    # Ubiwizz labels may expose the compact 14-hex QR payload
+    # ``04B382DAED6780`` rather than an ANSI MH10.8.2 container.  The first
+    # eight hex digits are the EnOcean EURID; retain the suffix only as label
+    # data outside this parser and never send it over radio.
+    compact = re.sub(r"[^0-9A-Fa-f]", "", str(value or ""))
+    if len(compact) == 14 and re.fullmatch(r"[0-9A-Fa-f]{14}", compact):
+        return [int(compact[index : index + 2], 16) for index in range(0, 8, 2)]
+    return None
 
 
 def _qr_code_schema() -> vol.Schema:
