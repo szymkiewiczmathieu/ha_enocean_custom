@@ -1,10 +1,10 @@
-"""Directed Universal Teach-in (UTE) helpers for explicit commissioning.
+"""Directed Universal Teach-in (UTE) packet construction.
 
-For UBID1507C association the module broadcasts the bidirectional D4/A0 UTE
-request after its physical PRESS sequence. The controller listening for that
-exact module answers with a directed D4/91 response, retaining the matching
-UTE fields. These helpers deliberately expose neither a broadcast query nor a
-CMD-1 response parser: the active commissioning path is responder-only.
+The Ubiwizz guided association is controller-initiated: once the operator has
+entered the module's local association mode and explicitly confirms it in the
+options flow, Home Assistant sends one directed standard D4/91 UTE telegram.
+The exact target EURID and already-resolved dongle Base ID are mandatory. This
+module has no broadcast encoder, inbound-request parser, or relay-command path.
 """
 
 from __future__ import annotations
@@ -13,12 +13,8 @@ from typing import Final
 
 from .enocean_library.protocol.constants import PACKET, RORG
 from .enocean_library.protocol.packet import Packet as ESP3Packet
-from .enocean_library.protocol.packet import UTETeachInPacket
 
-# A UTE-capable actuator requests an answer with D4 DB6 = A0. The accepted
-# bidirectional response retains DB5..DB0 and changes DB6 to 91.
-UTE_REQUEST_FLAGS_BIDIRECTIONAL_RESPONSE_EXPECTED: Final = 0xA0
-UTE_RESPONSE_FLAGS_BIDIRECTIONAL_ACCEPTED: Final = 0x91
+UTE_ASSOCIATION_FLAGS_BIDIRECTIONAL_ACCEPTED: Final = 0x91
 
 
 def _exact_octets(value: object, *, count: int) -> list[int] | None:
@@ -48,7 +44,7 @@ def _parse_eep(value: object) -> tuple[int, int, int] | None:
     return parsed[0], parsed[1], parsed[2]
 
 
-def build_ute_teach_in_response(
+def build_ute_association_packet(
     *,
     sender_id: object,
     target_id: object,
@@ -56,11 +52,13 @@ def build_ute_teach_in_response(
     number_of_channels: object,
     manufacturer_id: object,
 ) -> ESP3Packet:
-    """Build the directed accepted D4/91 response to an exact UTE request.
+    """Build one exact directed standard D4/91 UTE association telegram.
 
-    ``sender_id`` is the dongle Base ID and ``target_id`` is the EURID printed
-    on the physical module. The caller must first validate an inbound D4/A0
-    request; this helper does not broadcast and cannot discover a target.
+    ``sender_id`` is the resolved USB-dongle Base ID and ``target_id`` is the
+    physical module EURID. For the Ubiwizz D2-01-12 profile this makes ERP1 data
+    ``D4 91 02 46 00 12 01 D2 <Base ID> 00`` and optional data
+    ``03 <EURID> FF 00``. The packet is targeted; it cannot broadcast or encode
+    an actuator D2 relay command.
     """
     sender = _exact_octets(sender_id, count=4)
     target = _exact_octets(target_id, count=4)
@@ -81,7 +79,7 @@ def build_ute_teach_in_response(
         PACKET.RADIO_ERP1,
         data=[
             RORG.UTE,
-            UTE_RESPONSE_FLAGS_BIDIRECTIONAL_ACCEPTED,
+            UTE_ASSOCIATION_FLAGS_BIDIRECTIONAL_ACCEPTED,
             number_of_channels,
             manufacturer_id & 0xFF,
             (manufacturer_id >> 8) & 0x07,
@@ -93,57 +91,3 @@ def build_ute_teach_in_response(
         ],
         optional=[0x03, *target, 0xFF, 0x00],
     )
-
-
-def parse_ute_teach_in_request(
-    packet: object,
-    *,
-    target_id: object,
-    eep: object,
-    number_of_channels: object,
-    manufacturer_id: object,
-) -> dict[str, object] | None:
-    """Return one exact broadcast D4/A0 request, otherwise ``None``.
-
-    The physical label/QR EURID is part of the safety boundary: a request from
-    another device, a directed packet, or different UTE fields is ignored.
-    ``number_of_channels`` is the UTE field and is deliberately distinct from
-    a configured relay output channel.
-    """
-    target = _exact_octets(target_id, count=4)
-    profile = _parse_eep(eep)
-    if (
-        target is None
-        or profile is None
-        or type(number_of_channels) is not int
-        or not 0 <= number_of_channels <= 0xFF
-        or type(manufacturer_id) is not int
-        or not 0 <= manufacturer_id <= 0x7FF
-        or not isinstance(packet, UTETeachInPacket)
-    ):
-        return None
-
-    data = packet.data
-    sender = _exact_octets(packet.sender, count=4)
-    destination = _exact_octets(packet.destination, count=4)
-    rorg, func, eep_type = profile
-    if (
-        len(data) != 13
-        or data[0] != RORG.UTE
-        or data[1] != UTE_REQUEST_FLAGS_BIDIRECTIONAL_RESPONSE_EXPECTED
-        or data[2] != number_of_channels
-        or data[3] != manufacturer_id & 0xFF
-        or data[4] != (manufacturer_id >> 8) & 0x07
-        or data[5:8] != [eep_type, func, rorg]
-        or data[12] != 0x00
-        or sender != target
-        or destination != [0xFF, 0xFF, 0xFF, 0xFF]
-    ):
-        return None
-    return {
-        "sender_id": sender,
-        "destination": destination,
-        "number_of_channels": data[2],
-        "manufacturer_id": manufacturer_id,
-        "eep": f"{rorg:02X}-{func:02X}-{eep_type:02X}",
-    }

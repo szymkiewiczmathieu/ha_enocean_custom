@@ -51,14 +51,13 @@ identity model are in [Device Intelligence](docs/device-intelligence.md).
 - **An EEP is not a product identity.** A sender ID identifies a radio and an
   EEP identifies a data profile. Model claims require exact Product-ID evidence;
   manual EEP values remain operator assertions.
-- **No automatic UTE acknowledgement.** Radio transmission happens only through
-  an explicit supported action or service. For UBID1507C, start the explicit
-  listener before the local association sequence (three short `PRESS` presses
-  for output 1, or those three presses plus one more for output 2). The module
-  must broadcast the exact D4/A0 request from its entered/configured EURID;
-  Home Assistant then sends the accepted directed D4/91 response from the
-  resolved dongle Base ID to that EURID. It never broadcasts a UTE query, and
-  unsolicited UTE requests are never acknowledged.
+- **Directed UTE is explicit and gateway-initiated.** For UBID1507C, enter the
+  exact label EURID in the guided flow, complete the documented local association
+  sequence (three short `PRESS` presses for output 1, plus one more for output
+  2), then explicitly confirm. Home Assistant immediately sends one directed
+  standard `D4 91 02 46 00 12 01 D2 <dongle Base ID> 00` UTE telegram to that
+  EURID. It neither waits for nor acknowledges an incoming D4/A0 request, never
+  broadcasts UTE, and never sends a D2 relay command from this association flow.
 - **ESP3 `OK` is transport evidence, not device evidence.** Switch and light
   state changes require matching inbound feedback where the profile supports it.
 - **Diagnostics are privacy-aware.** They expose lifecycle and aggregate radio

@@ -3,7 +3,7 @@
 ## 2.9.0 - 2026-10-11
 
 - Add standards-based UTE discovery and association for Ubiwizz UBID1507C/D2-01-12.
-- Use the module-initiated D4/A0 request and a directed D4/91 response bound to the explicit EURID and dongle Base ID; preserve the user association window separately from the responder deadline.
+- Replace the passive D4/A0 listener with an explicit post-PRESS, gateway-initiated directed D4/91 UTE telegram bound to the entered EURID and resolved dongle Base ID; persist only after its ESP3 callback.
 - Harden dongle Base ID handling, ESP3 callbacks, session ownership, collision checks, and stale callback rejection.
 - Validate climate numeric inputs at both persistence and runtime boundaries.
 - Remove unsupported Ubiwizz repeater radio writes and stale repeater telemetry; diagnostics remain no-radio.

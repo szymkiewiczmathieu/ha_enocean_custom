@@ -50,7 +50,6 @@ jobs:
           targets=(
             custom_components/enocean_custom/__init__.py
             custom_components/enocean_custom/binary_sensor.py
-            custom_components/enocean_custom/button.py
             custom_components/enocean_custom/climate.py
             custom_components/enocean_custom/config_flow.py
             custom_components/enocean_custom/const.py

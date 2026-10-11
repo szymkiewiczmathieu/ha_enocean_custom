@@ -38,21 +38,6 @@ send_teach_in:
       domain: light
       integration: enocean_custom
 
-commission_ute:
-  name: Commission Ubiwizz by directed UTE response
-  description: >-
-    Open a listener for the selected UBID1507C output before its documented
-    local association sequence (three short PRESS presses for output 1; the
-    same three plus one extra short PRESS for output 2). When that configured
-    module broadcasts the exact D4/A0 request, send the directed accepted D4/91
-    response using the resolved dongle Base ID and the module EURID. It never
-    sends a broadcast UTE query or a D2 relay command. ESP3 acceptance proves
-    only dongle transport; verify normal D2 feedback afterwards.
-  target:
-    entity:
-      domain: switch
-      integration: enocean_custom
-
 reload:
   name: Reload EnOcean YAML platforms
   description: Reload YAML-configured EnOcean platforms from the current configuration.

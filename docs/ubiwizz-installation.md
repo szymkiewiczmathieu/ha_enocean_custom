@@ -62,28 +62,30 @@ The UBID1507C manual describes the local physical sequence: make three short
 press before operating the compatible transmitter. Verify the actual module
 revision and LED behavior in the manual.
 
-For Home Assistant association, start **Associate Ubiwizz via directed UTE
-response** before that PRESS sequence. The form requires the module EURID from
-its label (a typed `AA:BB:CC:DD` ID or supported 30S/1P label) and separately
-asks which relay output (`0` or `1`) to configure. The output choice is **not**
-the UTE byte `02`.
+For Home Assistant association, select **Associate Ubiwizz by directed UTE
+telegram**, enter the module EURID from its label (a typed `AA:BB:CC:DD` ID or
+supported 30S/1P label), and separately choose relay output `0` or `1`. The
+output choice is **not** the UTE byte `02`. The first form sends no radio.
 
-A field capture of this UBID1507C flow shows the module broadcasting a
-bidirectional D4/A0 UTE request. The integration accepts it only when its
-sender matches the entered EURID and its fields match `A0 02 46 00 12 01 D2`.
-It then queues the directed accepted D4/91 response, with the dongle Base ID as
-sender and the module EURID as destination:
+After the local physical PRESS sequence is active, tick the final confirmation.
+The guided flow immediately queues one standard directed UTE telegram with the
+resolved dongle Base ID as sender and the entered module EURID as destination:
 
 ```text
 D4 91 02 46 00 12 01 D2 <dongle Base ID> 00
 optional: 03 <module EURID> FF 00
 ```
 
-The listener sends no broadcast UTE telegram and does not guess an EURID from
-unrelated traffic. It opens before PRESS because the UTE responder deadline is
-short once D4/A0 arrives. An ESP3 `OK` proves only that the dongle accepted the
-D4/91 response; it cannot prove the module retained the association. Verify
-normal directed D2 feedback and safe `turn_on`/`turn_off` control afterwards.
+The ERP1 data after the D4 RORG starts exactly `91 02 46 00 12 01 D2`. The flow
+validates the four-byte EURID, output, profile fields, and resolved Base ID
+before it transmits; it rejects an already configured `(EURID, output)` before
+queueing radio. It does not listen for or acknowledge an incoming D4/A0 request,
+does not broadcast UTE, and does not guess an EURID from unrelated traffic.
+
+The module row is saved only after the ESP3 callback reports `OK`. That proves
+only that the USB dongle accepted the directed D4/91 telegram; it cannot prove
+the module retained the association. Verify normal directed D2 feedback and
+safe `turn_on`/`turn_off` control afterwards.
 
 This association action never sends a D2 relay command. Normal `turn_on` and
 `turn_off` control remains the separate directed D2 path, and ESP3 `OK` on that

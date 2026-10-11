@@ -20,7 +20,6 @@ ISSUE_SERIAL_STOPPED = "serial_communicator_stopped"
 
 SERVICE_LEARN = "learn"
 SERVICE_SEND_TEACH_IN = "send_teach_in"
-SERVICE_UTE_COMMISSION = "commission_ute"
 
 SIGNAL_DONGLE_STATUS = f"{DOMAIN}.dongle_status"
 SIGNAL_RECEIVE_MESSAGE = f"{DOMAIN}.receive_message"
@@ -32,8 +31,7 @@ LEARN_TIMEOUT_MAX = 300
 LOGGER = logging.getLogger(__package__)
 
 PLATFORMS: tuple[Platform, ...] = tuple(
-    Platform(name)
-    for name in ("binary_sensor", "button", "climate", "light", "sensor", "switch")
+    Platform(name) for name in ("binary_sensor", "climate", "light", "sensor", "switch")
 )
 
 # These platforms accept devices stored by the config-entry options flow.

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Callable
 from typing import Any, override
 
@@ -15,10 +14,8 @@ from homeassistant.components.switch import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ID, CONF_NAME, Platform
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers import entity_platform
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
@@ -28,7 +25,6 @@ from .const import (
     DOMAIN,
     ENOCEAN_DONGLE,
     LOGGER,
-    SERVICE_UTE_COMMISSION,
 )
 from .device import EnOceanEntity, build_radio_optional, get_gateway_base_id
 from .enocean_library.protocol.constants import RORG
@@ -36,12 +32,7 @@ from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
 from .enocean_library.utils import combine_hex
 from .learn import register_known_id
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devices
-from .ubiwizz import (
-    UBID1507C,
-    UBIWIZZ_ACTUATOR_PROFILES,
-    valid_ubiwizz_actuator_channel,
-)
-from .ute import build_ute_teach_in_response, parse_ute_teach_in_request
+from .ubiwizz import UBIWIZZ_ACTUATOR_PROFILES, valid_ubiwizz_actuator_channel
 from .yaml_import import track_yaml_device
 
 CONF_ACTUATOR_PROFILE = "actuator_profile"
@@ -49,9 +40,6 @@ CONF_CHANNEL, CONF_SWITCH_TYPE = "channel", "switch_type"
 CONF_EEP = "eep"
 DEFAULT_NAME = "EnOcean Switch"
 D2_SINGLE_CHANNEL_EEPS = frozenset(("D2-01-0A",))
-# Operator-facing period to complete the local PRESS sequence. This is separate
-# from UTE's responder deadline, which starts only when D4/A0 is received.
-UTE_ASSOCIATION_WINDOW_SECONDS = 30.0
 
 SWITCH_TYPES = ("default", "RPS")
 
@@ -139,7 +127,6 @@ async def async_setup_platform(
             )
         ]
     )
-    _async_register_ute_commission_service()
 
 
 async def async_setup_entry(
@@ -162,20 +149,6 @@ async def async_setup_entry(
         if row["platform"] == "switch"
     ]
     async_add_entities(entities)
-    _async_register_ute_commission_service()
-
-
-def _async_register_ute_commission_service() -> None:
-    """Expose an entity-scoped, operator-triggered UTE commissioning action."""
-    try:
-        platform = entity_platform.async_get_current_platform()
-    except RuntimeError:
-        return
-    platform.async_register_entity_service(
-        SERVICE_UTE_COMMISSION,
-        {},
-        "async_start_ute_commissioning",
-    )
 
 
 class EnOceanSwitch(EnOceanEntity, SwitchEntity):
@@ -210,13 +183,6 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
         self._command_sequence = 0
         self._profile = switch_type
         self._actuator_profile = actuator_profile
-        self._ute_commission_sequence = 0
-        self._ute_commission_state: str | None = None
-        self._ute_commission_last_esp3_ack: bool | None = None
-        self._ute_commission_response_code: int | None = None
-        self._ute_commission_transmissions = 0
-        self._ute_commission_sender_id: list[int] | None = None
-        self._ute_commission_timeout: asyncio.TimerHandle | None = None
 
     @property
     def extra_state_attributes(self) -> dict:
@@ -226,15 +192,6 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
             attributes["last_command_esp3_accepted"] = self._last_command_esp3_accepted
         if self._actuator_profile is not None:
             attributes["configured_actuator_profile"] = self._actuator_profile
-        if self._actuator_profile == "ubiwizz_ubid1507c":
-            attributes.update(
-                {
-                    "ute_commissioning_state": self._ute_commission_state,
-                    "ute_commissioning_last_esp3_ack": self._ute_commission_last_esp3_ack,
-                    "ute_commissioning_response_code": self._ute_commission_response_code,
-                    "ute_commissioning_transmissions": self._ute_commission_transmissions,
-                }
-            )
         return attributes
 
     @override
@@ -246,135 +203,6 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
     def turn_off(self, **kwargs: Any) -> None:
         """Request the OFF state."""
         self._queue_state_change(False)
-
-    async def async_start_ute_commissioning(self) -> None:
-        """Open a directed UTE listener for this explicit Ubiwizz entity.
-
-        The operator starts this listener before using the local PRESS sequence.
-        A matching module broadcasts D4/A0, and this entity immediately queues
-        the required directed D4/91 response. No UTE or D2 telegram is emitted
-        merely by opening the listener.
-        """
-        if self._actuator_profile != UBID1507C.profile_id:
-            raise HomeAssistantError(
-                "UTE commissioning is available only for an explicitly configured "
-                "Ubiwizz UBID1507C entity"
-            )
-        gateway = self.hass.data.get(DATA_ENOCEAN, {}).get(ENOCEAN_DONGLE)
-        sender_id = get_gateway_base_id(gateway)
-        self._ute_commission_sequence += 1
-        sequence = self._ute_commission_sequence
-        self._cancel_ute_commission_timeout()
-        self._ute_commission_last_esp3_ack = None
-        self._ute_commission_response_code = None
-        self._ute_commission_sender_id = sender_id
-
-        if sender_id is None:
-            self._ute_commission_state = "base_id_unavailable"
-            LOGGER.warning("UTE commissioning skipped: dongle Base ID unavailable")
-            self.async_write_ha_state()
-            return
-
-        self._ute_commission_state = "awaiting_ute_request"
-        self._ute_commission_timeout = self.hass.loop.call_later(
-            UTE_ASSOCIATION_WINDOW_SECONDS,
-            self._ute_commission_timed_out,
-            sequence,
-        )
-        LOGGER.info("Opened directed UTE listener for %s", self.dev_name)
-        self.async_write_ha_state()
-
-    @callback
-    def _record_ute_transport_result(self, sequence: int, accepted: bool) -> None:
-        """Record only the dongle result for this entity's D4/91 response."""
-        if sequence != self._ute_commission_sequence:
-            return
-        self._ute_commission_last_esp3_ack = accepted
-        if accepted:
-            self._ute_commission_state = "response_sent"
-            LOGGER.info(
-                "Directed UTE response accepted by the dongle for %s", self.dev_name
-            )
-        else:
-            self._ute_commission_state = "transport_rejected"
-            LOGGER.warning("Directed UTE response was rejected by the dongle")
-        self.async_write_ha_state()
-
-    @callback
-    def _handle_ute_teach_in_request(self, packet: Any) -> bool:
-        """Answer the active target's exact D4/A0 request with directed D4/91."""
-        sequence = self._ute_commission_sequence
-        sender_id = self._ute_commission_sender_id
-        if self._ute_commission_state != "awaiting_ute_request" or sender_id is None:
-            return False
-        if (
-            parse_ute_teach_in_request(
-                packet,
-                target_id=self.dev_id,
-                eep=UBID1507C.eep,
-                number_of_channels=UBID1507C.ute_number_of_channels,
-                manufacturer_id=UBID1507C.ute_manufacturer_id,
-            )
-            is None
-        ):
-            return False
-        try:
-            response = build_ute_teach_in_response(
-                sender_id=sender_id,
-                target_id=self.dev_id,
-                eep=UBID1507C.eep,
-                number_of_channels=UBID1507C.ute_number_of_channels,
-                manufacturer_id=UBID1507C.ute_manufacturer_id,
-            )
-        except ValueError:
-            self._cancel_ute_commission_timeout()
-            self._ute_commission_state = "invalid_request"
-            LOGGER.warning("UTE response skipped: invalid configured identity")
-            self.async_write_ha_state()
-            return True
-
-        self._cancel_ute_commission_timeout()
-        self._ute_commission_response_code = 0x01
-        self._ute_commission_state = "response_queued"
-        self._ute_commission_transmissions += 1
-        queued = self.send_command(
-            response.data,
-            response.optional,
-            response.packet_type,
-            response_callback=lambda accepted: self._record_ute_transport_result(
-                sequence, accepted
-            ),
-        )
-        if not queued:
-            self._ute_commission_last_esp3_ack = False
-            self._ute_commission_state = "transport_rejected"
-        else:
-            LOGGER.info("Queued directed UTE response for %s", self.dev_name)
-        self.async_write_ha_state()
-        return True
-
-    @callback
-    def _ute_commission_timed_out(self, sequence: int) -> None:
-        """Close the operator learn window without emitting a radio telegram."""
-        if sequence != self._ute_commission_sequence:
-            return
-        self._ute_commission_timeout = None
-        if self._ute_commission_state == "awaiting_ute_request":
-            self._ute_commission_state = "request_timeout"
-        self.async_write_ha_state()
-
-    @callback
-    def _cancel_ute_commission_timeout(self) -> None:
-        """Cancel the active operator UTE window, if this entity owns one."""
-        if self._ute_commission_timeout is not None:
-            self._ute_commission_timeout.cancel()
-            self._ute_commission_timeout = None
-
-    async def async_will_remove_from_hass(self) -> None:
-        """Prevent a late commissioning callback after this entity is removed."""
-        self._ute_commission_sequence += 1
-        self._cancel_ute_commission_timeout()
-        await super().async_will_remove_from_hass()
 
     def _queue_state_change(self, target: bool) -> None:
         """Encode the configured profile and wait for all ESP3 acknowledgements."""
@@ -479,9 +307,7 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
 
     @override
     def value_changed(self, packet) -> None:
-        """Apply UTE requests, power-meter, or D2 feedback."""
-        if self._handle_ute_teach_in_request(packet):
-            return
+        """Apply power-meter or D2 feedback."""
         if not packet.data:
             return
         try:
