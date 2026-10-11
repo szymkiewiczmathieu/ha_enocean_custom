@@ -8,7 +8,7 @@ configuration-entry and YAML setup, guided device learning, diagnostics, native
 rocker triggers, and bounded actuator control without cloud services or
 telemetry.
 
-**Current release:** [v2.9.6](CHANGELOG.md) · Apache-2.0 · HACS custom repository
+**Current release:** [v2.9.7](CHANGELOG.md) · Apache-2.0 · HACS custom repository
 
 ## Install
 

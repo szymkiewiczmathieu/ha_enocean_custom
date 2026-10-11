@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.9.7 - 2026-10-11
+
+- Add an evidence-backed commissioning catalog for field-verified Ubiwizz lighting modules.
+- Simplify Ubiwizz association: the normal flow no longer asks the operator for an EEP.
+- Encode the validated `D2-01-08` directed UTE profile and add regression coverage.
+- Keep unknown products out of automatic inference and preserve the expert path.
+
 ## 2.9.6 - 2026-10-11
 
 - Ignore the benign late serial-to-Home-Assistant dispatch race when the event

@@ -46,6 +46,7 @@ from .const import (
     UI_DEVICE_PLATFORMS,
 )
 from .device import build_radio_optional, get_gateway_base_id
+from .device_catalog import UBIWIZZ_LIGHT_D2_01_08
 from .device_intelligence import (
     UNKNOWN_PLACEHOLDER,
     CommissioningIdentity,
@@ -102,6 +103,7 @@ _CONF_CONFIRM_RELAY_D2 = "confirm_relay_d2"
 _ACTUATOR_RELAY = "relay_d2"
 _ACTUATOR_DIMMER = "dimmer_4bs"
 _D2_RELAY_EEP = "D2-01-12"
+_UBIWIZZ_PAIRING_PROFILE = UBIWIZZ_LIGHT_D2_01_08
 _D2_ASP_EEP = "D2-01-0A"
 _CONF_UBIWIZZ_REPEATER_EEP = "ubiwizz_repeater_eep"
 _CONF_UBIWIZZ_REPEATER_LEVEL = "ubiwizz_repeater_level"
@@ -217,7 +219,7 @@ def _pair_actuator_type_schema() -> vol.Schema:
 
 
 def _ute_discovery_schema() -> vol.Schema:
-    """Return the explicit Ubiwizz name/output chooser for UTE association."""
+    """Return the simple Ubiwizz name/EURID/output form."""
     return vol.Schema(
         {
             vol.Required(CONF_NAME): selector.TextSelector(
@@ -432,6 +434,7 @@ class EnOceanOptionsFlow(OptionsFlow):
         self._pairing_response_token: object | None = None
         self._pairing_unsubscribe = None
         self._ute_discovery_name: str | None = None
+        self._ute_discovery_eep: str | None = None
         self._ute_discovery_channel: int | None = None
         self._ute_discovery_target_id: list[int] | None = None
         self._ute_discovery_ready = False
@@ -538,6 +541,7 @@ class EnOceanOptionsFlow(OptionsFlow):
                     errors={_CONF_QR_CODE: "invalid_ute_target"}
                 )
             self._ute_discovery_name = user_input[CONF_NAME]
+            self._ute_discovery_eep = _UBIWIZZ_PAIRING_PROFILE.eep
             self._ute_discovery_channel = channel
             self._ute_discovery_target_id = target_id
             self._ute_discovery_ready = False
@@ -569,7 +573,8 @@ class EnOceanOptionsFlow(OptionsFlow):
         """Send the one targeted D4/91 packet after explicit PRESS confirmation."""
         if (
             self._ute_discovery_name is None
-            or self._ute_discovery_channel not in UBID1507C.output_channels
+            or self._ute_discovery_eep != _UBIWIZZ_PAIRING_PROFILE.eep
+            or self._ute_discovery_channel not in _UBIWIZZ_PAIRING_PROFILE.channels
             or self._ute_discovery_target_id is None
         ):
             return self.async_abort(reason="device_form_missing")
@@ -590,9 +595,9 @@ class EnOceanOptionsFlow(OptionsFlow):
                 packet = build_ute_association_packet(
                     sender_id=sender_id,
                     target_id=self._ute_discovery_target_id,
-                    eep=UBID1507C.eep,
-                    number_of_channels=UBID1507C.ute_number_of_channels,
-                    manufacturer_id=UBID1507C.ute_manufacturer_id,
+                    eep=self._ute_discovery_eep,
+                    number_of_channels=_UBIWIZZ_PAIRING_PROFILE.ute_number_of_channels,
+                    manufacturer_id=_UBIWIZZ_PAIRING_PROFILE.manufacturer_id,
                 )
             except ValueError:
                 return self.async_abort(reason="ute_discovery_failed")
@@ -651,8 +656,8 @@ class EnOceanOptionsFlow(OptionsFlow):
         metadata = safe_metadata(
             radio=RadioIdentity(
                 sender_id=(target_id[0], target_id[1], target_id[2], target_id[3]),
-                eep=UBID1507C.eep,
-                manufacturer_id=UBID1507C.ute_manufacturer_id,
+                eep=self._ute_discovery_eep,
+                manufacturer_id=_UBIWIZZ_PAIRING_PROFILE.manufacturer_id,
                 evidence=Evidence.MANUAL,
                 eep_source="manual",
             )
@@ -665,7 +670,11 @@ class EnOceanOptionsFlow(OptionsFlow):
                     "name": self._ute_discovery_name,
                     "channel": channel,
                     "switch_type": "default",
-                    CONF_ACTUATOR_PROFILE: UBID1507C.profile_id,
+                    **(
+                        {CONF_ACTUATOR_PROFILE: UBID1507C.profile_id}
+                        if self._ute_discovery_eep == UBID1507C.eep
+                        else {}
+                    ),
                     CONF_RADIO_METADATA: metadata,
                 }
             )

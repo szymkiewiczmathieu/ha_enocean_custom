@@ -78,7 +78,8 @@ Alliance certification nor tested hardware.
 | `A5-38-08`   | `light.EnOceanLight` commands and teach-in (transmit only)                                                                   | `light`                   | `assisted` (a sender identity is required)                   | `supported` |
 | `D2-01-0A`   | `switch.EnOceanSwitch` D2 CMD `0x1` switching and CMD `0x4` feedback                                                         | `switch`                  | `manual` (EEP does not prove NodOn hardware)                 | `manual`    |
 | `D2-01-0B`   | `sensor._decode_d2_measurement` for D2-01 CMD `0x7`                                                                          | `sensor`                  | `assisted`                                                   | `supported` |
-| `D2-01-12`   | switch/light actuator with D2-01 feedback; explicit `ubiwizz_ubid1507c` limits documented UBID1507C rows to channels `0`/`1` | `light`, `switch`         | `manual` (two valid platforms; EEP is not hardware identity) | `manual`    |
+| `D2-01-08`   | Ubiwizz lighting profile from field-verified DolphinView capture | `light`, `switch` | manual (catalog recipe) | manual |
+| `D2-01-12`   | switch/light actuator with D2-01 feedback; explicit `ubiwizz_ubid1507c` limits documented UBID1507C rows to channels `0`/`1` | `light`, `switch` | manual (two valid platforms; EEP is not hardware identity) | manual |
 
 A platform is pre-selected in the options flow only when the mode is
 `automatic` or `assisted` **and** exactly one platform applies. The selection

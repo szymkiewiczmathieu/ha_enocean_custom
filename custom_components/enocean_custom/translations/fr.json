@@ -196,13 +196,13 @@
         "data": {"confirm_relay_d2": "Je confirme que ce relais physique exige le commissioning D2-01-12"}
       },
       "ute_discover": {
-        "title": "Associer une sortie Ubiwizz UBID1507C par télégramme UTE dirigé",
-        "description": "Saisissez l'EURID exact du module depuis son étiquette et choisissez la sortie à configurer. Ce formulaire n'émet aucune radio. Effectuez d'abord la séquence physique de trois appuis brefs sur PRESS (plus un appui bref supplémentaire pour la sortie 2), puis passez à la confirmation finale. La sortie 1 ou 2 est distincte de l'octet de nombre de canaux UTE `02`.",
+        "title": "Associer un éclairage Ubiwizz par télégramme UTE dirigé",
+        "description": "Saisissez l'EURID exact du module, donnez-lui un nom, puis effectuez trois appuis brefs sur PRESS. Home Assistant utilise automatiquement le profil radio validé pour vos éclairages Ubiwizz. La sortie 1 ou 2 est distincte de l'EEP radio.",
         "data": {"name": "Nom", "qr_code": "EURID du module ou étiquette de commissioning", "channel": "Sortie à configurer"}
       },
       "ute_discover_confirm": {
         "title": "Envoyer maintenant le télégramme d'association UTE dirigé",
-        "description": "Confirmez seulement après avoir activé la séquence PRESS locale. Home Assistant enverra immédiatement et exactement `D4 91 02 46 00 12 01 D2 [ID de base du dongle] 00` vers l'EURID saisi, avec les données optionnelles ERP1 `03 [EURID du module] FF 00`. Il n'envoie ni requête UTE diffusée ni commande de relais D2. Le relais n'est enregistré qu'après ESP3 OK, qui ne prouve que le transport du dongle ; vérifiez ensuite le retour D2 normal.",
+        "description": "Confirmez seulement après la séquence PRESS locale. Home Assistant enverra un télégramme UTE D4/91 dirigé avec l'EEP exact choisi dans l'étape précédente. Il n'envoie ni requête UTE diffusée ni commande de relais D2. L'ESP3 OK prouve uniquement le transport du dongle ; vérifiez ensuite le retour D2 normal.",
         "data": {"ute_ready": "J'ai terminé la séquence PRESS locale et je suis prêt à envoyer"}
       },
       "ubiwizz_repeater": {

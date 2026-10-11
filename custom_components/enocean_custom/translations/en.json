@@ -196,8 +196,8 @@
         "data": {"confirm_relay_d2": "I confirm this physical relay requires D2-01-12 commissioning"}
       },
       "ute_discover": {
-        "title": "Associate a Ubiwizz UBID1507C output by directed UTE telegram",
-        "description": "Enter the exact module EURID from its label and choose the output to configure. No radio is sent on this form. Complete the physical three-short-PRESS association sequence first (plus one extra short PRESS for output 2), then continue to the final confirmation. The selected output 1 or 2 is separate from the UTE channel-count byte `02`.",
+        "title": "Associate a Ubiwizz light by directed UTE telegram",
+        "description": "Enter the exact module EURID, give it a name, then press PRESS three times briefly. Home Assistant automatically uses the radio profile validated for your Ubiwizz lights. Output 1 or 2 is separate from the radio EEP.",
         "data": {"name": "Name", "qr_code": "Module EURID or commissioning label", "channel": "Output to configure"}
       },
       "ute_discover_confirm": {

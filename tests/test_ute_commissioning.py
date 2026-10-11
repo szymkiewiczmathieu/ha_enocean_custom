@@ -41,7 +41,7 @@ except ModuleNotFoundError:  # pragma: no cover - bare environment
 TARGET_ID = [0x04, 0xB3, 0x82, 0xDA]
 OTHER_ID = [0x04, 0xB3, 0x82, 0xDB]
 BASE_ID = [0xA1, 0xB2, 0xC3, 0xD4]
-UTE_ASSOCIATION_FIELDS = [0x91, 0x02, 0x46, 0x00, 0x12, 0x01, 0xD2]
+UTE_ASSOCIATION_FIELDS = [0x91, 0x02, 0x46, 0x00, 0x08, 0x01, 0xD2]
 
 
 class FakeDongle:
@@ -77,7 +77,20 @@ class UtePacketTests(unittest.TestCase):
         self.assertEqual(packet.packet_type, PACKET.RADIO_ERP1)
         self.assertEqual(
             packet.data,
-            [RORG.UTE, *UTE_ASSOCIATION_FIELDS, *BASE_ID, 0x00],
+            [RORG.UTE, 0x91, 0x02, 0x46, 0x00, 0x12, 0x01, 0xD2, *BASE_ID, 0x00],
+        )
+        self.assertEqual(packet.optional, [0x03, *TARGET_ID, 0xFF, 0x00])
+
+    def test_d2_01_08_field_profile_is_encoded_without_relay_command(self):
+        packet = build_ute_association_packet(
+            sender_id=BASE_ID,
+            target_id=TARGET_ID,
+            eep="D2-01-08",
+            number_of_channels=2,
+            manufacturer_id=0x046,
+        )
+        self.assertEqual(
+            packet.data[0:8], [0xD4, 0x91, 0x02, 0x46, 0x00, 0x08, 0x01, 0xD2]
         )
         self.assertEqual(packet.optional, [0x03, *TARGET_ID, 0xFF, 0x00])
 
@@ -193,8 +206,8 @@ class UteDiscoveryFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(row["id"], TARGET_ID)
         self.assertEqual(row["channel"], 1)
         self.assertEqual(row["platform"], "switch")
-        self.assertEqual(row["actuator_profile"], "ubiwizz_ubid1507c")
-        self.assertEqual(row["radio_metadata"]["eep"], "D2-01-12")
+        self.assertIsNone(row["actuator_profile"])
+        self.assertEqual(row["radio_metadata"]["eep"], "D2-01-08")
         self.assertEqual(row["radio_metadata"]["manufacturer_id"], 0x046)
         self.assertEqual(row["radio_metadata"]["evidence"], "manual")
         self.assertEqual(row["radio_metadata"]["eep_source"], "manual")
