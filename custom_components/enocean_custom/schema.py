@@ -42,11 +42,17 @@ def strict_int(value: object) -> int:
     return value
 
 
-def _ensure_finite(value: float) -> float:
-    """Reject NaN and infinities in persisted UI options."""
-    if not math.isfinite(value):
+def finite_float(value: object) -> float:
+    """Coerce finite persisted numeric values without accepting booleans."""
+    if isinstance(value, bool):
+        raise vol.Invalid("expected number, not boolean")
+    try:
+        result = float(value)
+    except (TypeError, ValueError, OverflowError) as err:
+        raise vol.Invalid("expected finite number") from err
+    if not math.isfinite(result):
         raise vol.Invalid("expected finite number")
-    return value
+    return result
 
 
 BYTE = vol.All(strict_int, vol.Range(min=0, max=255))
@@ -196,26 +202,26 @@ UI_DEVICE_SCHEMA = vol.Schema(
             ),
             vol.Optional("sensor_entity_id", default=None): vol.Any(None, cv.entity_id),
             vol.Optional("temperature_frost_protection", default=8.0): vol.All(
-                vol.Coerce(float), _ensure_finite, vol.Range(min=0, max=20)
+                finite_float, vol.Range(min=0, max=20)
             ),
             vol.Optional("sensor_target_temperature_range", default=5): vol.All(
                 exact_finite_int, vol.Range(min=0, max=20)
             ),
             vol.Optional(
                 "sensor_target_temperature_update_tolerance", default=0.5
-            ): vol.All(vol.Coerce(float), _ensure_finite, vol.Range(min=0, max=10)),
+            ): vol.All(finite_float, vol.Range(min=0, max=10)),
             vol.Optional("target_temperature_base_value", default=21.0): vol.All(
-                vol.Coerce(float), _ensure_finite, vol.Range(min=5, max=35)
+                finite_float, vol.Range(min=5, max=35)
             ),
             vol.Optional("target_temperature_reduction_night", default=4.0): vol.All(
-                vol.Coerce(float), _ensure_finite, vol.Range(min=0, max=20)
+                finite_float, vol.Range(min=0, max=20)
             ),
             vol.Optional("command_frequency", default="00:17:00"): cv.string,
             vol.Optional("pi_control_Kp", default=5.0): vol.All(
-                vol.Coerce(float), _ensure_finite, vol.Range(min=0.001, max=100)
+                finite_float, vol.Range(min=0.001, max=100)
             ),
             vol.Optional("pi_control_Tn", default=240.0): vol.All(
-                vol.Coerce(float), _ensure_finite, vol.Range(min=0.001, max=1440)
+                finite_float, vol.Range(min=0.001, max=1440)
             ),
             vol.Optional("max_temp", default=40): vol.All(
                 exact_finite_int, vol.Range(min=-100, max=100)

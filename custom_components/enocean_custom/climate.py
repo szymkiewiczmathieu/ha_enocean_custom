@@ -608,6 +608,13 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
 
             raw_setpoint = state.attributes[_SENSOR_ATTR_SETPOINT]
             slide_switch = state.attributes[_SENSOR_ATTR_SLIDESWITCH]
+            if isinstance(raw_setpoint, bool):
+                raise TypeError("sensor SetPoint must be a number, not a boolean")
+            raw_setpoint = float(raw_setpoint)
+            if not math.isfinite(raw_setpoint) or not 0 <= raw_setpoint <= 255:
+                raise ValueError("sensor SetPoint must be finite and in range 0..255")
+            if type(slide_switch) is not int or slide_switch not in (0, 1):
+                raise ValueError("sensor SlideSwitch must be 0 or 1")
             requested = (
                 raw_setpoint * 2 / 255 - 1
             ) * self._sensor_target_temp_range + self._target_temp_base

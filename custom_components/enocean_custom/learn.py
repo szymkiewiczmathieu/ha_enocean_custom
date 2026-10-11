@@ -93,11 +93,13 @@ class LearnManager:
         self.captured_at: float | None = None
         self.window_started_at: float | None = None
         self.owner: str | None = None
+        self.session_kind: str | None = None
         self._unsub_dispatcher: Callable[[], None] | None = None
         self._timeout_handle: Any = None
         self._finished = asyncio.Event()
         self._finished.set()
         self._active_known_ids: set[int] = set()
+        self._ute_packet_callback: Callable[[Any], None] | None = None
 
     @property
     def is_active(self) -> bool:
@@ -107,25 +109,66 @@ class LearnManager:
     def start(
         self, timeout: int = LEARN_TIMEOUT_DEFAULT, owner: str | None = None
     ) -> bool:
-        """Open a learn window that expires after timeout seconds.
+        """Open an exclusive generic learn window."""
+        return self._start(
+            timeout=timeout,
+            owner=owner,
+            session_kind="learn",
+            packet_callback=self._packet_received,
+        )
 
-        Returns False without disturbing anything when a window is already
-        active: windows are serialized so a capture can always be attributed
-        to exactly one consumer.
+    def start_ute(
+        self,
+        timeout: float,
+        *,
+        owner: str,
+        packet_callback: Callable[[Any], None],
+    ) -> bool:
+        """Open an exclusive UTE response-listening session.
+
+        The normal learn listener captures the first unknown sender. A UTE
+        session instead delegates every telegram to its owner, which has sent
+        the gateway-initiated D4 CMD 0 query and must match its addressed CMD 1
+        response. The manager never answers an inbound UTE telegram itself.
+        Both session types share one slot, so an ordinary learn window cannot
+        consume a commissioning response.
         """
+        if self.is_active:
+            return False
+        self._ute_packet_callback = packet_callback
+        started = self._start(
+            timeout=timeout,
+            owner=owner,
+            session_kind="ute",
+            packet_callback=self._ute_packet_received,
+        )
+        if not started:
+            self._ute_packet_callback = None
+        return started
+
+    def _start(
+        self,
+        *,
+        timeout: float,
+        owner: str | None,
+        session_kind: str,
+        packet_callback: Callable[[Any], None],
+    ) -> bool:
+        """Open one serialized receive window using the supplied packet handler."""
         if self.is_active:
             return False
         self.captured = None
         self.captured_metadata = None
         self.captured_at = None
         self.owner = owner
+        self.session_kind = session_kind
         # Re-seed the known ids on every window: YAML ids are registered by
         # platform setup, UI ids are read live from the entry options so a
         # device deleted from the UI is teachable again right away.
         self._active_known_ids = get_known_ids(self.hass) | _ui_known_ids(self.hass)
         self._finished = asyncio.Event()
         self._unsub_dispatcher = async_dispatcher_connect(
-            self.hass, SIGNAL_RECEIVE_MESSAGE, self._packet_received
+            self.hass, SIGNAL_RECEIVE_MESSAGE, packet_callback
         )
         self.window_started_at = self.hass.loop.time()
         self._timeout_handle = self.hass.loop.call_later(timeout, self._on_timeout)
@@ -145,7 +188,9 @@ class LearnManager:
         if self._unsub_dispatcher is not None:
             self._unsub_dispatcher()
             self._unsub_dispatcher = None
+        self._ute_packet_callback = None
         self.owner = None
+        self.session_kind = None
         if not self._finished.is_set():
             self._finished.set()
 
@@ -182,6 +227,14 @@ class LearnManager:
                 },
             },
         )
+
+    @callback
+    def _ute_packet_received(self, packet: Any) -> None:
+        """Forward an explicit UTE-session packet without generic capture logic."""
+        callback_ = self._ute_packet_callback
+        if self.session_kind != "ute" or callback_ is None:
+            return
+        callback_(packet)
 
     def capture_is_fresh_for(self, window_started_at: float | None) -> bool:
         """Return True when the capture happened during the caller's own window."""

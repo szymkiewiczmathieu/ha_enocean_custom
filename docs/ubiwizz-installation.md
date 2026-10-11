@@ -60,14 +60,23 @@ status is received.
 The UBID1507C manual describes physical local association: make three short
 `PRESS` presses to enter association mode; for output 2, make one further short
 press before operating the compatible transmitter. Verify the actual module
-revision and LED behavior in the manual. This is a physical procedure, not a
-generated radio sequence.
+revision and LED behavior in the manual.
 
-The guided Ubiwizz flow uses the existing directed D2 path. It requires, in
-order, a queued command, ESP3 `OK`, and later matching D2 `CMD 0x4` ON feedback
-from the exact actuator and channel. That is evidence for this transaction only;
-it does not prove product identity or persistent factory-reset commissioning.
-Power-cycle validation remains a hardware-release check.
+After selecting the exact `ubiwizz_ubid1507c` entity and output, call the
+entity-scoped `enocean_custom.commission_ute` action while that output is in
+learn mode. It sends one standards-defined broadcast UTE D4 CMD 0 query for
+`D2-01-12` and the selected channel. Its ERP1 sender is the resolved dongle
+Base ID, which is the identity the module can learn. The module answers with an
+addressed D4 CMD 1 response from its own EURID, echoing the EEP and selected
+channel. EEP 2.6.7 gives the module at most 500 ms after receiving a query to
+respond; the gateway, as query sender, allows the 700 ms requester limit from
+the physical transmission. The entity records the ESP3 acknowledgement and
+response outcome separately.
+
+This commissioning action never sends a D2 relay command. Normal `turn_on` and
+`turn_off` control remains the separate directed D2 path, and ESP3 `OK` on
+that path is only transport evidence. After any commissioning result, verify
+physical operation and power-cycle behavior on safe hardware.
 
 ## Repeater boundary
 
@@ -76,37 +85,10 @@ accepts only documented candidate labels and levels for an operator note; it
 reads no repeater state, creates no entity, persists no request, and transmits
 no ERP1 or ESP3 packet.
 
-The separately registered `enocean_custom.repeater_set_level` service is a live
-radio configuration write. It is not the diagnostic flow and must be treated as
-an advanced, experimental operation:
-
-- It is meaningful only for a **UI-managed** switch whose
-  `configured_actuator_profile` state attribute is exactly
-  `ubiwizz_ubid1507c`.
-- It accepts `level` `0`, `1`, or `2`. The integration records the requested
-  level and ESP3 transport telemetry; it has no supported remote read-back.
-- The supplied Ubiwizz sources do not document a remote repeater default,
-  packet procedure, module-revision compatibility, or persistence across a
-  power cycle. Do not represent a requested level as the module's state.
-- Never target generic D2 devices, NodOn `D2-01-0A` SmartPlugs, or the USB
-  gateway. `CO_WR_REPEATER` configures the gateway, not a Ubiwizz module.
-- Test only on a known safe installation. This configuration write is not a
-  relay command, but it is a real radio transmission and should not be used to
-  experiment with mains-connected equipment.
-
-Example for an eligible UI-managed switch:
-
-```yaml
-action: enocean_custom.repeater_set_level
-data:
-  entity_id: switch.ubiwizz_kitchen_output_1
-  level: 1
-```
-
-After a call, inspect `repeater_level_requested`, `repeater_last_esp3_ack`,
-`repeater_transmissions`, and `repeater_acknowledgements` on the switch. These
-are local transmission facts only. A true acknowledgement does **not** confirm
-remote reception, active repeater behavior, persistence, or physical output.
+The integration exposes no `repeater_set_level` service. Remote repeater writes
+remain blocked because the supplied Ubiwizz documentation does not define a
+module-specific protocol, default state, read-back, or persistence behavior.
+`CO_WR_REPEATER` configures the USB gateway, not a Ubiwizz module.
 
 ## Incoming devices
 
@@ -163,12 +145,10 @@ sensor:
 3. Confirm closed, open, and tilt telegrams for every handle before relying on
    an automation. Unsupported values intentionally report `unknown`.
 4. Keep NodOn `D2-01-0A` at channel `0` and out of the Ubiwizz guided flow.
-5. For relay control or repeater configuration, treat ESP3 `OK` as dongle
-   transport evidence only. Validate the physical result and power-cycle
-   behavior separately on safe hardware.
-6. Keep local association, repeater experiments, and mains work outside routine
-   Home Assistant deployment. Do not claim hardware certification from this
-   integration's tests or diagnostics.
+5. For relay control, treat ESP3 `OK` as dongle transport evidence only. Validate
+   the physical result and power-cycle behavior separately on safe hardware.
+6. Keep local association, repeater diagnostics, and mains work outside routine
+   Home Assistant deployment. Remote Ubiwizz repeater writes are unsupported.
 
 ## References
 

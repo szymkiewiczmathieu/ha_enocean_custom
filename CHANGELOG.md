@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.9.0 - 2026-10-11
+
+- Add standards-based UTE discovery and association for Ubiwizz UBID1507C/D2-01-12.
+- Keep the user association window separate from the UTE 500/700 ms radio deadlines.
+- Harden dongle Base ID handling, ESP3 callbacks, session ownership, collision checks, and stale callback rejection.
+- Validate climate numeric inputs at both persistence and runtime boundaries.
+- Remove unsupported Ubiwizz repeater radio writes and stale repeater telemetry; diagnostics remain no-radio.
+- Add full regression coverage and HA smoke validation.
+
 ## 2.8.1 - 2026-10-11
 - Harden HA on/off command delivery and separate transport ACKs from actuator feedback.
 - Add regression coverage for directed D2 commands, stale callbacks, RPS multi-frame delivery, and Ubiwizz repeater telemetry.

@@ -52,7 +52,9 @@ class EnOceanDongle:
         self._last_response_code: str | None = None
         self._response_lock = Lock()
         self._inbox: DeviceInbox | None = None
-        self._queued_response_callbacks: dict[int, Callable[[bool], None] | None] = {}
+        self._queued_response_callbacks: dict[
+            int, tuple[Callable[[bool], None] | None, Callable[[], None] | None]
+        ] = {}
         self._pending_response_callbacks: deque[Callable[[bool], None] | None] = deque()
         # teach_in=False is explicit and load-bearing: the runtime worker must
         # never acknowledge a UTE teach-in on its own. Answering one is an
@@ -112,8 +114,15 @@ class EnOceanDongle:
         self,
         command: Any,
         response_callback: Callable[[bool], None] | None = None,
+        written_callback: Callable[[], None] | None = None,
     ) -> bool:
-        """Queue one command and account for acceptance or rejection."""
+        """Queue one command and report wire/ESP3 lifecycle callbacks.
+
+        ``written_callback`` runs on Home Assistant's event loop only after the
+        serial worker has physically written this exact packet. It lets a radio
+        protocol start a receive deadline from transmission, not queueing.
+        ``response_callback`` remains coupled to the following ESP3 response.
+        """
         self._transmit_attempts += 1
         if not self.available:
             self._transmit_rejected += 1
@@ -125,7 +134,10 @@ class EnOceanDongle:
             _LOGGER.exception("Rejecting invalid EnOcean command before queueing")
             return False
         with self._response_lock:
-            self._queued_response_callbacks[id(command)] = response_callback
+            self._queued_response_callbacks[id(command)] = (
+                response_callback,
+                written_callback,
+            )
         accepted = self._communicator.send(command)
         if accepted:
             self._transmit_queued += 1
@@ -136,10 +148,19 @@ class EnOceanDongle:
         return accepted
 
     def _packet_written(self, packet: Any) -> None:
-        """Register response ownership in exact serial-write order."""
+        """Register response ownership and publish the physical write once."""
         with self._response_lock:
-            response_callback = self._queued_response_callbacks.pop(id(packet), None)
+            callbacks = self._queued_response_callbacks.pop(id(packet), None)
+            if callable(callbacks):
+                response_callback, written_callback = callbacks, None
+            else:
+                response_callback, written_callback = callbacks or (None, None)
             self._pending_response_callbacks.append(response_callback)
+        if written_callback is not None:
+            try:
+                self.hass.loop.call_soon_threadsafe(written_callback)
+            except RuntimeError:
+                _LOGGER.debug("Home Assistant loop closed before write notification")
 
     def callback(self, packet: Any) -> None:
         """Dispatch a valid radio packet from the worker thread."""
@@ -194,12 +215,16 @@ class EnOceanDongle:
         with self._response_lock:
             callbacks = [
                 response_callback
-                for response_callback in (
+                for response_callback, _written_callback in (
                     *self._queued_response_callbacks.values(),
-                    *self._pending_response_callbacks,
                 )
                 if response_callback is not None
             ]
+            callbacks.extend(
+                response_callback
+                for response_callback in self._pending_response_callbacks
+                if response_callback is not None
+            )
             self._queued_response_callbacks.clear()
             self._pending_response_callbacks.clear()
         try:

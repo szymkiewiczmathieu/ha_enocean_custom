@@ -7,6 +7,7 @@ import queue
 import struct
 import threading
 import time
+import typing
 import unittest
 from collections import deque
 from pathlib import Path
@@ -20,6 +21,7 @@ SERIAL_PATH = (
     / "custom_components/enocean_custom/enocean_library/communicators/serialcommunicator.py"
 )
 CLIMATE_PATH = ROOT / "custom_components/enocean_custom/climate.py"
+SWITCH_PATH = ROOT / "custom_components/enocean_custom/switch.py"
 INIT_PATH = ROOT / "custom_components/enocean_custom/__init__.py"
 MANIFEST_PATH = ROOT / "custom_components/enocean_custom/manifest.json"
 SERVICES_PATH = ROOT / "custom_components/enocean_custom/services.yaml"
@@ -68,6 +70,7 @@ def _load_dongle_members(*names):
     namespace = {
         "_LOGGER": Mock(),
         "Any": object,
+        "Callable": typing.Callable,
         "SerialCommunicator": Mock(),
         "SIGNAL_DONGLE_STATUS": "dongle_status",
         "dispatcher_send": Mock(),
@@ -234,6 +237,25 @@ class DongleLifecycleTests(unittest.IsolatedAsyncioTestCase):
         dongle.hass.loop.call_soon_threadsafe.assert_called_once_with(
             dongle._notify_status
         )
+
+    def test_packet_written_starts_protocol_deadline_after_wire_write(self):
+        namespace = _load_dongle_members("_packet_written")
+        dongle = namespace["EnOceanDongle"]()
+        packet = object()
+        response_callback = Mock()
+        written_callback = Mock()
+        dongle._response_lock = threading.Lock()
+        dongle._queued_response_callbacks = {
+            id(packet): (response_callback, written_callback)
+        }
+        dongle._pending_response_callbacks = deque()
+        dongle.hass = Mock()
+
+        dongle._packet_written(packet)
+
+        self.assertEqual(list(dongle._pending_response_callbacks), [response_callback])
+        dongle.hass.loop.call_soon_threadsafe.assert_called_once_with(written_callback)
+        self.assertEqual(dongle._queued_response_callbacks, {})
 
     def test_diagnostics_redact_path_from_thread_name(self):
         namespace = _load_dongle_members("available", "diagnostics")
@@ -793,6 +815,11 @@ class ReleaseHardeningTests(unittest.TestCase):
         self.assertNotIn("send_packet", INIT_PATH.read_text())
         self.assertNotIn("send_packet:", SERVICES_PATH.read_text())
         self.assertNotIn('"send_packet"', STRINGS_PATH.read_text())
+
+    def test_unsupported_ubiwizz_repeater_write_is_not_registered(self):
+        self.assertNotIn("repeater_set_level", SWITCH_PATH.read_text())
+        self.assertNotIn("repeater_set_level:", SERVICES_PATH.read_text())
+        self.assertNotIn('"repeater_set_level"', STRINGS_PATH.read_text())
 
     def test_climate_interval_is_cancelled_with_entity(self):
         tree = ast.parse(CLIMATE_PATH.read_text())

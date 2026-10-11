@@ -73,6 +73,8 @@
           "qr_code": "Add via QR code",
           "pair_actuator": "Pair an actuator (guided; no automatic UTE)",
           "commission_existing": "Commission an existing D2 relay (assisted; no automatic UTE)",
+          "ute_discover": "Discover and associate a new D2 relay by UTE",
+          "ute_commission": "Commission a Ubiwizz module via UTE",
           "ubiwizz_repeater": "Ubiwizz repeater diagnostic (no radio command)",
           "manage": "Manage UI devices",
           "import_yaml": "Import YAML devices"
@@ -194,6 +196,16 @@
         "description": "No exact radio-declared D2-01-12 proof is bound to selected relay {selected_id}, channel {channel}. Confirm only after checking the physical module: it is a relay requiring D2-01-12 commissioning. This is an operator assertion, not radio evidence. It is persisted only after queued directed D2 ON, ESP3 OK, and later matching D2 feedback.",
         "data": {"confirm_relay_d2": "I confirm this physical relay requires D2-01-12 commissioning"}
       },
+      "ute_discover": {
+        "title": "Associate a Ubiwizz UBID1507C output by UTE",
+        "description": "Choose output 1 or 2, then put that exact UBID1507C output in local association mode: press PRESS briefly three times for output 1; after the same three presses, make one extra short PRESS for output 2. During the 60-second session, Home Assistant broadcasts D4 CMD 0 UTE queries using the resolved dongle Base ID and waits for the actuator's addressed D4 CMD 1 reply. The actuator must reply within 500 ms of a query; Home Assistant allows the EEP requester limit of 700 ms per physical transmission before retrying. The switch is saved only after an accepted matching CMD 1 and ESP3 OK. No D2 relay command is sent.",
+        "data": {"name": "Name", "channel": "UBID1507C output"}
+      },
+      "ute_commission": {
+        "title": "Commission a Ubiwizz module via UTE",
+        "description": "Put output 1 in local learn mode with three short PRESS presses, or put output 2 in mode with the same three presses plus one extra short PRESS. This action broadcasts one standard D4 CMD 0 query and waits for the module's addressed CMD 1 response: the module must respond within 500 ms and Home Assistant allows 700 ms from the physical write. No D2 relay command is sent.",
+        "data": {"entity_id": "Ubiwizz switch"}
+      },
       "ubiwizz_repeater": {
         "title": "Ubiwizz repeater diagnostic",
         "description": "Diagnostic boundary only. Choose the profile written in the module documentation and the level you intend to evaluate. This does not identify a Ubiwizz model, observe its repeater state, change its configuration, or send radio.",
@@ -216,6 +228,7 @@
     },
     "progress": {
       "waiting_for_device": "Press the button on the device now. Waiting up to 60 seconds for an unknown EnOcean sender.",
+      "waiting_for_ute_response": "During this {timeout}-second Ubiwizz association session, Home Assistant broadcasts D4 CMD 0 queries for the selected output and waits for an addressed D4 CMD 1 response. Each query allows the EEP requester limit of 700 ms after its physical transmission.",
       "pairing_actuator": "Pairing in progress for up to {timeout} seconds. Commands are sent repeatedly; keep the module in pairing mode."
     },
     "error": {
@@ -248,7 +261,14 @@
       "yaml_managed": "This EnOcean ID is also configured in YAML. Remove the YAML configuration before deleting its UI device.",
       "no_yaml_devices_to_import": "No YAML devices remain to import.",
       "yaml_import_cancelled": "YAML import cancelled. No devices were changed.",
-      "ubiwizz_repeater_request_missing": "The repeater diagnostic session expired; start again."
+      "ubiwizz_repeater_request_missing": "The repeater diagnostic session expired; start again.",
+      "ute_commission_started": "UTE commissioning query queued. Check the EnOcean logs and module response.",
+      "ute_discovery_timeout": "No valid addressed D4 CMD 1 UTE response was received during the 60-second association session. No device was saved.",
+      "ute_discovery_base_id_unavailable": "The dongle Base ID is unavailable, so no D4 CMD 0 query was sent and no device was saved.",
+      "ute_discovery_transport_rejected": "The D4 CMD 0 query was not accepted by the dongle. No device was saved.",
+      "ute_discovery_response_rejected": "The actuator rejected the D4 CMD 0 query. No device was saved.",
+      "ute_discovery_collision": "This output identity and channel already exist. No device was saved.",
+      "ute_discovery_failed": "UTE discovery ended without a verified association. No device was saved."
     }
   },
   "services": {
@@ -267,6 +287,10 @@
     "send_teach_in": {
       "name": "Send dimmer teach-in",
       "description": "Send an A5-38-08 4BS teach-in telegram using the selected light entity's sender ID."
+    },
+    "commission_ute": {
+      "name": "Commission Ubiwizz by UTE",
+      "description": "After putting the selected UBID1507C output into its documented local association mode (three short PRESS presses for output 1; the same three plus one extra short PRESS for output 2), send one standard broadcast D4 CMD 0 Universal Teach-in query. The query uses the resolved dongle Base ID and awaits the module's addressed CMD 1 response. The module must respond within 500 ms; this action allows 700 ms from the physical write. It never sends a D2 relay command."
     },
     "reload": {
       "name": "Reload EnOcean YAML platforms",

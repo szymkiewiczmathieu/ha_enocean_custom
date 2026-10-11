@@ -160,6 +160,7 @@ class EnOceanEntity(Entity):
         optional: list[int],
         packet_type: int,
         response_callback=None,
+        written_callback=None,
     ) -> bool:
         """Queue an ESP3 packet through the entry-owned dongle."""
         packet = ESP3Packet(packet_type, data=data, optional=optional)
@@ -168,7 +169,15 @@ class EnOceanEntity(Entity):
         if gateway is None:
             self._attr_available = False
             return False
-        if gateway.send(packet, response_callback=response_callback):
+        if written_callback is None:
+            accepted = gateway.send(packet, response_callback=response_callback)
+        else:
+            accepted = gateway.send(
+                packet,
+                response_callback=response_callback,
+                written_callback=written_callback,
+            )
+        if accepted:
             return True
         self._attr_available = False
         self.schedule_update_ha_state()

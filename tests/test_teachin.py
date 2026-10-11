@@ -134,6 +134,26 @@ class UiDeviceSchemaTests(unittest.TestCase):
             with self.assertRaises(vol.Invalid):
                 UI_DEVICE_SCHEMA({**base, "channel": bad_channel})
 
+    def test_schema_rejects_boolean_climate_numbers(self):
+        base = {
+            "id": [1, 2, 3, 4],
+            "platform": "climate",
+            "name": "heating",
+            "id_switch": [5, 6, 7, 8],
+            "device_type": "SRC-D08",
+            "sensor_entity_id": "sensor.room_temperature",
+        }
+        for field in (
+            "temperature_frost_protection",
+            "sensor_target_temperature_update_tolerance",
+            "target_temperature_base_value",
+            "target_temperature_reduction_night",
+            "pi_control_Kp",
+            "pi_control_Tn",
+        ):
+            with self.subTest(field=field), self.assertRaises(vol.Invalid):
+                UI_DEVICE_SCHEMA({**base, field: True})
+
     def test_schema_rejects_a_malformed_sender_id(self):
         base = {"id": [1, 2, 3, 4], "platform": "light", "name": "x"}
         UI_DEVICE_SCHEMA({**base, "sender_id": [1, 2, 3, 4]})

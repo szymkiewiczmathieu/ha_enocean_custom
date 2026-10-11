@@ -50,6 +50,7 @@ jobs:
           targets=(
             custom_components/enocean_custom/__init__.py
             custom_components/enocean_custom/binary_sensor.py
+            custom_components/enocean_custom/button.py
             custom_components/enocean_custom/climate.py
             custom_components/enocean_custom/config_flow.py
             custom_components/enocean_custom/const.py
@@ -66,6 +67,7 @@ jobs:
             custom_components/enocean_custom/sensor.py
             custom_components/enocean_custom/switch.py
             custom_components/enocean_custom/ubiwizz.py
+            custom_components/enocean_custom/ute.py
             custom_components/enocean_custom/ubiwizz_repeater.py
             custom_components/enocean_custom/enocean_library/communicators/communicator.py
             custom_components/enocean_custom/enocean_library/communicators/serialcommunicator.py
@@ -74,8 +76,8 @@ jobs:
           )
           ruff check "${targets[@]}"
           ruff format --check "${targets[@]}"
-      - name: Run D2 commissioning regressions with Home Assistant installed
-        run: python -m unittest tests.test_pairing_wizard tests.test_ute_teach_in_policy -v
+      - name: Run UTE and D2 commissioning regressions with Home Assistant installed
+        run: python -m unittest tests.test_pairing_wizard tests.test_ute_teach_in_policy tests.test_ute_commissioning -v
       - name: Import and validate against Home Assistant 2026.7.3
         run: python tests/ha_smoke.py
 

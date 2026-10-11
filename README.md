@@ -8,7 +8,7 @@ configuration-entry and YAML setup, guided device learning, diagnostics, native
 rocker triggers, and bounded actuator control without cloud services or
 telemetry.
 
-**Current release:** [v2.8.0](CHANGELOG.md) · Apache-2.0 · HACS custom repository
+**Current release:** [v2.8.1](CHANGELOG.md) · Apache-2.0 · HACS custom repository
 
 ## Install
 
@@ -52,7 +52,13 @@ identity model are in [Device Intelligence](docs/device-intelligence.md).
   EEP identifies a data profile. Model claims require exact Product-ID evidence;
   manual EEP values remain operator assertions.
 - **No automatic UTE acknowledgement.** Radio transmission happens only through
-  an explicit supported action or service.
+  an explicit supported action or service. The Ubiwizz `commission_ute` action
+  sends a gateway-initiated broadcast D4 CMD 0 query for its selected output;
+  the actuator returns the addressed CMD 1 response. For UBID1507C local
+  association, use three short `PRESS` presses for output 1, or those three
+  presses plus one more for output 2. The actuator response limit is 500 ms;
+  the gateway allows the EEP query-sender limit of 700 ms after wire write.
+  Unsolicited UTE requests are never acknowledged.
 - **ESP3 `OK` is transport evidence, not device evidence.** Switch and light
   state changes require matching inbound feedback where the profile supports it.
 - **Diagnostics are privacy-aware.** They expose lifecycle and aggregate radio
@@ -75,22 +81,17 @@ switch:
 ```
 
 Read [the Ubiwizz installation guide](docs/ubiwizz-installation.md) before
-using local association, directed D2 control, or the repeater service. It
-covers both outputs, HOPPE/Ubiwizz handles, D5-00-01 contacts, NodOn boundaries,
-and the required safety checks.
+using local association or directed D2 control. It covers both outputs,
+HOPPE/Ubiwizz handles, D5-00-01 contacts, NodOn boundaries, and the required
+safety checks.
 
-### Repeater safety limit
+### Repeater safety boundary
 
 The **Ubiwizz repeater diagnostic** in the options flow is deliberately
-read-only: it sends no radio, observes no state, and persists nothing.
-
-v2.8.0 also exposes an advanced
-`enocean_custom.repeater_set_level` service for eligible UI-managed Ubiwizz
-switches. It is a live radio configuration write, not a confirmed read-back.
-Use it only after confirming the exact module and a safe test setup. An ESP3
-acknowledgement only proves dongle acceptance; it does not prove the module
-received, retained, or applied a repeater level. The service must not be used
-for generic D2 devices, NodOn SmartPlugs, or to configure the USB gateway.
+read-only: it sends no radio, observes no state, and persists nothing. The
+integration exposes no remote repeater write service because supplied Ubiwizz
+documentation does not define a module-specific protocol or read-back. Do not
+confuse the module repeater with the USB gateway's `CO_WR_REPEATER` command.
 
 ## Diagnostics and support
 

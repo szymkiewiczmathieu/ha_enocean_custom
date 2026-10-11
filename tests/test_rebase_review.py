@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import math
 import sys
 import unittest
@@ -116,6 +117,46 @@ class ClimateYamlValidationTests(unittest.TestCase):
             }
         )
         self.assertEqual(config["temperature_frost_protection"], 8.0)
+
+
+@unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
+class ClimateRuntimeInputValidationTests(unittest.TestCase):
+    """Sensor attributes must not inject invalid values into climate control."""
+
+    def _entity(self):
+        entity = object.__new__(climate.EnOceanClimate)
+        entity._attr_current_temperature = 19.0
+        entity._profile = climate.PROFILE_SRC_D08
+        entity._sensor_target_temp = None
+        entity._sensor_target_temp_range = 5
+        entity._target_temp_base = 21.0
+        entity._target_temp_reduction_night = 4.0
+        return entity
+
+    def test_invalid_panel_attributes_are_rejected_without_target_change(self):
+        for setpoint, slide_switch in (
+            (True, 1),
+            (math.nan, 1),
+            (-1, 1),
+            (256, 1),
+            (128, True),
+            (128, 2),
+        ):
+            with self.subTest(setpoint=setpoint, slide_switch=slide_switch):
+                entity = self._entity()
+                state = type(
+                    "PanelState",
+                    (),
+                    {
+                        "state": "20.0",
+                        "attributes": {
+                            "SetPoint": setpoint,
+                            "SlideSwitch": slide_switch,
+                        },
+                    },
+                )()
+                self.assertFalse(asyncio.run(entity._async_get_sensor_update(state)))
+                self.assertIsNone(entity._sensor_target_temp)
 
 
 @unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
