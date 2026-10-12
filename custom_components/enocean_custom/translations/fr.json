@@ -202,7 +202,7 @@
       },
       "ute_discover_confirm": {
         "title": "Envoyer maintenant le télégramme d'association UTE dirigé",
-        "description": "Confirmez seulement après la séquence PRESS locale. Home Assistant enverra un télégramme UTE D4/91 dirigé avec l'EEP exact choisi dans l'étape précédente. Il n'envoie ni requête UTE diffusée ni commande de relais D2. L'ESP3 OK prouve uniquement le transport du dongle ; vérifiez ensuite le retour D2 normal.",
+        "description": "Confirmez seulement après la séquence PRESS locale. Home Assistant mettra en file un télégramme UTE D4/91 dirigé avec l'EEP exact choisi dans l'étape précédente. Il n'envoie ni requête UTE diffusée ni commande de relais D2. L'interrupteur n'est enregistré qu'après confirmation de l'écriture série USB300 physique de ce paquet et ESP3 OK ; ESP3 prouve uniquement le transport du dongle. Vérifiez ensuite le retour D2 normal.",
         "data": {"ute_ready": "J'ai terminé la séquence PRESS locale et je suis prêt à envoyer"}
       },
       "ubiwizz_repeater": {
@@ -227,7 +227,7 @@
     },
     "progress": {
       "waiting_for_device": "Appuyez maintenant sur le bouton de l'équipement. Attente jusqu'à 60 secondes d'un expéditeur EnOcean inconnu.",
-      "sending_directed_ute": "Home Assistant a envoyé le télégramme d'association UTE D4/91 ciblé. Attente jusqu'à {timeout} secondes du résultat de transport ESP3.",
+      "sending_directed_ute": "Home Assistant a mis en file le télégramme d'association UTE D4/91 ciblé. Attente jusqu'à {timeout} secondes de la confirmation de son écriture série USB300 physique et du résultat de transport ESP3.",
       "pairing_actuator": "Appairage en cours pendant au plus {timeout} secondes. Les commandes sont répétées ; garde le module en mode appairage."
     },
     "error": {
@@ -264,9 +264,11 @@
       "yaml_import_cancelled": "Import YAML annulé. Aucun équipement n'a été modifié.",
       "ubiwizz_repeater_request_missing": "La session de diagnostic du répéteur a expiré ; recommence.",
       "ute_discovery_not_ready": "La confirmation finale de la séquence PRESS était requise avant tout envoi de télégramme UTE.",
-      "ute_discovery_timeout": "Le dongle n'a pas retourné de résultat de transport ESP3 pour le télégramme UTE D4/91 ciblé pendant 30 secondes. Aucun équipement n'a été enregistré.",
+      "ute_discovery_timeout": "L'écriture USB300 physique a été confirmée, mais le dongle n'a pas retourné de résultat de transport ESP3 pour le télégramme UTE D4/91 ciblé pendant 30 secondes. Aucun équipement n'a été enregistré.",
+      "ute_discovery_write_unconfirmed": "Le télégramme UTE D4/91 dirigé a été mis en file, mais aucune écriture série USB300 physique n'a été confirmée pendant 30 secondes. Aucun équipement n'a été enregistré.",
+      "ute_discovery_queue_rejected": "Le télégramme UTE D4/91 dirigé n'a pas été accepté dans la file du dongle. Aucun équipement n'a été enregistré.",
       "ute_discovery_base_id_unavailable": "L'identifiant de base du dongle est indisponible ; le télégramme UTE dirigé n'a pas été mis en file et aucun équipement n'a été enregistré.",
-      "ute_discovery_transport_rejected": "Le télégramme UTE D4/91 dirigé n'a pas été accepté par le dongle. Aucun équipement n'a été enregistré.",
+      "ute_discovery_transport_rejected": "Après confirmation de l'écriture USB300 physique, ESP3 a rejeté le télégramme UTE D4/91 dirigé. Aucun équipement n'a été enregistré.",
       "ute_discovery_collision": "Cette identité de sortie et ce canal existent déjà. Aucun équipement n'a été enregistré.",
       "ute_discovery_failed": "L'association UTE dirigée n'a pas pu être construite de manière sûre. Aucun équipement n'a été enregistré."
     }

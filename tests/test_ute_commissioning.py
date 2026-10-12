@@ -193,12 +193,17 @@ class UteDiscoveryFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(progressed["type"], FlowResultType.SHOW_PROGRESS_DONE)
         return await flow.async_step_ute_discover_result()
 
-    async def test_confirmed_press_queues_exact_d4_91_and_esp3_ok_creates_output(self):
+    async def test_esp3_ok_waits_for_physical_write_before_creating_output(self):
         entry = self._entry()
         flow = self._flow(entry)
         dongle = await self._start(flow, name="Boiler output 2", channel=1)
 
+        self.assertTrue(callable(dongle.written_callbacks[0]))
         dongle.response_callbacks[0](True)
+        self.assertFalse(flow._ute_discovery_written)
+        self.assertIsNone(flow._ute_discovery_outcome)
+
+        dongle.written_callbacks[0]()
         result = await self._finished_result(flow)
 
         self.assertEqual(result["type"], FlowResultType.CREATE_ENTRY)
@@ -235,6 +240,7 @@ class UteDiscoveryFlowTests(unittest.IsolatedAsyncioTestCase):
         entry = self._entry([existing])
         flow = self._flow(entry)
         dongle = await self._start(flow, channel=1)
+        dongle.written_callbacks[0]()
         dongle.response_callbacks[0](True)
 
         result = await self._finished_result(flow)
@@ -285,7 +291,18 @@ class UteDiscoveryFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(rejected_dongle.sent), 1)
         rejected = await self._finished_result(rejected_flow)
         self.assertEqual(rejected["type"], FlowResultType.ABORT)
-        self.assertEqual(rejected["reason"], "ute_discovery_transport_rejected")
+        self.assertEqual(rejected["reason"], "ute_discovery_queue_rejected")
+
+        response_rejected_entry = self._entry()
+        response_rejected_flow = self._flow(response_rejected_entry)
+        response_rejected_dongle = await self._start(response_rejected_flow)
+        response_rejected_dongle.written_callbacks[0]()
+        response_rejected_dongle.response_callbacks[0](False)
+        response_rejected = await self._finished_result(response_rejected_flow)
+        self.assertEqual(response_rejected["type"], FlowResultType.ABORT)
+        self.assertEqual(
+            response_rejected["reason"], "ute_discovery_transport_rejected"
+        )
 
         collision_entry = self._entry(
             [
@@ -317,11 +334,24 @@ class UteDiscoveryFlowTests(unittest.IsolatedAsyncioTestCase):
         timeout_entry = self._entry()
         timeout_flow = self._flow(timeout_entry)
         with patch.object(options_flow, "UTE_DISCOVERY_TIMEOUT", 0.001):
-            await self._start(timeout_flow, channel=0)
+            timeout_dongle = await self._start(timeout_flow, channel=0)
+            timeout_dongle.response_callbacks[0](True)
             await asyncio.sleep(0.01)
         timeout = await self._finished_result(timeout_flow)
         self.assertEqual(timeout["type"], FlowResultType.ABORT)
-        self.assertEqual(timeout["reason"], "ute_discovery_timeout")
+        self.assertEqual(timeout["reason"], "ute_discovery_write_unconfirmed")
+
+        response_timeout_entry = self._entry()
+        response_timeout_flow = self._flow(response_timeout_entry)
+        with patch.object(options_flow, "UTE_DISCOVERY_TIMEOUT", 0.001):
+            response_timeout_dongle = await self._start(
+                response_timeout_flow, channel=0
+            )
+            response_timeout_dongle.written_callbacks[0]()
+            await asyncio.sleep(0.01)
+        response_timeout = await self._finished_result(response_timeout_flow)
+        self.assertEqual(response_timeout["type"], FlowResultType.ABORT)
+        self.assertEqual(response_timeout["reason"], "ute_discovery_timeout")
 
     async def test_stale_esp3_callback_cannot_persist_after_removal(self):
         entry = self._entry()

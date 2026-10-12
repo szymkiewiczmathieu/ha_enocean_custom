@@ -444,6 +444,9 @@ class EnOceanOptionsFlow(OptionsFlow):
         self._ute_discovery_outcome: str | None = None
         self._ute_discovery_device: dict[str, Any] | None = None
         self._ute_discovery_response_token: object | None = None
+        self._ute_discovery_queued = False
+        self._ute_discovery_written = False
+        self._ute_discovery_response_accepted: bool | None = None
         self._ubiwizz_repeater_request: UbiwizzRepeaterDiagnosticRequest | None = None
         self._yaml_import_result: dict[str, int] | None = None
 
@@ -548,6 +551,9 @@ class EnOceanOptionsFlow(OptionsFlow):
             self._ute_discovery_outcome = None
             self._ute_discovery_device = None
             self._ute_discovery_response_token = None
+            self._ute_discovery_queued = False
+            self._ute_discovery_written = False
+            self._ute_discovery_response_accepted = None
             self._ute_discovery_complete = None
             self._ute_discovery_task = None
             return await self.async_step_ute_discover_confirm()
@@ -619,9 +625,17 @@ class EnOceanOptionsFlow(OptionsFlow):
                 response_callback=lambda accepted: (
                     self._ute_discovery_transport_received(generation, token, accepted)
                 ),
+                written_callback=lambda: self._ute_discovery_packet_written(
+                    generation, token
+                ),
             )
-            if not queued:
-                self._complete_ute_discovery(generation, "transport_rejected")
+            if queued:
+                # A true return only proves the worker accepted the packet into
+                # its queue.  The USB300 write and the ESP3 response are separate
+                # facts, delivered through the callbacks above.
+                self._ute_discovery_queued = True
+            else:
+                self._complete_ute_discovery(generation, "queue_rejected")
         if not task.done():
             return self.async_show_progress(
                 step_id="ute_discover_progress",
@@ -636,11 +650,14 @@ class EnOceanOptionsFlow(OptionsFlow):
     async def _async_wait_for_ute_transport(
         self, generation: int, complete: asyncio.Event
     ) -> None:
-        """Bound the ESP3 callback wait without listening for inbound UTE radio."""
+        """Bound the physical-write and ESP3 callback wait without radio listening."""
         try:
             await asyncio.wait_for(complete.wait(), timeout=UTE_DISCOVERY_TIMEOUT)
         except TimeoutError:
-            self._complete_ute_discovery(generation, "timeout")
+            self._complete_ute_discovery(
+                generation,
+                "timeout" if self._ute_discovery_written else "write_unconfirmed",
+            )
 
     def _ute_discovery_device_from_target(self) -> dict[str, Any] | None:
         """Build one explicit Ubiwizz row from validated operator input."""
@@ -682,18 +699,47 @@ class EnOceanOptionsFlow(OptionsFlow):
             return None
 
     @callback
-    def _ute_discovery_transport_received(
-        self, generation: int, token: object, accepted: bool
-    ) -> None:
-        """Persist only after the dongle accepts the directed D4/91 telegram."""
+    def _ute_discovery_packet_written(self, generation: int, token: object) -> None:
+        """Record the exact directed UTE packet's completed USB300 write."""
         if (
             generation != self._ute_discovery_generation
             or token is not self._ute_discovery_response_token
             or self._ute_discovery_outcome is not None
+            or not self._ute_discovery_queued
+        ):
+            return
+        self._ute_discovery_written = True
+        self._complete_ute_discovery_if_confirmed(generation)
+
+    @callback
+    def _ute_discovery_transport_received(
+        self, generation: int, token: object, accepted: bool
+    ) -> None:
+        """Record the ESP3 response without treating it as a physical write."""
+        if (
+            generation != self._ute_discovery_generation
+            or token is not self._ute_discovery_response_token
+            or self._ute_discovery_outcome is not None
+            or not self._ute_discovery_queued
+        ):
+            return
+        self._ute_discovery_response_accepted = accepted is True
+        self._complete_ute_discovery_if_confirmed(generation)
+
+    @callback
+    def _complete_ute_discovery_if_confirmed(self, generation: int) -> None:
+        """Persist only when queueing, USB300 write, and ESP3 all agree."""
+        if (
+            not self._ute_discovery_queued
+            or not self._ute_discovery_written
+            or self._ute_discovery_response_accepted is None
         ):
             return
         self._complete_ute_discovery(
-            generation, "success" if accepted is True else "transport_rejected"
+            generation,
+            "success"
+            if self._ute_discovery_response_accepted
+            else "transport_rejected",
         )
 
     @callback
@@ -729,6 +775,8 @@ class EnOceanOptionsFlow(OptionsFlow):
         return self.async_abort(
             reason={
                 "timeout": "ute_discovery_timeout",
+                "write_unconfirmed": "ute_discovery_write_unconfirmed",
+                "queue_rejected": "ute_discovery_queue_rejected",
                 "base_id_unavailable": "ute_discovery_base_id_unavailable",
                 "transport_rejected": "ute_discovery_transport_rejected",
                 "collision": "ute_discovery_collision",
