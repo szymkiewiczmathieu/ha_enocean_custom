@@ -73,7 +73,7 @@
           "qr_code": "Ajouter par code QR",
           "pair_actuator": "Appairer un actionneur (guidé)",
           "commission_existing": "Commissionner un relais D2 existant (assisté)",
-          "ute_discover": "Associer un module Ubiwizz par télégramme UTE dirigé",
+          "ute_discover": "Associer un module Ubiwizz à partir de sa requête UTE",
           "ubiwizz_repeater": "Diagnostic répéteur Ubiwizz (aucune commande radio)",
           "manage": "Gérer les équipements de l'interface",
           "import_yaml": "Importer les équipements YAML"
@@ -168,7 +168,9 @@
       "import_yaml": {
         "title": "Importer les équipements YAML",
         "description": "Prêts à importer : {binary_sensors} capteurs binaires et {switches} switches. {non_importable} équipements utilisent des plateformes YAML non importables et resteront en YAML ; {invalid} lignes invalides ou partielles seront ignorées.\n\nNe retirez pas le YAML avant l'import. Après l'import, retirez les blocs YAML importés, redémarrez Home Assistant, puis vérifiez les entités. Les entity_id et automatisations sont conservés.",
-        "data": {"confirm": "Je comprends et je confirme l'import"}
+        "data": {
+          "confirm": "Je comprends et je confirme l'import"
+        }
       },
       "import_yaml_success": {
         "title": "Équipements YAML importés",
@@ -183,27 +185,39 @@
       "commission_existing": {
         "title": "Commissionner un relais D2 existant (assisté)",
         "description": "Choisissez un relais default géré par l'interface sur le canal 0 ou 1. La sélection ne prouve pas l'identité et n'émet aucune radio. Les lignes avec preuve radio/produit contradictoire sont exclues. L'étape suivante lie un QR/ID physique à cette ligne exacte ; son entité et son identité de registre sont conservées.",
-        "data": {"device": "Relais existant à identifier"}
+        "data": {
+          "device": "Relais existant à identifier"
+        }
       },
       "commission_existing_identity": {
         "title": "Lier l'identité physique de l'actionneur",
         "description": "Relais sélectionné dans l'interface : {selected_id}, canal {channel}. Scannez ou collez le QR de commissioning EnOcean Alliance physique exact, ou saisissez cet ID exact au format AA:BB:CC:DD. Un autre émetteur ou une preuve produit/radio contradictoire est refusé. Cette étape n'émet aucune radio.",
-        "data": {"qr_code": "Code de commissioning ou ID exact de l'actionneur"}
+        "data": {
+          "qr_code": "Code de commissioning ou ID exact de l'actionneur"
+        }
       },
       "commission_existing_confirm": {
         "title": "Confirmer le profil du relais",
         "description": "Aucune preuve D2-01-12 exacte déclarée par radio n'est liée au relais sélectionné {selected_id}, canal {channel}. Confirmez seulement après avoir vérifié le module physique : c'est un relais qui exige un commissioning D2-01-12. C'est une assertion opérateur, pas une preuve radio. Elle n'est persistée qu'après mise en file d'un D2 ON dirigé, ESP3 OK, puis un retour D2 ultérieur correspondant.",
-        "data": {"confirm_relay_d2": "Je confirme que ce relais physique exige le commissioning D2-01-12"}
+        "data": {
+          "confirm_relay_d2": "Je confirme que ce relais physique exige le commissioning D2-01-12"
+        }
       },
       "ute_discover": {
-        "title": "Associer un éclairage Ubiwizz par télégramme UTE dirigé",
-        "description": "Saisissez l'EURID exact du module, donnez-lui un nom, puis effectuez trois appuis brefs sur PRESS. Home Assistant utilise automatiquement le profil radio validé pour vos éclairages Ubiwizz. La sortie 1 ou 2 est distincte de l'EEP radio.",
-        "data": {"name": "Nom", "qr_code": "EURID du module ou étiquette de commissioning", "channel": "Sortie à configurer"}
+        "title": "Associer un module Ubiwizz à partir de sa requête UTE",
+        "description": "Saisissez l’EURID exact du module et sélectionnez la sortie 1 ou 2. Home Assistant arme ensuite une écoute limitée dans le temps avant la séquence PRESS ; il répond uniquement à une requête UTE correspondante de ce module. L’EEP provient du télégramme reçu, il n’est pas deviné.",
+        "data": {
+          "name": "Nom",
+          "qr_code": "EURID du module ou étiquette de commissioning",
+          "channel": "Sortie à configurer"
+        }
       },
       "ute_discover_confirm": {
-        "title": "Envoyer maintenant le télégramme d'association UTE dirigé",
-        "description": "Confirmez seulement après la séquence PRESS locale. Home Assistant mettra en file un télégramme UTE D4/91 dirigé avec l'EEP exact choisi dans l'étape précédente. Il n'envoie ni requête UTE diffusée ni commande de relais D2. L'interrupteur n'est enregistré qu'après confirmation de l'écriture série USB300 physique de ce paquet et ESP3 OK ; ESP3 prouve uniquement le transport du dongle. Vérifiez ensuite le retour D2 normal.",
-        "data": {"ute_ready": "J'ai terminé la séquence PRESS locale et je suis prêt à envoyer"}
+        "title": "Démarrer maintenant l’association locale",
+        "description": "L’écoute est armée. Lancez maintenant la séquence PRESS documentée, puis confirmez immédiatement. Home Assistant n’envoie aucun télégramme UTE avant d’avoir reçu la requête bidirectionnelle correspondante de ce module précis.",
+        "data": {
+          "ute_ready": "L’écoute UTE est armée ; je démarre maintenant la séquence PRESS locale"
+        }
       },
       "ubiwizz_repeater": {
         "title": "Diagnostic répéteur Ubiwizz",
@@ -227,8 +241,8 @@
     },
     "progress": {
       "waiting_for_device": "Appuyez maintenant sur le bouton de l'équipement. Attente jusqu'à 60 secondes d'un expéditeur EnOcean inconnu.",
-      "sending_directed_ute": "Home Assistant a mis en file le télégramme d'association UTE D4/91 ciblé. Attente jusqu'à {timeout} secondes de la confirmation de son écriture série USB300 physique et du résultat de transport ESP3.",
-      "pairing_actuator": "Appairage en cours pendant au plus {timeout} secondes. Les commandes sont répétées ; garde le module en mode appairage."
+      "pairing_actuator": "Appairage en cours pendant au plus {timeout} secondes. Les commandes sont répétées ; garde le module en mode appairage.",
+      "waiting_for_ute_request": "Attente jusqu’à {timeout} secondes de la requête UTE du module exact. Home Assistant répondra uniquement à une requête correspondante, dans le délai protocolaire."
     },
     "error": {
       "unique_id_exists": "Un équipement avec cette identité existe déjà. Le mode apprentissage ne fusionne ni n'écrase jamais un équipement existant.",
@@ -237,7 +251,7 @@
       "invalid_sender_id": "L'ID émetteur doit être 4 octets hex, ex. 05:9F:89:34.",
       "invalid_qr_code": "La valeur n'est ni un QR de commissioning EnOcean Alliance pris en charge, ni un ID au format AA:BB:CC:DD.",
       "invalid_ute_target": "Saisissez l'EURID exact à quatre octets au format AA:BB:CC:DD ou une étiquette de commissioning prise en charge.",
-      "ute_not_ready": "Terminez la séquence d'association PRESS locale avant d'envoyer le télégramme UTE dirigé.",
+      "ute_not_ready": "Confirmez que l’écoute est armée avant de démarrer la séquence PRESS locale.",
       "invalid_exact_integer": "La valeur doit être un entier exact dans les limites affichées.",
       "invalid_number": "La valeur doit être un nombre fini dans les limites affichées.",
       "invalid_temperature_range": "La température minimale doit être inférieure à la température maximale.",
@@ -263,15 +277,15 @@
       "no_yaml_devices_to_import": "Aucun équipement YAML ne reste à importer.",
       "yaml_import_cancelled": "Import YAML annulé. Aucun équipement n'a été modifié.",
       "ubiwizz_repeater_request_missing": "La session de diagnostic du répéteur a expiré ; recommence.",
-      "ute_discovery_not_ready": "La confirmation finale de la séquence PRESS était requise avant tout envoi de télégramme UTE.",
-      "ute_discovery_timeout": "L'écriture USB300 physique a été confirmée, mais le dongle n'a pas retourné de résultat de transport ESP3 pour le télégramme UTE D4/91 ciblé pendant 30 secondes. Aucun équipement n'a été enregistré.",
-      "ute_discovery_write_unconfirmed": "Le télégramme UTE D4/91 dirigé a été mis en file, mais aucune écriture série USB300 physique n'a été confirmée pendant 30 secondes. Aucun équipement n'a été enregistré.",
-      "ute_discovery_queue_rejected": "Le télégramme UTE D4/91 dirigé n'a pas été accepté dans la file du dongle. Aucun équipement n'a été enregistré.",
-      "ute_discovery_base_id_unavailable": "L'identifiant de base du dongle est indisponible ; le télégramme UTE dirigé n'a pas été mis en file et aucun équipement n'a été enregistré.",
-      "ute_discovery_transport_confirmed_unverified": "L'écriture USB300 et le transport ESP3 ont été confirmés, mais l'association du module n'a pas été vérifiée par une réponse de l'équipement. Aucun équipement n'a été enregistré.",
-      "ute_discovery_transport_rejected": "Après confirmation de l'écriture USB300 physique, ESP3 a rejeté le télégramme UTE D4/91 dirigé. Aucun équipement n'a été enregistré.",
+      "ute_discovery_not_ready": "L’écoute doit être armée avant la séquence PRESS locale.",
+      "ute_discovery_write_unconfirmed": "La réponse UTE a été mise en file, mais son écriture physique USB300 n’a pas été confirmée. Aucun équipement n’a été enregistré.",
+      "ute_discovery_queue_rejected": "La réponse UTE n’a pas été acceptée dans la file du dongle. Aucun équipement n’a été enregistré.",
+      "ute_discovery_base_id_unavailable": "Le Base ID du dongle est indisponible ; la requête correspondante n’a pas reçu de réponse et aucun équipement n’a été enregistré.",
+      "ute_discovery_transport_rejected": "La requête UTE correspondante a été reçue et une réponse a été écrite, mais ESP3 a rejeté le transport. Aucun équipement n’a été enregistré.",
       "ute_discovery_collision": "Cette identité de sortie et ce canal existent déjà. Aucun équipement n'a été enregistré.",
-      "ute_discovery_failed": "L'association UTE dirigée n'a pas pu être construite de manière sûre. Aucun équipement n'a été enregistré."
+      "ute_discovery_failed": "L’association UTE n’a pas pu être terminée en sécurité. Aucun équipement n’a été enregistré.",
+      "ute_discovery_no_request": "Aucune requête UTE correspondante n’a été reçue avant la fin de la fenêtre d’écoute. Aucune réponse radio et aucun équipement n’ont été enregistrés.",
+      "ute_discovery_deadline_missed": "Une requête UTE correspondante est arrivée après le délai de réponse. Elle n’a volontairement pas reçu de réponse et aucun équipement n’a été enregistré."
     }
   },
   "services": {
