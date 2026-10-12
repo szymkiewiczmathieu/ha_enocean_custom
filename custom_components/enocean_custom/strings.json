@@ -268,6 +268,7 @@
       "ute_discovery_write_unconfirmed": "The directed D4/91 UTE telegram was queued, but no physical USB300 serial write was confirmed within 30 seconds. No device was saved.",
       "ute_discovery_queue_rejected": "The directed D4/91 UTE telegram was not accepted into the dongle queue. No device was saved.",
       "ute_discovery_base_id_unavailable": "The dongle Base ID is unavailable, so the directed UTE telegram was not queued and no device was saved.",
+      "ute_discovery_transport_confirmed_unverified": "The USB300 write and ESP3 transport were confirmed, but the module association was not verified by a device response. No device was saved.",
       "ute_discovery_transport_rejected": "After the physical USB300 write was confirmed, ESP3 rejected the directed D4/91 UTE telegram. No device was saved.",
       "ute_discovery_collision": "This output identity and channel already exist. No device was saved.",
       "ute_discovery_failed": "The directed UTE association could not be built safely. No device was saved."

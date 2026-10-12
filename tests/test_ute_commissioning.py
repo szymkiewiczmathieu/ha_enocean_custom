@@ -206,17 +206,10 @@ class UteDiscoveryFlowTests(unittest.IsolatedAsyncioTestCase):
         dongle.written_callbacks[0]()
         result = await self._finished_result(flow)
 
-        self.assertEqual(result["type"], FlowResultType.CREATE_ENTRY)
-        row = result["data"][CONF_UI_DEVICES][0]
-        self.assertEqual(row["id"], TARGET_ID)
-        self.assertEqual(row["channel"], 1)
-        self.assertEqual(row["platform"], "switch")
-        self.assertIsNone(row["actuator_profile"])
-        self.assertEqual(row["radio_metadata"]["eep"], "D2-01-08")
-        self.assertEqual(row["radio_metadata"]["manufacturer_id"], 0x046)
-        self.assertEqual(row["radio_metadata"]["evidence"], "manual")
-        self.assertEqual(row["radio_metadata"]["eep_source"], "manual")
-        self.assertNotIn("channel", row["radio_metadata"])
+        self.assertEqual(result["type"], FlowResultType.ABORT)
+        self.assertEqual(
+            result["reason"], "ute_discovery_transport_confirmed_unverified"
+        )
         self.assertEqual(entry.options[CONF_UI_DEVICES], [])
 
     async def test_same_module_can_add_its_other_output(self):
@@ -244,12 +237,11 @@ class UteDiscoveryFlowTests(unittest.IsolatedAsyncioTestCase):
         dongle.response_callbacks[0](True)
 
         result = await self._finished_result(flow)
-        self.assertEqual(result["type"], FlowResultType.CREATE_ENTRY)
-        rows = result["data"][CONF_UI_DEVICES]
+        self.assertEqual(result["type"], FlowResultType.ABORT)
         self.assertEqual(
-            [(row["id"], row["channel"]) for row in rows],
-            [(TARGET_ID, 0), (TARGET_ID, 1)],
+            result["reason"], "ute_discovery_transport_confirmed_unverified"
         )
+        self.assertEqual(entry.options[CONF_UI_DEVICES], [existing])
 
     async def test_unconfirmed_invalid_collision_queue_rejection_and_timeout_do_not_save(
         self,

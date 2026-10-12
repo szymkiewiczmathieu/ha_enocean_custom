@@ -737,7 +737,7 @@ class EnOceanOptionsFlow(OptionsFlow):
             return
         self._complete_ute_discovery(
             generation,
-            "success"
+            "transport_confirmed_unverified"
             if self._ute_discovery_response_accepted
             else "transport_rejected",
         )
@@ -778,6 +778,7 @@ class EnOceanOptionsFlow(OptionsFlow):
                 "write_unconfirmed": "ute_discovery_write_unconfirmed",
                 "queue_rejected": "ute_discovery_queue_rejected",
                 "base_id_unavailable": "ute_discovery_base_id_unavailable",
+                "transport_confirmed_unverified": "ute_discovery_transport_confirmed_unverified",
                 "transport_rejected": "ute_discovery_transport_rejected",
                 "collision": "ute_discovery_collision",
                 "invalid_request": "ute_discovery_failed",
