@@ -545,12 +545,7 @@ class EnOceanOptionsFlow(OptionsFlow):
             return self._show_ute_discovery_form(errors={CONF_CHANNEL: "invalid_channel"})
         if target_id is None:
             return self._show_ute_discovery_form(errors={_CONF_QR_CODE: "invalid_ute_target"})
-        if any(
-            row["id"] == target_id and row.get("channel") == channel
-            for row in valid_ui_devices(
-                self.config_entry.options.get(CONF_UI_DEVICES, [])
-            )
-        ):
+        if self._ute_discovery_identity_is_occupied(target_id, channel):
             return self.async_abort(reason="ute_discovery_collision")
 
         self._ute_discovery_name = user_input[CONF_NAME]
@@ -677,7 +672,7 @@ class EnOceanOptionsFlow(OptionsFlow):
             return
         radio = extract_radio_identity(packet)
         device = self._ute_discovery_device_from_target(radio)
-        if device is None or self._options_with_added_device(device) is None:
+        if device is None or self._options_with_ute_discovery_device(device) is None:
             get_learn_manager(self.hass).stop(owner=_FLOW_OWNER)
             self._complete_ute_discovery(generation, "collision")
             return
@@ -788,7 +783,9 @@ class EnOceanOptionsFlow(OptionsFlow):
     async def async_step_ute_discover_result(self, user_input=None):
         """Persist only after a matching request and completed UTE response transport."""
         if self._ute_discovery_outcome == "success" and self._ute_discovery_device:
-            updated_options = self._options_with_added_device(self._ute_discovery_device)
+            updated_options = self._options_with_ute_discovery_device(
+                self._ute_discovery_device
+            )
             if updated_options is not None:
                 return self.async_create_entry(title="", data=updated_options)
             self._ute_discovery_outcome = "collision"
@@ -1961,6 +1958,61 @@ class EnOceanOptionsFlow(OptionsFlow):
             return self._show_device_form(errors={"base": "unique_id_exists"})
 
         return self.async_create_entry(title="", data=updated_options)
+
+    def _ute_discovery_identity_is_occupied(
+        self, target_id: list[int], channel: int
+    ) -> bool:
+        """Reject a duplicate except the one manual row UTE may prove in place."""
+        matches = [
+            row
+            for row in valid_ui_devices(
+                self.config_entry.options.get(CONF_UI_DEVICES, [])
+            )
+            if row["id"] == target_id and row.get("channel") == channel
+        ]
+        if not matches:
+            return False
+        if len(matches) != 1:
+            return True
+        metadata = matches[0].get(CONF_RADIO_METADATA)
+        return not isinstance(metadata, dict) or metadata.get("evidence") != "manual"
+
+    def _options_with_ute_discovery_device(
+        self, device: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """Add radio-proven UTE device or promote its manual placeholder in place.
+
+        A manual pre-existing row represents an operator assertion, not radio proof.
+        Replacing that exact identity avoids a duplicate entity while retaining its
+        entity registry identity and upgrades its metadata only after UTE evidence.
+        """
+        unique_id = _unique_id_for(device)
+        raw_devices = list(self.config_entry.options.get(CONF_UI_DEVICES, []))
+        matching = [
+            index
+            for index, raw in enumerate(raw_devices)
+            if (valid := valid_ui_devices([raw]))
+            and valid[0]["platform"] == device["platform"]
+            and _unique_id_for(valid[0]) == unique_id
+        ]
+        if not matching:
+            return self._options_with_added_device(device)
+        if len(matching) != 1:
+            return None
+
+        index = matching[0]
+        existing = valid_ui_devices([raw_devices[index]])[0]
+        metadata = existing.get(CONF_RADIO_METADATA)
+        if not isinstance(metadata, dict) or metadata.get("evidence") != "manual":
+            return None
+
+        # The name already exists in HA and must survive the proof upgrade.
+        promoted = dict(device)
+        promoted["name"] = existing["name"]
+        raw_devices[index] = promoted
+        updated_options = dict(self.config_entry.options)
+        updated_options[CONF_UI_DEVICES] = raw_devices
+        return updated_options
 
     def _options_with_added_device(
         self, device: dict[str, Any]

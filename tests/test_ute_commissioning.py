@@ -26,7 +26,7 @@ try:
     from custom_components.enocean_custom.const import DOMAIN
     from custom_components.enocean_custom.enocean_library.protocol.constants import PACKET, RORG
     from custom_components.enocean_custom.enocean_library.protocol.packet import UTETeachInPacket
-    from custom_components.enocean_custom.schema import CONF_UI_DEVICES
+    from custom_components.enocean_custom.schema import CONF_UI_DEVICES, UI_DEVICE_SCHEMA
 
     HA_AVAILABLE = True
 except ModuleNotFoundError:  # pragma: no cover
@@ -90,10 +90,11 @@ class UteRequestFlowTests(unittest.IsolatedAsyncioTestCase):
         await self.hass.async_stop(force=True)
         self.tmp.cleanup()
 
-    def new_flow(self, *, base_id=BASE_ID):
+    def new_flow(self, *, base_id=BASE_ID, devices=None):
         entry = ConfigEntry(
             data={"device": "/dev/test"}, discovery_keys=MappingProxyType({}),
-            domain=DOMAIN, minor_version=1, options={CONF_UI_DEVICES: []},
+            domain=DOMAIN, minor_version=1,
+            options={CONF_UI_DEVICES: [] if devices is None else devices},
             source="user", subentries_data=None, title="EnOcean", unique_id=None, version=1,
         )
         entry.runtime_data = FakeDongle(base_id)
@@ -134,6 +135,38 @@ class UteRequestFlowTests(unittest.IsolatedAsyncioTestCase):
         row = result["data"][CONF_UI_DEVICES][0]
         self.assertEqual(row["radio_metadata"]["eep"], "D2-01-12")
         self.assertEqual(row["radio_metadata"]["evidence"], "exact")
+
+    async def test_manual_placeholder_is_promoted_without_duplicate(self):
+        placeholder = UI_DEVICE_SCHEMA(
+            {
+                "id": TARGET_ID,
+                "platform": "switch",
+                "name": "Dressing",
+                "channel": 0,
+                "switch_type": "default",
+                "radio_metadata": {
+                    "sender_id": TARGET_ID,
+                    "eep": "D2-01-08",
+                    "eep_source": "manual",
+                    "evidence": "manual",
+                    "manufacturer_id": 0x046,
+                    "support": "manual",
+                },
+            }
+        )
+        flow, dongle = self.new_flow(devices=[placeholder])
+        await self.arm(flow)
+        flow._ute_request_received(ute_request(eep_type=0x12))
+        self.assertEqual(len(dongle.sent), 1)
+        dongle.written_callbacks[0]()
+        dongle.response_callbacks[0](True)
+        result = await self.finish(flow)
+        self.assertEqual(result["type"], FlowResultType.CREATE_ENTRY)
+        rows = result["data"][CONF_UI_DEVICES]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["name"], "Dressing")
+        self.assertEqual(rows[0]["radio_metadata"]["eep"], "D2-01-12")
+        self.assertEqual(rows[0]["radio_metadata"]["evidence"], "exact")
 
     async def test_radio_declared_d2_01_08_is_echoed_not_replaced(self):
         flow, dongle = self.new_flow()
