@@ -253,6 +253,15 @@ def _ute_discovery_confirm_schema() -> vol.Schema:
     )
 
 
+def _radio_probe_confirm_schema() -> vol.Schema:
+    """Require acknowledgement before a passive, targeted radio capture."""
+    return vol.Schema(
+        {
+            vol.Required(_CONF_UTE_READY): selector.BooleanSelector(),
+        }
+    )
+
+
 def _pairing_failure_schema() -> vol.Schema:
     """Return the websocket-serializable timeout action schema."""
     return vol.Schema(
@@ -451,6 +460,9 @@ class EnOceanOptionsFlow(OptionsFlow):
         self._ute_discovery_queued = False
         self._ute_discovery_written = False
         self._ute_discovery_response_accepted: bool | None = None
+        self._radio_probe_target_id: list[int] | None = None
+        self._radio_probe_task: asyncio.Task[None] | None = None
+        self._radio_probe_result: str | None = None
         self._ubiwizz_repeater_request: UbiwizzRepeaterDiagnosticRequest | None = None
         self._yaml_import_result: dict[str, int] | None = None
 
@@ -516,6 +528,7 @@ class EnOceanOptionsFlow(OptionsFlow):
             "pair_actuator",
             "commission_existing",
             "ute_discover",
+            "radio_probe",
             "ubiwizz_repeater",
             "manage",
         ]
@@ -799,6 +812,87 @@ class EnOceanOptionsFlow(OptionsFlow):
                 "transport_rejected": "ute_discovery_transport_rejected",
                 "collision": "ute_discovery_collision",
             }.get(self._ute_discovery_outcome or "", "ute_discovery_failed")
+        )
+
+    async def async_step_radio_probe(self, user_input=None):
+        """Passively capture one valid radio telegram from a named module.
+
+        This path never creates a device, queues a radio packet, or changes
+        options. It exists to distinguish an unexpected radio protocol from a
+        receiver that sees no complete telegram at all.
+        """
+        if user_input is None:
+            return self.async_show_form(step_id="radio_probe", data_schema=_qr_code_schema())
+        target_id = _parse_commissioning_code(user_input.get(_CONF_QR_CODE))
+        if target_id is None:
+            return self.async_show_form(
+                step_id="radio_probe",
+                data_schema=_qr_code_schema(),
+                errors={_CONF_QR_CODE: "invalid_ute_target"},
+            )
+        self._radio_probe_target_id = target_id
+        self._radio_probe_result = None
+        self._radio_probe_task = None
+        if not get_learn_manager(self.hass).start_ute(
+            timeout=LEARN_TIMEOUT_DEFAULT,
+            owner=_FLOW_OWNER,
+            packet_callback=self._radio_probe_packet_received,
+        ):
+            return self.async_abort(reason="learn_in_progress")
+        return await self.async_step_radio_probe_confirm()
+
+    async def async_step_radio_probe_confirm(self, user_input=None):
+        """Confirm a passive receiver probe is armed before the physical action."""
+        if user_input is None:
+            return self.async_show_form(
+                step_id="radio_probe_confirm",
+                data_schema=_radio_probe_confirm_schema(),
+            )
+        if user_input.get(_CONF_UTE_READY) is not True:
+            return self.async_show_form(
+                step_id="radio_probe_confirm",
+                data_schema=_radio_probe_confirm_schema(),
+                errors={_CONF_UTE_READY: "ute_not_ready"},
+            )
+        return await self.async_step_radio_probe_progress()
+
+    async def async_step_radio_probe_progress(self, user_input=None):
+        """Wait for one parsed packet from the target without transmitting."""
+        if self._radio_probe_target_id is None:
+            return self.async_abort(reason="radio_probe_not_ready")
+        task = self._radio_probe_task
+        if task is None:
+            task = self.hass.async_create_task(
+                get_learn_manager(self.hass).wait(), "EnOcean passive radio probe"
+            )
+            self._radio_probe_task = task
+        if not task.done():
+            return self.async_show_progress(
+                step_id="radio_probe_progress",
+                progress_action="waiting_for_radio_probe",
+                progress_task=task,
+                description_placeholders={"timeout": str(LEARN_TIMEOUT_DEFAULT)},
+            )
+        return self.async_show_progress_done(next_step_id="radio_probe_result")
+
+    @callback
+    def _radio_probe_packet_received(self, packet: Any) -> None:
+        """Classify a parsed target telegram without retaining its payload."""
+        identity = extract_radio_identity(packet)
+        if identity is None or list(identity.sender_id) != self._radio_probe_target_id:
+            return
+        self._radio_probe_result = (
+            "ute" if isinstance(packet, UTETeachInPacket) else "other"
+        )
+        get_learn_manager(self.hass).stop(owner=_FLOW_OWNER)
+
+    async def async_step_radio_probe_result(self, user_input=None):
+        """End the passive probe with a bounded, non-sensitive observation."""
+        return self.async_abort(
+            reason={
+                "ute": "radio_probe_target_ute",
+                "other": "radio_probe_target_other",
+            }.get(self._radio_probe_result or "", "radio_probe_no_target_packet")
         )
 
     async def async_step_ubiwizz_repeater(self, user_input=None):

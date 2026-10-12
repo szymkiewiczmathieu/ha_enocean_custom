@@ -204,6 +204,28 @@ class UteRequestFlowTests(unittest.IsolatedAsyncioTestCase):
         result = await self.finish(flow)
         self.assertEqual(result["reason"], "ute_discovery_deadline_missed")
 
+    async def test_radio_probe_is_passive_and_classifies_target_ute(self):
+        flow, dongle = self.new_flow()
+        result = await flow.async_step_radio_probe({"qr_code": "04:B3:82:DA"})
+        self.assertEqual(result["step_id"], "radio_probe_confirm")
+        result = await flow.async_step_radio_probe_confirm({"ute_ready": True})
+        self.assertEqual(result["type"], FlowResultType.SHOW_PROGRESS)
+        flow._radio_probe_packet_received(ute_request())
+        self.assertEqual(dongle.sent, [], "passive probe must never transmit")
+        await self.hass.async_block_till_done()
+        result = await flow.async_step_radio_probe_progress()
+        self.assertEqual(result["type"], FlowResultType.SHOW_PROGRESS_DONE)
+        result = await flow.async_step_radio_probe_result()
+        self.assertEqual(result["reason"], "radio_probe_target_ute")
+
+    async def test_radio_probe_ignores_another_sender(self):
+        flow, dongle = self.new_flow()
+        await flow.async_step_radio_probe({"qr_code": "04:B3:82:DA"})
+        await flow.async_step_radio_probe_confirm({"ute_ready": True})
+        flow._radio_probe_packet_received(ute_request(sender=OTHER_ID))
+        self.assertIsNone(flow._radio_probe_result)
+        self.assertEqual(dongle.sent, [])
+
     async def test_transport_failure_and_stale_callback_never_persist(self):
         flow, dongle = self.new_flow()
         await self.arm(flow)

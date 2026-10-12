@@ -74,6 +74,7 @@
           "pair_actuator": "Pair an actuator (guided; no automatic UTE)",
           "commission_existing": "Commission an existing D2 relay (assisted; no automatic UTE)",
           "ute_discover": "Associate a Ubiwizz module from its UTE request",
+          "radio_probe": "Passively test a module radio signal (no radio command)",
           "ubiwizz_repeater": "Ubiwizz repeater diagnostic (no radio command)",
           "manage": "Manage UI devices",
           "import_yaml": "Import YAML devices"
@@ -219,7 +220,21 @@
           "ute_ready": "The UTE listener is armed; I will now start the local PRESS sequence"
         }
       },
-      "ubiwizz_repeater": {
+      "radio_probe": {
+      "title": "Passive module radio test",
+      "description": "Enter the exact EURID. This test listens for one complete telegram from that module, but never sends radio, creates a device, or changes configuration.",
+      "data": {
+        "qr_code": "Module EURID or commissioning label"
+      }
+    },
+    "radio_probe_confirm": {
+      "title": "Start the passive test",
+      "description": "The receiver is armed. Perform the module's documented local action once, then confirm immediately. This test sends no radio command and cannot change pairing.",
+      "data": {
+        "ute_ready": "The passive receiver test is armed; I will now perform the local action"
+      }
+    },
+    "ubiwizz_repeater": {
         "title": "Ubiwizz repeater diagnostic",
         "description": "Diagnostic boundary only. Choose the profile written in the module documentation and the level you intend to evaluate. This does not identify a Ubiwizz model, observe its repeater state, change its configuration, or send radio.",
         "data": {
@@ -242,7 +257,8 @@
     "progress": {
       "waiting_for_device": "Press the button on the device now. Waiting up to 60 seconds for an unknown EnOcean sender.",
       "pairing_actuator": "Pairing in progress for up to {timeout} seconds. Commands are sent repeatedly; keep the module in pairing mode.",
-      "waiting_for_ute_request": "Waiting up to {timeout} seconds for the exact module UTE request. Home Assistant will answer only a matching request within the protocol deadline."
+      "waiting_for_ute_request": "Waiting up to {timeout} seconds for the exact module UTE request. Home Assistant will answer only a matching request within the protocol deadline.",
+    "waiting_for_radio_probe": "Waiting up to {timeout} seconds for one complete telegram from the selected module. This diagnostic sends no radio command."
     },
     "error": {
       "unique_id_exists": "A device with this identity already exists. Teach-in never merges or overwrites an existing device.",
@@ -277,6 +293,10 @@
       "no_yaml_devices_to_import": "No YAML devices remain to import.",
       "yaml_import_cancelled": "YAML import cancelled. No devices were changed.",
       "ubiwizz_repeater_request_missing": "The repeater diagnostic session expired; start again.",
+      "radio_probe_not_ready": "The passive radio test was not initialized.",
+      "radio_probe_no_target_packet": "No complete radio telegram from this module reached Home Assistant before the test expired. No radio was sent and configuration was unchanged.",
+      "radio_probe_target_ute": "A complete UTE telegram from this module reached Home Assistant. No response was sent and configuration was unchanged.",
+      "radio_probe_target_other": "A complete non-UTE telegram from this module reached Home Assistant. No response was sent and configuration was unchanged.",
       "ute_discovery_not_ready": "The listener must be armed before the local PRESS sequence.",
       "ute_discovery_write_unconfirmed": "The UTE response was queued but its physical USB300 serial write was not confirmed. No device was saved.",
       "ute_discovery_queue_rejected": "The UTE response was not accepted into the dongle queue. No device was saved.",
