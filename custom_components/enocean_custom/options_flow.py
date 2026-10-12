@@ -658,7 +658,10 @@ class EnOceanOptionsFlow(OptionsFlow):
             or packet.rorg_of_eep != RORG.VLD
             or packet.rorg_func != 0x01
             or packet.rorg_manufacturer != 0x046
-            or packet.channel != 0x02
+            # DB5 is the requested individual channel (or FF for all), not
+            # the actuator's count of outputs.  The flow's selected output
+            # must match a targeted query; an all-channel query is valid too.
+            or packet.channel not in (self._ute_discovery_channel, 0xFF)
         ):
             return
         received = getattr(packet, "received", None)
@@ -705,7 +708,7 @@ class EnOceanOptionsFlow(OptionsFlow):
             or list(radio.sender_id) != target_id
             or radio.eep not in ("D2-01-08", "D2-01-12")
             or radio.manufacturer_id != 0x046
-            or radio.channel != 0x02
+            or radio.channel not in (channel, 0xFF)
             or channel not in UBID1507C.output_channels
         ):
             return None

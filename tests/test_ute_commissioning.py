@@ -53,7 +53,7 @@ class FakeDongle:
 
 
 def ute_request(
-    *, sender=TARGET_ID, eep_type=0x12, manufacturer=0x046, channels=2,
+    *, sender=TARGET_ID, eep_type=0x12, manufacturer=0x046, channels=0,
     flags=0x80, age_ms=0,
 ):
     """Build one inbound bidirectional UTE CMD0 as transmitted by an actuator."""
@@ -103,9 +103,9 @@ class UteRequestFlowTests(unittest.IsolatedAsyncioTestCase):
         self.flows.append(flow)
         return flow, entry.runtime_data
 
-    async def arm(self, flow):
+    async def arm(self, flow, *, channel=0):
         result = await flow.async_step_ute_discover(
-            {"name": "Dressing", "qr_code": "04:B3:82:DA", "channel": 0}
+            {"name": "Dressing", "qr_code": "04:B3:82:DA", "channel": channel}
         )
         self.assertEqual(result["step_id"], "ute_discover_confirm")
         result = await flow.async_step_ute_discover_confirm({"ute_ready": True})
@@ -125,7 +125,7 @@ class UteRequestFlowTests(unittest.IsolatedAsyncioTestCase):
         flow._ute_request_received(ute_request())
         self.assertEqual(len(dongle.sent), 1)
         answer = dongle.sent[0]
-        self.assertEqual(answer.data, [RORG.UTE, 0x91, 2, 0x46, 0, 0x12, 1, 0xD2, *BASE_ID, 0])
+        self.assertEqual(answer.data, [RORG.UTE, 0x91, 0, 0x46, 0, 0x12, 1, 0xD2, *BASE_ID, 0])
         self.assertEqual(answer.optional, [3, *TARGET_ID, 0xFF, 0])
         dongle.written_callbacks[0]()
         dongle.response_callbacks[0](True)
@@ -141,10 +141,21 @@ class UteRequestFlowTests(unittest.IsolatedAsyncioTestCase):
         flow._ute_request_received(ute_request(eep_type=0x08))
         self.assertEqual(dongle.sent[0].data[5], 0x08)
 
-    async def test_wrong_sender_flags_manufacturer_and_channel_are_silent(self):
+    async def test_selected_individual_channel_and_all_channel_request_are_answered(self):
+        flow, dongle = self.new_flow()
+        await self.arm(flow, channel=1)
+        flow._ute_request_received(ute_request(channels=1))
+        self.assertEqual(dongle.sent[0].data[2], 1)
+
+        flow, dongle = self.new_flow()
+        await self.arm(flow, channel=1)
+        flow._ute_request_received(ute_request(channels=0xFF))
+        self.assertEqual(dongle.sent[0].data[2], 0xFF)
+
+    async def test_wrong_sender_flags_manufacturer_and_individual_channel_are_silent(self):
         for packet in (
             ute_request(sender=OTHER_ID), ute_request(flags=0xA0),
-            ute_request(manufacturer=0x047), ute_request(channels=0xFF),
+            ute_request(manufacturer=0x047), ute_request(channels=1),
         ):
             flow, dongle = self.new_flow()
             await self.arm(flow)
