@@ -1,5 +1,37 @@
 # Changelog
 
+## 2.9.8 - 2026-10-23
+
+- Drive the Ubiwizz UTE association from the module's own request: the guided
+  flow arms a bounded listener, answers only a matching, fresh CMD0 from the
+  entered EURID with one directed `D4 91` response, and persists only after
+  the physical write and ESP3 `OK`, with the profile the module declared.
+  Manual placeholder rows are promoted in place instead of being duplicated.
+- Fix the UTE flow concluding "no matching request" after it had already
+  answered: the dongle's write and ESP3 callbacks arrive asynchronously and
+  are now awaited (bounded by 30 s). A missing ESP3 result is reported as
+  `ute_discovery_timeout`.
+- Accept the documented request value DB5 `0x02` (the module's channel count)
+  in addition to the selected output and `0xFF`; log the received DB5 at
+  debug level. The stored row always uses the output chosen by the operator.
+- Add a passive, targeted radio test that reports whether one UTE or non-UTE
+  telegram from an EURID reached the dongle, without transmitting anything.
+- Fix `switch` `turn_on`/`turn_off` writing state from the executor thread when
+  the dongle refuses a command; the write is now scheduled on the event loop.
+- Re-request a refused or lost dongle Base ID on demand (at most three
+  attempts with 5/30/120 s backoff) instead of blocking D2, pairing and UTE
+  commands until a reload. Diagnostics expose `base_id_resolved` and
+  `base_id_retries`, never the identifier itself.
+- Share the entity identity formulas between the platforms and the options
+  flow: deleting a UI device now removes every entity it created (energy
+  counter, D5-00-01 contact, A5-14-01 contact and supply voltage), and
+  collisions are checked against the real registry identities. No existing
+  `unique_id` changes.
+- Rewrite the README and the Ubiwizz guide to describe the request-driven
+  association, and remove the unused `ute.py` encoder.
+- Lint every maintained Python file with Ruff (the vendored library is excluded
+  through `ruff.toml`) and synchronize the French translations.
+
 ## 2.9.7 - 2026-10-11
 
 - Add an evidence-backed commissioning catalog for field-verified Ubiwizz lighting modules.
