@@ -77,7 +77,19 @@
           "radio_probe": "Passively test a module radio signal (no radio command)",
           "ubiwizz_repeater": "Ubiwizz repeater diagnostic (no radio command)",
           "manage": "Manage UI devices",
+          "settings": "Availability and silent devices",
           "import_yaml": "Import YAML devices"
+        }
+      },
+      "settings": {
+        "title": "Availability and silent devices",
+        "description": "Optional. When enabled, a device that has not transmitted for the configured time becomes unavailable; smoke detectors, contacts and handles also raise a Repair issue. Rockers, relays and climate controllers never time out. Set a category to 0 minutes to never time it out. Smoke detectors and handles default to 0 because many models only transmit on events: enable them only with an interval you have measured.",
+        "data": {
+          "enabled": "Enable silence detection",
+          "sensor_minutes": "Sensors (A5 measurements, D2 power reports)",
+          "contact_minutes": "Window and door contacts",
+          "smoke_minutes": "Smoke detectors",
+          "handle_minutes": "Window handles"
         }
       },
       "pair_actuator": {
@@ -429,6 +441,10 @@
     "serial_communicator_stopped": {
       "title": "The EnOcean serial worker stopped",
       "description": "The serial worker for {device} is no longer running: {reason}. EnOcean entities are unavailable and outgoing commands are rejected to prevent a second process from competing for the port. Check the USB connection and logs, then reload the integration or restart Home Assistant once."
+    },
+    "silent_device": {
+      "title": "{name} has gone silent",
+      "description": "No telegram has been received from {name} for {minutes} minutes, so its entities are unavailable. Check its battery or energy harvesting, its mounting and its radio range (the signal strength diagnostic sensor helps). This issue clears itself when the next telegram arrives. Adjust or disable the timeout under Configure → Availability and silent devices."
     }
   }
 }

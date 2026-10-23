@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from homeassistant.core import callback
+from homeassistant.core import CALLBACK_TYPE, callback
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity, EntityCategory
+from homeassistant.helpers.event import async_call_later
 
 from .const import (
     DOMAIN,
+    ISSUE_SILENT_DEVICE,
     LOGGER,
     SIGNAL_DONGLE_STATUS,
     SIGNAL_GATEWAY_UPDATE,
@@ -67,11 +70,41 @@ class EnOceanEntity(Entity):
         self._d2_status = None
         self._last_status: str | None = None
         self._radio_metadata: dict[str, Any] = {}
+        # Silence detection (opt-in, see availability.py): the entity turns
+        # unavailable when its sender has not been heard for the timeout.
+        self._silence_timeout: timedelta | None = None
+        self._silence_repair = False
+        self._silent = False
+        self._silence_unsub: CALLBACK_TYPE | None = None
+        self._last_telegram_at: datetime | None = None
 
     def set_radio_metadata(self, metadata: object) -> EnOceanEntity:
         """Attach already schema-validated safe metadata and return this entity."""
         self._radio_metadata = dict(metadata) if isinstance(metadata, dict) else {}
         return self
+
+    def configure_silence(
+        self, timeout: timedelta | None, *, repair: bool = False
+    ) -> EnOceanEntity:
+        """Arm silence detection with a timeout (None disables it)."""
+        self._silence_timeout = timeout
+        self._silence_repair = bool(repair) and timeout is not None
+        return self
+
+    @property
+    def available(self) -> bool:
+        """Mirror the dongle, and the sender's own silence when configured."""
+        return bool(self._attr_available) and not self._silent
+
+    @property
+    def silent(self) -> bool:
+        """Return whether silence detection currently marks this sender silent."""
+        return self._silent
+
+    @property
+    def last_telegram_at(self) -> datetime | None:
+        """Return when this entity last received a telegram from its sender."""
+        return self._last_telegram_at
 
     @property
     def device_info(self) -> DeviceInfo | None:
@@ -141,6 +174,11 @@ class EnOceanEntity(Entity):
         )
         gateway = get_gateway(self.hass)
         self._attr_available = bool(gateway and gateway.available)
+        if self._silence_timeout is not None:
+            # The grace period starts now: a device that stays silent for a
+            # whole timeout after start-up is flagged, nothing is assumed.
+            self.async_on_remove(self._cancel_silence_timer)
+            self._arm_silence_timer()
 
     @callback
     def _dongle_status_changed(self, available: bool) -> None:
@@ -153,6 +191,7 @@ class EnOceanEntity(Entity):
         """Route telegrams from this entity's sender only."""
         if not self.dev_id or packet.sender_int != enocean_id_as_int(self.dev_id):
             return
+        self._note_telegram()
         try:
             self.value_changed(packet)
         except (IndexError, KeyError, TypeError, ValueError, ZeroDivisionError):
@@ -161,6 +200,67 @@ class EnOceanEntity(Entity):
                 self.dev_name,
                 exc_info=True,
             )
+
+    @callback
+    def _note_telegram(self) -> None:
+        """Record a telegram from this sender and lift any silence."""
+        self._last_telegram_at = datetime.now(UTC)
+        if self._silence_timeout is None:
+            return
+        was_silent = self._silent
+        self._silent = False
+        self._arm_silence_timer()
+        if was_silent:
+            LOGGER.info("%s is transmitting again", self.dev_name)
+            if self._silence_repair:
+                ir.async_delete_issue(self.hass, DOMAIN, self._silence_issue_id())
+            self.async_write_ha_state()
+
+    def _silence_issue_id(self) -> str:
+        return f"{ISSUE_SILENT_DEVICE}_{''.join(f'{byte:02X}' for byte in self.dev_id)}"
+
+    @callback
+    def _arm_silence_timer(self) -> None:
+        self._cancel_silence_timer()
+        if self._silence_timeout is None or getattr(self, "hass", None) is None:
+            return
+        self._silence_unsub = async_call_later(
+            self.hass, self._silence_timeout, self._silence_expired
+        )
+
+    @callback
+    def _cancel_silence_timer(self) -> None:
+        if self._silence_unsub is not None:
+            self._silence_unsub()
+            self._silence_unsub = None
+
+    @callback
+    def _silence_expired(self, _now: Any = None) -> None:
+        """Mark the sender silent once the timeout elapsed without a telegram."""
+        self._silence_unsub = None
+        if self._silent or self._silence_timeout is None:
+            return
+        self._silent = True
+        minutes = int(self._silence_timeout.total_seconds() // 60)
+        LOGGER.warning(
+            "%s has not transmitted for %d minutes; marking it unavailable",
+            self.dev_name,
+            minutes,
+        )
+        if self._silence_repair:
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                self._silence_issue_id(),
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key=ISSUE_SILENT_DEVICE,
+                translation_placeholders={
+                    "name": self.dev_name,
+                    "minutes": str(minutes),
+                },
+            )
+        self.async_write_ha_state()
 
     def value_changed(self, packet: Any) -> None:
         """Handle one matching inbound telegram."""

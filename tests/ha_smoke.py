@@ -1490,6 +1490,7 @@ def _assert_options_schemas_are_ws_serializable() -> None:
         options_flow._pairing_failure_schema(),
         options_flow._commission_existing_schema({"0": "Existing relay"}),
         options_flow._commission_existing_confirmation_schema(),
+        options_flow._availability_schema(),
         vol.Schema({}),  # instructions and both terminal success forms
     ]
     schemas.extend(

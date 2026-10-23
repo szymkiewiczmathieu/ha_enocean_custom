@@ -25,6 +25,8 @@ DATA_LEARN_MANAGER = "learn_manager"
 ERROR_INVALID_DONGLE_PATH = "invalid_dongle_path"
 EVENT_DEVICE_LEARNED = f"{DOMAIN}_device_learned"
 ISSUE_SERIAL_STOPPED = "serial_communicator_stopped"
+# Raised per silent sender when silence detection is enabled for its category.
+ISSUE_SILENT_DEVICE = "silent_device"
 
 SERVICE_LEARN = "learn"
 SERVICE_SEND_TEACH_IN = "send_teach_in"

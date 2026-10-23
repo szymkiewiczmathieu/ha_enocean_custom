@@ -77,7 +77,19 @@
           "radio_probe": "Tester passivement la radio d'un module (aucune commande radio)",
           "ubiwizz_repeater": "Diagnostic répéteur Ubiwizz (aucune commande radio)",
           "manage": "Gérer les équipements de l'interface",
+          "settings": "Disponibilité et équipements silencieux",
           "import_yaml": "Importer les équipements YAML"
+        }
+      },
+      "settings": {
+        "title": "Disponibilité et équipements silencieux",
+        "description": "Facultatif. Une fois activé, un équipement qui n'a rien émis pendant la durée configurée devient indisponible ; les détecteurs de fumée, contacts et poignées ouvrent aussi une Réparation. Les interrupteurs, relais et régulateurs de chauffage n'expirent jamais. Mettez une catégorie à 0 minute pour ne jamais l'expirer. Les détecteurs de fumée et les poignées sont à 0 par défaut car beaucoup de modèles n'émettent que sur événement : activez-les uniquement avec un intervalle que vous avez mesuré.",
+        "data": {
+          "enabled": "Activer la détection de silence",
+          "sensor_minutes": "Capteurs (mesures A5, rapports de puissance D2)",
+          "contact_minutes": "Contacts de porte et de fenêtre",
+          "smoke_minutes": "Détecteurs de fumée",
+          "handle_minutes": "Poignées de fenêtre"
         }
       },
       "pair_actuator": {
@@ -429,6 +441,10 @@
     "serial_communicator_stopped": {
       "title": "Le worker série EnOcean s'est arrêté",
       "description": "Le worker série pour {device} ne fonctionne plus : {reason}. Les entités EnOcean sont indisponibles et les commandes sortantes sont rejetées afin d'éviter qu'un second processus n'entre en concurrence pour le port. Vérifiez la connexion USB et les journaux, puis rechargez l'intégration ou redémarrez Home Assistant une fois."
+    },
+    "silent_device": {
+      "title": "{name} est devenu silencieux",
+      "description": "Aucun télégramme de {name} n'a été reçu depuis {minutes} minutes : ses entités sont indisponibles. Vérifiez sa pile ou sa récupération d'énergie, sa fixation et sa portée radio (le capteur de diagnostic « force du signal » aide). Cette réparation se ferme d'elle-même à la réception du prochain télégramme. Ajustez ou désactivez le délai dans Configurer → Disponibilité et équipements silencieux."
     }
   }
 }

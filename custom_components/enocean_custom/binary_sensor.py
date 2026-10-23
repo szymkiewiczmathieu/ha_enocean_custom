@@ -20,6 +20,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
+from .availability import REPAIR_CATEGORIES, availability_settings, silence_category
 from .enocean_library.protocol.constants import RORG
 from .entity import EnOceanEntity, EnOceanGatewayEntity
 from .identity import (
@@ -80,15 +81,21 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Create rocker sensors stored in the entry options."""
-    configured = [
-        (
+    settings = availability_settings(getattr(entry, "options", {}))
+    configured = []
+    for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, [])):
+        if row["platform"] != "binary_sensor":
+            continue
+        entity = (
             EnOceanA514Contact(row["id"], row["name"])
             if (row.get("radio_metadata") or {}).get("eep") == A514_EEP
             else EnOceanBinarySensor(row["id"], row["name"], row["device_class"])
-        ).set_radio_metadata(row.get("radio_metadata"))
-        for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
-        if row["platform"] == "binary_sensor"
-    ]
+        )
+        category = silence_category(row)
+        entity.set_radio_metadata(row.get("radio_metadata")).configure_silence(
+            settings.timeout_for(category), repair=category in REPAIR_CATEGORIES
+        )
+        configured.append(entity)
     gateway = getattr(entry, "runtime_data", None)
     entry_id = getattr(entry, "entry_id", None)
     if gateway is not None and entry_id:

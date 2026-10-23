@@ -37,6 +37,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
+from .availability import REPAIR_CATEGORIES, availability_settings, silence_category
 from .const import DOMAIN, LOGGER
 from .enocean_library.protocol.constants import RORG
 from .enocean_library.utils import combine_hex, to_hex_string
@@ -235,16 +236,19 @@ async def async_setup_entry(
     gateway's own sensors are appended after them.
     """
     entities: list[SensorEntity] = []
+    settings = availability_settings(getattr(entry, "options", {}))
     rows = valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
     for row in rows:
+        category = silence_category(row)
+        silence = (settings.timeout_for(category), category in REPAIR_CATEGORIES)
         if (
             row["platform"] == "binary_sensor"
             and (row.get("radio_metadata") or {}).get("eep") == A514_EEP
         ):
             entities.append(
-                EnOceanA514Voltage(
-                    row["id"], row["name"], SENSOR_DESC_SUPPLY_VOLTAGE
-                ).set_radio_metadata(row.get("radio_metadata"))
+                EnOceanA514Voltage(row["id"], row["name"], SENSOR_DESC_SUPPLY_VOLTAGE)
+                .set_radio_metadata(row.get("radio_metadata"))
+                .configure_silence(silence[0], repair=silence[1])
             )
             continue
         if row["platform"] != "sensor":
@@ -262,7 +266,9 @@ async def async_setup_entry(
             }
         )
         entities.extend(
-            entity.set_radio_metadata(row.get("radio_metadata"))
+            entity.set_radio_metadata(row.get("radio_metadata")).configure_silence(
+                silence[0], repair=silence[1]
+            )
             for entity in _entities_from_config(config)
         )
     entities.extend(_radio_diagnostic_entities(rows))

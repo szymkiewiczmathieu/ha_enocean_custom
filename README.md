@@ -113,6 +113,18 @@ own four-byte sender ID.
 - **Availability** mirrors the serial worker: when the dongle stops, every
   entity becomes unavailable and a Repair issue is raised; when the integration
   reloads, availability returns.
+- **Silence detection is optional.** Under **Configure → Availability and
+  silent devices** you can make sensors, contacts, smoke detectors and handles
+  unavailable after a configurable number of minutes without a telegram
+  (defaults: sensors 180 min, contacts 24 h, smoke detectors and handles 0 =
+  never, because many of those models only transmit on events). Contacts,
+  smoke detectors and handles additionally raise a Repair issue that clears
+  itself on the next telegram. Rockers, relays and climate controllers never
+  time out. The grace period restarts at every reload.
+- **Devices can be deleted from their device page.** Deleting a radio device
+  removes its UI rows and entities; the gateway device and YAML-configured
+  senders refuse deletion. Devices whose rows were all removed are cleaned up
+  at the next start.
 - **Exactly one ESP3 command is in flight.** The worker waits for the dongle's
   response before writing the next packet; a missing response stops the
   transport instead of mis-attributing a later response.
@@ -296,6 +308,7 @@ unless a far device needs it.
 | **A rocker/contact entity never changes** | Confirm the four-byte ID with a learn session or the passive radio test; the row must use the sender ID printed in the telegram, not the dongle's Base ID. |
 | **A switch stays `unknown` after a command** | Normal until the actuator answers with its status telegram. If it never does, the module is not paired with the dongle's Base ID: run the guided pairing or UTE association. |
 | **Handle shows `unknown`** | Only the documented F6-10-00 nibbles map to `open`/`tilt`/`closed`; any other value is deliberately `unknown`. |
+| **Repair issue "… has gone silent"** or a sensor/contact is unavailable while the dongle works | Silence detection is enabled for that category and the timeout elapsed. Check the device's battery/energy harvesting and range (signal strength sensor), or raise/disable the timeout under **Configure → Availability and silent devices**. |
 | **Need details for a bug report** | Enable debug logging for `custom_components.enocean_custom` and download the diagnostics (identifiers are redacted). |
 
 ## Diagnostics and support

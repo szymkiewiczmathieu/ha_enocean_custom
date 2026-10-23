@@ -25,6 +25,15 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
+from .availability import (
+    CATEGORIES,
+    CONF_AVAILABILITY,
+    CONF_ENABLED,
+    MAX_MINUTES,
+    AvailabilitySettings,
+    availability_settings,
+    minutes_key,
+)
 from .climate import (
     CONF_COMMAND_FREQUENCY,
     CONF_DEVICE_TYPE,
@@ -306,6 +315,27 @@ def _ubiwizz_repeater_schema() -> vol.Schema:
     )
 
 
+def _availability_schema(settings: AvailabilitySettings | None = None) -> vol.Schema:
+    """Return the silence-detection settings form, pre-filled with the current values."""
+    current = settings if settings is not None else availability_settings({})
+    schema: dict[Any, Any] = {
+        vol.Required(CONF_ENABLED, default=current.enabled): selector.BooleanSelector()
+    }
+    for category in CATEGORIES:
+        schema[
+            vol.Required(minutes_key(category), default=current.minutes[category])
+        ] = selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0,
+                max=MAX_MINUTES,
+                step=1,
+                unit_of_measurement="min",
+                mode=selector.NumberSelectorMode.BOX,
+            )
+        )
+    return vol.Schema(schema)
+
+
 def _commission_existing_schema(choices: dict[str, str]) -> vol.Schema:
     """Return the websocket-serializable existing-device chooser."""
     return vol.Schema(
@@ -533,6 +563,7 @@ class EnOceanOptionsFlow(OptionsFlow):
             "radio_probe",
             "ubiwizz_repeater",
             "manage",
+            "settings",
         ]
         if self._pending_yaml_rows():
             menu_options.append("import_yaml")
@@ -540,6 +571,31 @@ class EnOceanOptionsFlow(OptionsFlow):
             step_id="init",
             menu_options=menu_options,
         )
+
+    async def async_step_settings(self, user_input=None):
+        """Edit silence detection: enabled flag and one timeout per category.
+
+        Nothing here touches the device rows or any radio; saving reloads the
+        entry so every entity picks up its timeout.
+        """
+        current = availability_settings(self.config_entry.options)
+        if user_input is None:
+            return self.async_show_form(
+                step_id="settings", data_schema=_availability_schema(current)
+            )
+        candidate = {CONF_ENABLED: user_input.get(CONF_ENABLED) is True}
+        for category in CATEGORIES:
+            minutes = _exact_int(user_input.get(minutes_key(category)))
+            if minutes is None or not 0 <= minutes <= MAX_MINUTES:
+                return self.async_show_form(
+                    step_id="settings",
+                    data_schema=_availability_schema(current),
+                    errors={minutes_key(category): "invalid_exact_integer"},
+                )
+            candidate[minutes_key(category)] = minutes
+        updated_options = dict(self.config_entry.options)
+        updated_options[CONF_AVAILABILITY] = candidate
+        return self.async_create_entry(title="", data=updated_options)
 
     def _show_ute_discovery_form(self, errors: dict[str, str] | None = None):
         """Show the explicit Ubiwizz/output form without inferring a product."""

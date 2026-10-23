@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import serial
 import voluptuous as vol
 from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
@@ -35,6 +37,9 @@ CONFIG_SCHEMA = vol.Schema(
     {DOMAIN: vol.Schema({vol.Required(CONF_DEVICE): cv.string})},
     extra=vol.ALLOW_EXTRA,
 )
+
+# Radio devices are identified by their four sender bytes as eight hex digits.
+_SENDER_IDENTIFIER = re.compile(r"\A[0-9A-Fa-f]{8}\Z")
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -127,6 +132,7 @@ async def async_setup_entry(
             lambda: async_register_gateway_device(hass, entry, gateway),
         )
     )
+    async_remove_stale_devices(hass, entry)
     await gateway.async_setup()
 
     try:
@@ -168,6 +174,79 @@ def async_register_gateway_device(
         hw_version=info.chip_version if info else None,
         serial_number=info.chip_id if info else None,
     )
+
+
+def _configured_sender_identifiers(entry: ConfigEntry) -> set[str]:
+    """Return the registry identifiers of every sender a valid UI row names."""
+    return {
+        "".join(f"{byte:02X}" for byte in row["id"])
+        for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
+    }
+
+
+@callback
+def async_remove_stale_devices(hass: HomeAssistant, entry: ConfigEntry) -> int:
+    """Drop registry devices of this entry that no UI row names any more.
+
+    Deleting a UI device removes its entities; the device entry that grouped
+    them used to survive as an empty shell. Devices are keyed by sender, so a
+    device is stale only when none of the entry's rows uses that sender. The
+    gateway device is never stale. Returns how many devices were detached.
+    """
+    registry = dr.async_get(hass)
+    keep = _configured_sender_identifiers(entry)
+    keep.add(gateway_device_identifier(entry.entry_id))
+    removed = 0
+    for device in dr.async_entries_for_config_entry(registry, entry.entry_id):
+        ours = {
+            identifier for domain, identifier in device.identifiers if domain == DOMAIN
+        }
+        if not ours or ours & keep:
+            continue
+        # A device belongs to exactly one config entry (enforced since Home
+        # Assistant 2026.10), so detaching it means removing it.
+        registry.async_remove_device(device.id)
+        removed += 1
+    if removed:
+        LOGGER.info("Removed %d stale EnOcean device(s) from the registry", removed)
+    return removed
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: ConfigEntry, device_entry: dr.DeviceEntry
+) -> bool:
+    """Allow deleting a radio device from its device page.
+
+    Removing the device removes every UI row of that sender from the options
+    (the entities go with the device). The gateway device and senders that are
+    still configured in YAML cannot be removed from the UI.
+    """
+    ours = {
+        identifier
+        for domain, identifier in device_entry.identifiers
+        if domain == DOMAIN
+    }
+    if not ours or gateway_device_identifier(entry.entry_id) in ours:
+        return False
+    senders = {
+        int(identifier, 16)
+        for identifier in ours
+        if _SENDER_IDENTIFIER.match(identifier)
+    }
+    if not senders or senders & get_known_ids(hass):
+        return False
+    raw_rows = list(entry.options.get(CONF_UI_DEVICES, []))
+    remaining = [
+        raw
+        for raw in raw_rows
+        if not (valid := valid_ui_devices([raw]))
+        or combine_hex(valid[0]["id"]) not in senders
+    ]
+    if len(remaining) != len(raw_rows):
+        hass.config_entries.async_update_entry(
+            entry, options={**entry.options, CONF_UI_DEVICES: remaining}
+        )
+    return True
 
 
 async def _async_reload_on_options_update(
