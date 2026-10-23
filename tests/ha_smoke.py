@@ -1790,6 +1790,7 @@ def main() -> None:
 
     rps_switch.send_command = accept_rps  # type: ignore[method-assign]
     rps_switch.async_write_ha_state = lambda: None  # type: ignore[method-assign]
+    rps_switch.schedule_update_ha_state = lambda: None  # type: ignore[method-assign]
     rps_switch.turn_on()
     rps_responses[0](True)
     if rps_switch.is_on is not None:

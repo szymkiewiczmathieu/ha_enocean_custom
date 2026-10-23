@@ -112,6 +112,7 @@ class UbiwizzInstallationProfileTests(TestCase):
         )
         for entity in (channel_0, channel_1):
             entity.async_write_ha_state = lambda: None  # type: ignore[method-assign]
+            entity.schedule_update_ha_state = lambda: None  # type: ignore[method-assign]
 
         acknowledgements = []
         channel_0.send_command = (  # type: ignore[method-assign]

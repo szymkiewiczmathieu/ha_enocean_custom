@@ -1,12 +1,26 @@
 """Command and feedback boundaries for EnOcean switches."""
 
+from __future__ import annotations
+
+import sys
+import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from typing import ClassVar
 from unittest import TestCase
 from unittest.mock import Mock
 
-from custom_components.enocean_custom.const import DATA_ENOCEAN, ENOCEAN_DONGLE
+ROOT = Path(__file__).parents[1]
+sys.path.insert(0, str(ROOT))
+
+from homeassistant import loader
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import frame
+
+from custom_components.enocean_custom.const import DATA_ENOCEAN, DOMAIN, ENOCEAN_DONGLE
 from custom_components.enocean_custom.enocean_library.protocol.constants import RORG
+from custom_components.enocean_custom.light import EnOceanLight
 from custom_components.enocean_custom.switch import EnOceanSwitch
 
 
@@ -24,6 +38,16 @@ class FakeDongle:
         return True
 
 
+class StoppedGateway:
+    """A dongle whose serial worker stopped: every command is refused at once."""
+
+    base_id: ClassVar[list[int]] = [0xAA, 0xBB, 0xCC, 0x01]
+    available = False
+
+    def send(self, *_args, **_kwargs) -> bool:
+        return False
+
+
 class SwitchCommandTests(TestCase):
     """Keep ESP3 transport confirmation separate from actuator feedback."""
 
@@ -34,6 +58,9 @@ class SwitchCommandTests(TestCase):
         dongle = FakeDongle(self.base_id)
         entity = EnOceanSwitch(list(self.sender), "relay", channel, switch_type)
         entity.hass = SimpleNamespace(data={DATA_ENOCEAN: {ENOCEAN_DONGLE: dongle}})
+        # Transport results may complete on the executor thread, so they must
+        # schedule the write; only loop-side feedback writes state directly.
+        entity.schedule_update_ha_state = Mock()
         entity.async_write_ha_state = Mock()
         return entity, dongle
 
@@ -60,9 +87,12 @@ class SwitchCommandTests(TestCase):
         dongle.callbacks[0](True)
         self.assertIsNone(entity.is_on)
         self.assertTrue(entity.extra_state_attributes["last_command_esp3_accepted"])
+        entity.schedule_update_ha_state.assert_called_once_with()
+        entity.async_write_ha_state.assert_not_called()
 
         self._status(entity, 100)
         self.assertIs(entity.is_on, True)
+        entity.async_write_ha_state.assert_called_once_with()
 
         entity.turn_off()
 
@@ -73,6 +103,7 @@ class SwitchCommandTests(TestCase):
         dongle.callbacks[1](False)
         self.assertIs(entity.is_on, True)
         self.assertFalse(entity.extra_state_attributes["last_command_esp3_accepted"])
+        self.assertEqual(entity.schedule_update_ha_state.call_count, 2)
 
         self._status(entity, 0)
         self.assertIs(entity.is_on, False)
@@ -86,11 +117,13 @@ class SwitchCommandTests(TestCase):
 
         self.assertNotIn("last_command_esp3_accepted", entity.extra_state_attributes)
         self.assertIsNone(entity.is_on)
+        entity.schedule_update_ha_state.assert_not_called()
 
         dongle.callbacks[1](False)
 
         self.assertFalse(entity.extra_state_attributes["last_command_esp3_accepted"])
         self.assertIsNone(entity.is_on)
+        entity.schedule_update_ha_state.assert_called_once_with()
 
     def test_rps_requires_all_transport_responses_without_claiming_actuation(
         self,
@@ -107,7 +140,67 @@ class SwitchCommandTests(TestCase):
             ],
         )
         dongle.callbacks[0](False)
+        entity.schedule_update_ha_state.assert_not_called()
         dongle.callbacks[1](True)
 
         self.assertFalse(entity.extra_state_attributes["last_command_esp3_accepted"])
         self.assertIsNone(entity.is_on)
+        entity.schedule_update_ha_state.assert_called_once_with()
+
+
+class ExecutorCommandStateWriteTests(unittest.IsolatedAsyncioTestCase):
+    """Commands run in the executor must never write state off the event loop.
+
+    ``ToggleEntity.async_turn_on`` runs the synchronous ``turn_on`` in Home
+    Assistant's executor. A command refused before queueing completes its
+    transport result on that same thread, where ``async_write_ha_state``
+    raises for a custom integration once the frame helper is active.
+    """
+
+    async def asyncSetUp(self) -> None:
+        self._config_dir = TemporaryDirectory()
+        config_dir = Path(self._config_dir.name)
+        # The frame helper attributes a call to an integration it can load
+        # from the config directory, exactly as a real install does.
+        (config_dir / "custom_components").symlink_to(ROOT / "custom_components")
+        self.hass = HomeAssistant(str(config_dir))
+        loader.async_setup(self.hass)
+        frame.async_setup(self.hass)
+        await loader.async_get_integration(self.hass, DOMAIN)
+        self.hass.data[DATA_ENOCEAN] = {ENOCEAN_DONGLE: StoppedGateway()}
+
+    async def asyncTearDown(self) -> None:
+        await self.hass.async_stop(force=True)
+        self._config_dir.cleanup()
+
+    async def _run_in_executor(self, entity, command):
+        entity.hass = self.hass
+        await self.hass.async_add_executor_job(command)
+        await self.hass.async_block_till_done()
+        return self.hass.states.get(entity.entity_id)
+
+    async def test_rejected_switch_command_writes_state_from_the_executor(self):
+        for switch_type in ("default", "RPS"):
+            with self.subTest(switch_type=switch_type):
+                entity = EnOceanSwitch([1, 2, 3, 4], "lamp", 0, switch_type)
+                entity.entity_id = f"switch.lamp_{switch_type.lower()}"
+                state = await self._run_in_executor(entity, entity.turn_on)
+                self.assertIsNotNone(state, "rejected command wrote no state")
+                self.assertIs(
+                    entity.extra_state_attributes["last_command_esp3_accepted"],
+                    False,
+                )
+                self.assertIsNone(entity.is_on, "rejection must not assume a state")
+
+    async def test_rejected_light_command_writes_state_from_the_executor(self):
+        entity = EnOceanLight([5, 6, 7, 8], [1, 2, 3, 4], "dimmer")
+        entity.entity_id = "light.dimmer"
+        state = await self._run_in_executor(
+            entity, lambda: entity.turn_on(brightness=255)
+        )
+        self.assertIsNotNone(state, "rejected command wrote no state")
+        self.assertIsNone(entity.is_on, "rejection must not assume a state")
+
+
+if __name__ == "__main__":
+    unittest.main()

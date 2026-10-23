@@ -271,7 +271,12 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
                 "HA state remains based on actuator feedback",
                 self.dev_name,
             )
-        self.async_write_ha_state()
+        # ``turn_on``/``turn_off`` run in Home Assistant's executor, and a
+        # command the dongle refuses to queue completes synchronously on that
+        # thread, while ESP3 results arrive later on the event loop. Scheduling
+        # the write is legal from both; a direct ``async_write_ha_state`` is
+        # not and raises off the loop.
+        self.schedule_update_ha_state()
 
     def _send_state_packets(
         self,
