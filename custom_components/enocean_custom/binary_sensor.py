@@ -23,11 +23,15 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .availability import REPAIR_CATEGORIES, availability_settings, silence_category
+from .d2_14 import decode_d2_14_30
 from .eep_catalog import EepField, EepProfile, generic_profile
 from .enocean_library.protocol.constants import RORG
+from .enocean_library.utils import combine_hex
 from .entity import EnOceanEntity, EnOceanGatewayEntity
 from .identity import (
     A514_EEP,
+    D2_14_30_BINARY_SUFFIXES,
+    D2_14_30_EEP,
     GATEWAY_KEY_CONNECTED,
     GENERIC_SENSOR_DEVICE_CLASS,
     SMOKE_EEP,
@@ -177,7 +181,69 @@ def _entities_for_row(row: dict) -> list[EnOceanEntity]:
             EnOceanSmokeDetector(row["id"], row["name"], row["device_class"]),
             EnOceanSmokeBatteryLow(row["id"], row["name"]),
         ]
+    if eep == D2_14_30_EEP:
+        return [
+            EnOceanD21430SmokeAlarm(row["id"], row["name"], row["device_class"]),
+            EnOceanD21430Problem(
+                row["id"], row["name"], D2_14_30_BINARY_SUFFIXES[0], "sensor_fault"
+            ),
+            EnOceanD21430Problem(
+                row["id"], row["name"], D2_14_30_BINARY_SUFFIXES[1], "maintenance_due"
+            ),
+        ]
     return [EnOceanBinarySensor(row["id"], row["name"], row["device_class"])]
+
+
+class EnOceanD21430SmokeAlarm(EnOceanEntity, BinarySensorEntity):
+    """Smoke alarm bit of a D2-14-30 multi-sensor detector (row primary entity)."""
+
+    _attr_device_class = BinarySensorDeviceClass.SMOKE
+
+    def __init__(
+        self,
+        dev_id: list[int],
+        dev_name: str,
+        device_class: BinarySensorDeviceClass | str | None,
+    ) -> None:
+        """Keep the row's historical identity."""
+        super().__init__(dev_id, dev_name)
+        self._attr_name = dev_name
+        self._attr_unique_id = binary_sensor_unique_id(dev_id, device_class)
+
+    @override
+    def value_changed(self, packet) -> None:
+        """Apply the smoke alarm bit."""
+        status = decode_d2_14_30(getattr(packet, "data", None))
+        if status is None:
+            return
+        self._attr_is_on = status.smoke_alarm
+        self.schedule_update_ha_state()
+
+
+class EnOceanD21430Problem(EnOceanEntity, BinarySensorEntity):
+    """Diagnostic problem flags of a D2-14-30 detector (sensor fault, maintenance)."""
+
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_has_entity_name = True
+
+    def __init__(
+        self, dev_id: list[int], dev_name: str, suffix: str, attribute: str
+    ) -> None:
+        """Bind one status flag to the detector."""
+        super().__init__(dev_id, dev_name)
+        self._attribute = attribute
+        self._attr_unique_id = f"{combine_hex(dev_id)}{suffix}"
+        self._attr_translation_key = f"d2_14_30_{attribute}"
+
+    @override
+    def value_changed(self, packet) -> None:
+        """Apply the flag of this entity."""
+        status = decode_d2_14_30(getattr(packet, "data", None))
+        if status is None:
+            return
+        self._attr_is_on = bool(getattr(status, self._attribute))
+        self.schedule_update_ha_state()
 
 
 @dataclass(frozen=True, slots=True)

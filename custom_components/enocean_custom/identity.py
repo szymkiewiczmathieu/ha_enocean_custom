@@ -60,6 +60,20 @@ A514_CONTACT_UNIQUE_ID_SUFFIX: Final = "-a5-14-01-contact"
 SMOKE_EEP: Final = "F6-05-02"
 SMOKE_BATTERY_LOW_UNIQUE_ID_SUFFIX: Final = "-f6-05-02-battery-low"
 
+# D2-14-30 multi-sensor smoke detectors (2.10.0). The binary_sensor row keeps
+# its historical primary identity (smoke alarm); the companions are new.
+D2_14_30_EEP: Final = "D2-14-30"
+D2_14_30_BINARY_SUFFIXES: Final = ("-d2-14-30-sensor-fault", "-d2-14-30-maintenance")
+D2_14_30_SENSOR_KEYS: Final = (
+    "d2_14_30_temperature",
+    "d2_14_30_humidity",
+    "d2_14_30_energy_storage",
+    "d2_14_30_comfort",
+    "d2_14_30_air_quality",
+    "d2_14_30_maintenance_weeks",
+    "d2_14_30_remaining_life",
+)
+
 # Generic EEP.xml-driven sensor rows (2.10.0): ``device_class: eep`` plus a
 # generic profile in ``radio_metadata.eep``. One entity per exposed field,
 # keyed by the specification shortcut (``<id>-eep_tmp``, ``<id>-eep_hum``).
@@ -126,6 +140,20 @@ def a514_contact_unique_id(dev_id: list[int]) -> str:
 def smoke_battery_low_unique_id(dev_id: list[int]) -> str:
     """Return the identity of the F6-05-02 low-battery companion."""
     return f"{combine_hex(dev_id)}{SMOKE_BATTERY_LOW_UNIQUE_ID_SUFFIX}"
+
+
+def d2_14_30_identities(
+    dev_id: list[int], device_class: object
+) -> tuple[tuple[str, str], ...]:
+    """Return the primary smoke alarm plus every D2-14-30 companion identity."""
+    return (
+        ("binary_sensor", binary_sensor_unique_id(dev_id, device_class)),
+        *(
+            ("binary_sensor", f"{combine_hex(dev_id)}{suffix}")
+            for suffix in D2_14_30_BINARY_SUFFIXES
+        ),
+        *(("sensor", sensor_unique_id(dev_id, key)) for key in D2_14_30_SENSOR_KEYS),
+    )
 
 
 def light_unique_id(dev_id: list[int] | None, sender_id: list[int] | None) -> str:
@@ -215,6 +243,8 @@ def ui_device_entity_identities(
                 (platform, a514_contact_unique_id(dev_id)),
                 ("sensor", sensor_unique_id(dev_id, SENSOR_KEY_A514_SUPPLY_VOLTAGE)),
             )
+        if metadata.get("eep") == D2_14_30_EEP:
+            return d2_14_30_identities(dev_id, device["device_class"])
         primary = (platform, binary_sensor_unique_id(dev_id, device["device_class"]))
         if metadata.get("eep") == SMOKE_EEP:
             return (primary, (platform, smoke_battery_low_unique_id(dev_id)))

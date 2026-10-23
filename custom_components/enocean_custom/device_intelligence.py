@@ -137,6 +137,10 @@ EEP_IMPLEMENTATIONS: Mapping[str, EEPImplementation] = MappingProxyType(
         # RPS telegram never declares its EEP, so the profile is always chosen
         # (manual or catalog), never inferred.
         "F6-05-02": EEPImplementation(("binary_sensor",), ConfigMode.ASSISTED),
+        # binary_sensor.EnOceanD21430SmokeAlarm plus problem flags and the
+        # sensor companions; layout from two agreeing implementations
+        # (openHAB, FHEM), not yet checked against a real detector.
+        "D2-14-30": EEPImplementation(("binary_sensor",), ConfigMode.ASSISTED),
         # sensor.EnOceanWindowHandle; only the sensor device_class must be set.
         "F6-10-00": EEPImplementation(("sensor",), ConfigMode.ASSISTED),
         # sensor.EnOceanD50001Contact; ``shuttercontact`` remains a legacy alias.

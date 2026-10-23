@@ -30,6 +30,7 @@ from homeassistant.const import (
     UnitOfEnergy,
     UnitOfPower,
     UnitOfTemperature,
+    UnitOfTime,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
@@ -39,12 +40,19 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .availability import REPAIR_CATEGORIES, availability_settings, silence_category
 from .const import DOMAIN, LOGGER
+from .d2_14 import (
+    AIR_QUALITY_STATES,
+    COMFORT_STATES,
+    ENERGY_STORAGE_STATES,
+    decode_d2_14_30,
+)
 from .eep_catalog import EepField, EepProfile, generic_profile
 from .enocean_library.protocol.constants import RORG
 from .enocean_library.utils import combine_hex, to_hex_string
 from .entity import EnOceanEntity, EnOceanGatewayEntity
 from .identity import (
     A514_EEP,
+    D2_14_30_EEP,
     GATEWAY_KEY_BASE_ID,
     GATEWAY_KEY_LAST_TELEGRAM,
     GATEWAY_KEY_RECEIVED_TELEGRAMS,
@@ -254,6 +262,17 @@ async def async_setup_entry(
                 .configure_silence(silence[0], repair=silence[1])
             )
             continue
+        if (
+            row["platform"] == "binary_sensor"
+            and (row.get("radio_metadata") or {}).get("eep") == D2_14_30_EEP
+        ):
+            entities.extend(
+                EnOceanD21430Sensor(row["id"], row["name"], description)
+                .set_radio_metadata(row.get("radio_metadata"))
+                .configure_silence(silence[0], repair=silence[1])
+                for description in D2_14_30_SENSOR_DESCRIPTIONS
+            )
+            continue
         if row["platform"] != "sensor":
             continue
         if row[CONF_DEVICE_CLASS] == GENERIC_SENSOR_DEVICE_CLASS:
@@ -361,6 +380,108 @@ class EnOceanGatewayBaseId(EnOceanGatewayEntity, SensorEntity):
         if not isinstance(base_id, (list, tuple)) or len(base_id) != 4:
             return None
         return to_hex_string(list(base_id))
+
+
+@dataclass(frozen=True, kw_only=True)
+class D21430SensorDescription(SensorEntityDescription):
+    """One measurement or status of a D2-14-30 detector."""
+
+    attribute: str = ""
+
+
+D2_14_30_SENSOR_DESCRIPTIONS: tuple[D21430SensorDescription, ...] = (
+    D21430SensorDescription(
+        key="d2_14_30_temperature",
+        translation_key="d2_14_30_temperature",
+        attribute="temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    D21430SensorDescription(
+        key="d2_14_30_humidity",
+        translation_key="d2_14_30_humidity",
+        attribute="humidity",
+        native_unit_of_measurement=PERCENTAGE,
+        device_class=SensorDeviceClass.HUMIDITY,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    D21430SensorDescription(
+        key="d2_14_30_energy_storage",
+        translation_key="d2_14_30_energy_storage",
+        attribute="energy_storage",
+        device_class=SensorDeviceClass.ENUM,
+        options=list(ENERGY_STORAGE_STATES),
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    D21430SensorDescription(
+        key="d2_14_30_comfort",
+        translation_key="d2_14_30_comfort",
+        attribute="comfort",
+        device_class=SensorDeviceClass.ENUM,
+        options=list(COMFORT_STATES),
+    ),
+    D21430SensorDescription(
+        key="d2_14_30_air_quality",
+        translation_key="d2_14_30_air_quality",
+        attribute="air_quality",
+        device_class=SensorDeviceClass.ENUM,
+        options=list(AIR_QUALITY_STATES),
+    ),
+    D21430SensorDescription(
+        key="d2_14_30_maintenance_weeks",
+        translation_key="d2_14_30_maintenance_weeks",
+        attribute="maintenance_weeks",
+        native_unit_of_measurement=UnitOfTime.WEEKS,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    D21430SensorDescription(
+        key="d2_14_30_remaining_life",
+        translation_key="d2_14_30_remaining_life",
+        attribute="remaining_life_months",
+        native_unit_of_measurement=UnitOfTime.MONTHS,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+)
+
+
+class EnOceanD21430Sensor(EnOceanEntity, RestoreSensor):
+    """One measurement or status of a D2-14-30 multi-sensor smoke detector."""
+
+    _attr_has_entity_name = True
+
+    def __init__(
+        self, dev_id: list[int], dev_name: str, description: D21430SensorDescription
+    ) -> None:
+        """Bind one decoded attribute to the detector's sender."""
+        super().__init__(dev_id, dev_name)
+        self.entity_description = description
+        self._attr_unique_id = sensor_unique_id(dev_id, description.key)
+
+    @override
+    async def async_added_to_hass(self) -> None:
+        """Restore the last value, dropping anything outside an option list."""
+        await super().async_added_to_hass()
+        if self._attr_native_value is not None:
+            return
+        if (sensor_data := await self.async_get_last_sensor_data()) is not None:
+            restored = sensor_data.native_value
+            options = self.options
+            if options is not None and restored not in options:
+                restored = None
+            self._attr_native_value = restored
+
+    @override
+    def value_changed(self, packet) -> None:
+        """Apply this entity's attribute; invalid readings keep the last value."""
+        status = decode_d2_14_30(getattr(packet, "data", None))
+        if status is None:
+            return
+        value = getattr(status, self.entity_description.attribute)
+        if value is None:
+            return
+        self._attr_native_value = value
+        self.schedule_update_ha_state()
 
 
 class EnOceanEepValueSensor(EnOceanEntity, RestoreSensor):

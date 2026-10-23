@@ -353,6 +353,12 @@
       "smoke_battery_low": {
         "name": "Battery low"
       },
+      "d2_14_30_sensor_fault": {
+        "name": "Sensor fault"
+      },
+      "d2_14_30_maintenance_due": {
+        "name": "Maintenance due"
+      },
       "eep_occupancy": {
         "name": "Occupancy"
       },
@@ -460,6 +466,46 @@
       },
       "eep_voc": {
         "name": "VOC"
+      },
+      "d2_14_30_temperature": {
+        "name": "Temperature"
+      },
+      "d2_14_30_humidity": {
+        "name": "Humidity"
+      },
+      "d2_14_30_energy_storage": {
+        "name": "Energy storage",
+        "state": {
+          "high": "High",
+          "medium": "Medium",
+          "low": "Low",
+          "critical": "Critical"
+        }
+      },
+      "d2_14_30_comfort": {
+        "name": "Hygrothermal comfort",
+        "state": {
+          "good": "Good",
+          "medium": "Medium",
+          "bad": "Bad",
+          "error": "Error"
+        }
+      },
+      "d2_14_30_air_quality": {
+        "name": "Indoor air analysis",
+        "state": {
+          "optimal": "Optimal",
+          "dry": "Dry air",
+          "humidity_high": "Humidity too high",
+          "temperature_humidity_high": "Temperature and humidity too high",
+          "error": "Error"
+        }
+      },
+      "d2_14_30_maintenance_weeks": {
+        "name": "Weeks since maintenance"
+      },
+      "d2_14_30_remaining_life": {
+        "name": "Remaining lifetime"
       }
     }
   },

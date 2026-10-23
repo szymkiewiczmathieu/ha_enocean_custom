@@ -133,7 +133,7 @@ def silence_category(row: Mapping[str, Any]) -> str | None:
     device_class = row.get("device_class")
     eep = str((row.get("radio_metadata") or {}).get("eep") or "").upper()
     if platform == "binary_sensor":
-        if device_class == "smoke" or eep == "F6-05-02":
+        if device_class == "smoke" or eep in ("F6-05-02", "D2-14-30"):
             return CATEGORY_SMOKE
         if eep in ("A5-14-01", "D5-00-01"):
             return CATEGORY_CONTACT

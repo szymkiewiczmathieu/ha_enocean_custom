@@ -81,6 +81,7 @@ Alliance certification nor tested hardware.
 | `D2-01-0B`   | `sensor._decode_d2_measurement` for D2-01 CMD `0x7`                                                                          | `sensor`                  | `assisted`                                                   | `supported` |
 | `D2-01-08`   | Ubiwizz lighting profile from field-verified DolphinView capture | `light`, `switch` | manual (catalog recipe) | manual |
 | `D2-01-12`   | switch/light actuator with D2-01 feedback; explicit `ubiwizz_ubid1507c` limits documented UBID1507C rows to channels `0`/`1` | `light`, `switch` | manual (two valid platforms; EEP is not hardware identity) | manual |
+| `D2-14-30`   | `d2_14.decode_d2_14_30`: smoke alarm (row entity), sensor-fault and maintenance flags, temperature, humidity, energy storage, hygrothermal comfort, indoor air analysis, weeks since maintenance, remaining lifetime. Layout from two agreeing implementations (openHAB `D2_14_30.java`, FHEM `multiFuncSensor.30`); **not yet validated on a real detector** | `binary_sensor`           | `assisted` (profile must be declared)                        | `supported` |
 
 A platform is pre-selected in the options flow only when the mode is
 `automatic` or `assisted` **and** exactly one platform applies. The selection

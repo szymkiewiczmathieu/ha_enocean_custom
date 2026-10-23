@@ -34,6 +34,40 @@
           "closed": "mdi:door-closed"
         }
       },
+      "d2_14_30_energy_storage": {
+        "default": "mdi:battery",
+        "state": {
+          "high": "mdi:battery",
+          "medium": "mdi:battery-50",
+          "low": "mdi:battery-20",
+          "critical": "mdi:battery-alert"
+        }
+      },
+      "d2_14_30_comfort": {
+        "default": "mdi:home-thermometer-outline",
+        "state": {
+          "good": "mdi:emoticon-happy-outline",
+          "medium": "mdi:emoticon-neutral-outline",
+          "bad": "mdi:emoticon-sad-outline",
+          "error": "mdi:alert-circle-outline"
+        }
+      },
+      "d2_14_30_air_quality": {
+        "default": "mdi:air-filter",
+        "state": {
+          "optimal": "mdi:check-circle-outline",
+          "dry": "mdi:water-off-outline",
+          "humidity_high": "mdi:water-percent",
+          "temperature_humidity_high": "mdi:thermometer-water",
+          "error": "mdi:alert-circle-outline"
+        }
+      },
+      "d2_14_30_maintenance_weeks": {
+        "default": "mdi:calendar-clock"
+      },
+      "d2_14_30_remaining_life": {
+        "default": "mdi:calendar-end"
+      },
       "radio_rssi": {
         "default": "mdi:signal-cellular-outline",
         "range": {

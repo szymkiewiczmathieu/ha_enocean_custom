@@ -353,6 +353,12 @@
       "smoke_battery_low": {
         "name": "Pile faible"
       },
+      "d2_14_30_sensor_fault": {
+        "name": "Défaut capteur"
+      },
+      "d2_14_30_maintenance_due": {
+        "name": "Maintenance à faire"
+      },
       "eep_occupancy": {
         "name": "Présence"
       },
@@ -460,6 +466,46 @@
       },
       "eep_voc": {
         "name": "COV"
+      },
+      "d2_14_30_temperature": {
+        "name": "Température"
+      },
+      "d2_14_30_humidity": {
+        "name": "Humidité"
+      },
+      "d2_14_30_energy_storage": {
+        "name": "Réserve d'énergie",
+        "state": {
+          "high": "Haute",
+          "medium": "Moyenne",
+          "low": "Basse",
+          "critical": "Critique"
+        }
+      },
+      "d2_14_30_comfort": {
+        "name": "Confort hygrothermique",
+        "state": {
+          "good": "Bon",
+          "medium": "Moyen",
+          "bad": "Mauvais",
+          "error": "Erreur"
+        }
+      },
+      "d2_14_30_air_quality": {
+        "name": "Analyse de l'air intérieur",
+        "state": {
+          "optimal": "Optimale",
+          "dry": "Air sec",
+          "humidity_high": "Humidité trop élevée",
+          "temperature_humidity_high": "Température et humidité trop élevées",
+          "error": "Erreur"
+        }
+      },
+      "d2_14_30_maintenance_weeks": {
+        "name": "Semaines depuis la maintenance"
+      },
+      "d2_14_30_remaining_life": {
+        "name": "Durée de vie restante"
       }
     }
   },
