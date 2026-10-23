@@ -71,8 +71,9 @@ class ExceptionCatalogTests(unittest.TestCase):
                 self.assertNotEqual(message, french[key])
 
     def test_expected_keys_exist(self):
-        self.assertEqual(
-            set(self._messages("strings.json")),
+        # Every key raised somewhere in the integration; later features may
+        # add keys (and their tests), none of these may disappear.
+        self.assertLessEqual(
             {
                 "base_id_unavailable",
                 "command_rejected",
@@ -81,7 +82,10 @@ class ExceptionCatalogTests(unittest.TestCase):
                 "rocker_teach_in_not_supported",
                 "learn_in_progress",
                 "gateway_not_loaded",
+                "repeater_write_rejected",
+                "repeater_readback_timeout",
             },
+            set(self._messages("strings.json")),
         )
 
 

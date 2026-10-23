@@ -262,6 +262,15 @@ integration exposes no remote repeater write service because supplied Ubiwizz
 documentation does not define a module-specific protocol or read-back. Do not
 confuse the module repeater with the USB gateway's `CO_WR_REPEATER` command.
 
+The **dongle's own repeater** is a different thing and is exposed as the
+`select` entity **Repeater** on the gateway device (off, level 1, level 2). It
+uses the documented ESP3 commands `CO_WR_REPEATER` and `CO_RD_REPEATER`: the
+setting is read at start-up, written only when you pick an option, and the
+displayed value always comes from the read-back that follows the write. An
+enabled repeater makes the USB 300 retransmit every telegram it hears, which
+extends coverage from a central location but adds radio traffic; leave it off
+unless a far device needs it.
+
 ## Removing devices or the integration
 
 - **One UI-managed device:** **Configure → Manage UI devices**, pick the device,

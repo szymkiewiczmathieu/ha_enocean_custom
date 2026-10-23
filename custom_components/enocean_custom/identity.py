@@ -72,6 +72,7 @@ GATEWAY_KEY_RECEIVED_TELEGRAMS: Final = "gateway_received_telegrams"
 GATEWAY_KEY_LAST_TELEGRAM: Final = "gateway_last_telegram"
 GATEWAY_KEY_BASE_ID: Final = "gateway_base_id"
 GATEWAY_KEY_CONNECTED: Final = "gateway_connected"
+GATEWAY_KEY_REPEATER: Final = "gateway_repeater"
 
 
 def gateway_device_identifier(entry_id: str) -> str:

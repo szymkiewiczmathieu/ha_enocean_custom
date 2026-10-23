@@ -41,9 +41,13 @@ LEARN_TIMEOUT_MAX = 300
 
 LOGGER = logging.getLogger(__package__)
 
-PLATFORMS: tuple[Platform, ...] = tuple(
-    Platform(name) for name in ("binary_sensor", "climate", "light", "sensor", "switch")
-)
+# These platforms accept devices stored by the config-entry options flow: a
+# UI row names one of them as its ``platform``.
+UI_DEVICE_PLATFORMS = ("binary_sensor", "climate", "light", "sensor", "switch")
 
-# These platforms accept devices stored by the config-entry options flow.
-UI_DEVICE_PLATFORMS = tuple(platform.value for platform in PLATFORMS)
+# Every platform the config entry forwards: the row platforms plus ``select``,
+# which only carries the dongle's own repeater setting (never a UI row).
+PLATFORMS: tuple[Platform, ...] = tuple(
+    Platform(name) for name in (*UI_DEVICE_PLATFORMS, "select")
+)
+FORWARDED_PLATFORMS = tuple(platform.value for platform in PLATFORMS)

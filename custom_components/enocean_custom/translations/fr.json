@@ -320,6 +320,16 @@
         "name": "Dongle connecté"
       }
     },
+    "select": {
+      "gateway_repeater": {
+        "name": "Répéteur",
+        "state": {
+          "off": "Désactivé",
+          "level_1": "Niveau 1 (un saut)",
+          "level_2": "Niveau 2 (deux sauts)"
+        }
+      }
+    },
     "sensor": {
       "window_handle": {
         "name": "Position de la poignée",
@@ -407,6 +417,12 @@
     },
     "gateway_not_loaded": {
       "message": "Le dongle EnOcean n'est pas chargé : aucune fenêtre d'apprentissage ne peut être ouverte. Configurez ou rechargez d'abord l'intégration."
+    },
+    "repeater_write_rejected": {
+      "message": "Le dongle a refusé le réglage du répéteur ; il est inchangé. Vérifiez que le dongle est connecté et que son firmware prend en charge CO_WR_REPEATER."
+    },
+    "repeater_readback_timeout": {
+      "message": "Le dongle a accepté le réglage du répéteur mais ne l'a pas confirmé dans les {seconds} secondes. Rechargez l'intégration pour relire le réglage actuel."
     }
   },
   "issues": {

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import glob
 import logging
 from collections import deque
@@ -14,6 +15,7 @@ from time import monotonic
 from typing import Any
 
 import serial
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.dispatcher import async_dispatcher_send, dispatcher_send
 
@@ -121,6 +123,8 @@ class EnOceanDongle:
         self.entry_id = entry_id
         self._gateway_info: GatewayInfo | None = None
         self._repeater: RepeaterState | None = None
+        # Futures (event loop) waiting for the next CO_RD_REPEATER read-back.
+        self._repeater_waiters: list[asyncio.Future[RepeaterState]] = []
         self._available = False
         self._stopping = False
         self._base_id_retry_count = 0
@@ -216,6 +220,91 @@ class EnOceanDongle:
             return
         self._repeater = state
         self._notify_gateway_update()
+        waiters, self._repeater_waiters = self._repeater_waiters, []
+        for waiter in waiters:
+            try:
+                self.hass.loop.call_soon_threadsafe(self._resolve, waiter, state)
+            except RuntimeError:
+                _LOGGER.debug("Home Assistant loop closed before repeater read-back")
+
+    @staticmethod
+    def _resolve(future: asyncio.Future, result: Any) -> None:
+        """Resolve a loop future unless its waiter already gave up."""
+        if not future.done():
+            future.set_result(result)
+
+    # Upper bound on the wait for the dongle's answer to one serial command.
+    REPEATER_COMMAND_TIMEOUT_SECONDS = 5.0
+
+    async def async_set_repeater(self, enabled: bool, level: int) -> RepeaterState:
+        """Write the dongle's own repeater setting and read it back.
+
+        ``CO_WR_REPEATER`` is a serial command to the gateway and transmits
+        nothing itself; an enabled repeater makes the dongle retransmit the
+        telegrams it hears, which is why this only ever runs on an explicit
+        user action. The reported state comes from the ``CO_RD_REPEATER``
+        read-back, never from the write being accepted.
+        """
+        if level not in (1, 2):
+            raise ValueError("repeater level must be 1 or 2")
+        loop = asyncio.get_running_loop()
+        written: asyncio.Future[bool] = loop.create_future()
+
+        def write_response(packet: Any) -> None:
+            accepted = (
+                packet is not None
+                and getattr(packet, "response", None) == RETURN_CODE.OK
+            )
+            try:
+                loop.call_soon_threadsafe(self._resolve, written, accepted)
+            except RuntimeError:
+                _LOGGER.debug("Home Assistant loop closed before repeater write")
+
+        if not self.available or not self._communicator.request_common_command(
+            [CO_WR_REPEATER, 1 if enabled else 0, level if enabled else 1],
+            write_response,
+        ):
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="repeater_write_rejected",
+            )
+        try:
+            accepted = await asyncio.wait_for(
+                written, self.REPEATER_COMMAND_TIMEOUT_SECONDS
+            )
+        except TimeoutError:
+            accepted = False
+        if not accepted:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="repeater_write_rejected",
+            )
+
+        read_back: asyncio.Future[RepeaterState] = loop.create_future()
+        self._repeater_waiters.append(read_back)
+        if not self.request_repeater():
+            self._repeater_waiters.remove(read_back)
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="repeater_readback_timeout",
+                translation_placeholders={
+                    "seconds": str(int(self.REPEATER_COMMAND_TIMEOUT_SECONDS))
+                },
+            )
+        try:
+            return await asyncio.wait_for(
+                read_back, self.REPEATER_COMMAND_TIMEOUT_SECONDS
+            )
+        except TimeoutError:
+            if read_back in self._repeater_waiters:
+                self._repeater_waiters.remove(read_back)
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="repeater_readback_timeout",
+                translation_placeholders={
+                    "seconds": str(int(self.REPEATER_COMMAND_TIMEOUT_SECONDS))
+                },
+            ) from None
 
     def _notify_gateway_update(self) -> None:
         """Publish a gateway fact change on Home Assistant's event loop."""

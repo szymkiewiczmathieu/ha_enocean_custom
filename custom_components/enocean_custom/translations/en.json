@@ -320,6 +320,16 @@
         "name": "Dongle connected"
       }
     },
+    "select": {
+      "gateway_repeater": {
+        "name": "Repeater",
+        "state": {
+          "off": "Off",
+          "level_1": "Level 1 (one hop)",
+          "level_2": "Level 2 (two hops)"
+        }
+      }
+    },
     "sensor": {
       "window_handle": {
         "name": "Handle position",
@@ -407,6 +417,12 @@
     },
     "gateway_not_loaded": {
       "message": "The EnOcean dongle is not loaded, so no teach-in window can be opened. Set up or reload the integration first."
+    },
+    "repeater_write_rejected": {
+      "message": "The dongle refused the repeater setting; it is unchanged. Check that the dongle is connected and that its firmware supports CO_WR_REPEATER."
+    },
+    "repeater_readback_timeout": {
+      "message": "The dongle accepted the repeater setting but did not confirm it within {seconds} seconds. Reload the integration to read the current setting again."
     }
   },
   "issues": {

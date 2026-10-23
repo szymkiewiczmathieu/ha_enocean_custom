@@ -17,10 +17,10 @@ from .const import (
     CONFIG_ENTRY_MINOR_VERSION,
     CONFIG_ENTRY_VERSION,
     DOMAIN,
+    FORWARDED_PLATFORMS,
     LOGGER,
     MANUFACTURER,
     SIGNAL_GATEWAY_UPDATE,
-    UI_DEVICE_PLATFORMS,
 )
 from .dongle import EnOceanDongle
 from .enocean_library.utils import combine_hex
@@ -132,7 +132,7 @@ async def async_setup_entry(
     try:
         await hass.config_entries.async_forward_entry_setups(
             entry,
-            UI_DEVICE_PLATFORMS,
+            FORWARDED_PLATFORMS,
         )
     except Exception:
         gateway.set_inbox(None)
@@ -185,7 +185,7 @@ async def async_unload_entry(
     """Stop platforms and the serial thread before permitting a reload."""
     platforms_unloaded = await hass.config_entries.async_unload_platforms(
         entry,
-        UI_DEVICE_PLATFORMS,
+        FORWARDED_PLATFORMS,
     )
     if not platforms_unloaded:
         return False

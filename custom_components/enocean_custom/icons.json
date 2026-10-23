@@ -8,6 +8,16 @@
         }
       }
     },
+    "select": {
+      "gateway_repeater": {
+        "default": "mdi:repeat-off",
+        "state": {
+          "off": "mdi:repeat-off",
+          "level_1": "mdi:repeat-once",
+          "level_2": "mdi:repeat"
+        }
+      }
+    },
     "sensor": {
       "window_handle": {
         "default": "mdi:window-closed-variant",
