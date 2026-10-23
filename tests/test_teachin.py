@@ -8,6 +8,7 @@ import sys
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import MappingProxyType, SimpleNamespace
 from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).parents[1]
@@ -15,8 +16,9 @@ sys.path.insert(0, str(ROOT))
 
 try:  # The bare CI lifecycle environment has no Home Assistant installed.
     import voluptuous as vol
+    from homeassistant.config_entries import ConfigEntries, ConfigEntry
     from homeassistant.core import HomeAssistant
-    from homeassistant.exceptions import HomeAssistantError
+    from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
     from homeassistant.helpers.dispatcher import async_dispatcher_send
 
     from custom_components.enocean_custom import learn, light
@@ -480,7 +482,26 @@ class ServiceRegistrationTests(unittest.IsolatedAsyncioTestCase):
         learn.async_register_learn_service(self.hass)
         self.assertTrue(self.hass.services.has_service(DOMAIN, SERVICE_LEARN))
 
+    def _expose_loaded_gateway(self) -> None:
+        """Expose a dongle the way production does: as the entry's runtime_data."""
+        self.hass.config_entries = ConfigEntries(self.hass, {})
+        entry = ConfigEntry(
+            data={"device": "/dev/test-learn"},
+            discovery_keys=MappingProxyType({}),
+            domain=DOMAIN,
+            minor_version=1,
+            options={},
+            source="user",
+            subentries_data=None,
+            title="EnOcean",
+            unique_id=None,
+            version=1,
+        )
+        entry.runtime_data = SimpleNamespace(available=True)
+        self.hass.config_entries._entries[entry.entry_id] = entry
+
     async def test_learn_service_starts_a_window_with_the_requested_timeout(self):
+        self._expose_loaded_gateway()
         learn.async_register_learn_service(self.hass)
         await self.hass.services.async_call(
             DOMAIN, SERVICE_LEARN, {"timeout": 20}, blocking=True
@@ -488,6 +509,32 @@ class ServiceRegistrationTests(unittest.IsolatedAsyncioTestCase):
         manager = learn.get_learn_manager(self.hass)
         self.assertTrue(manager.is_active)
         manager.stop()
+
+    async def test_learn_service_without_a_loaded_dongle_is_a_translated_error(self):
+        # The action exists from async_setup on, so it can be called while the
+        # entry is unloaded; that must be a clear validation error, not a
+        # silent 60-second window that can never capture anything.
+        learn.async_register_learn_service(self.hass)
+        with self.assertRaises(ServiceValidationError) as raised:
+            await self.hass.services.async_call(
+                DOMAIN, SERVICE_LEARN, {"timeout": 20}, blocking=True
+            )
+        self.assertEqual(raised.exception.translation_domain, DOMAIN)
+        self.assertEqual(raised.exception.translation_key, "gateway_not_loaded")
+        self.assertFalse(learn.get_learn_manager(self.hass).is_active)
+
+    async def test_concurrent_learn_window_is_a_translated_error(self):
+        self._expose_loaded_gateway()
+        learn.async_register_learn_service(self.hass)
+        await self.hass.services.async_call(
+            DOMAIN, SERVICE_LEARN, {"timeout": 20}, blocking=True
+        )
+        with self.assertRaises(HomeAssistantError) as raised:
+            await self.hass.services.async_call(
+                DOMAIN, SERVICE_LEARN, {"timeout": 20}, blocking=True
+            )
+        self.assertEqual(raised.exception.translation_key, "learn_in_progress")
+        learn.get_learn_manager(self.hass).stop()
 
     async def test_learn_service_rejects_out_of_range_timeout(self):
         learn.async_register_learn_service(self.hass)

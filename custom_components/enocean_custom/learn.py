@@ -8,7 +8,7 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall, callback
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from .const import (
@@ -25,6 +25,7 @@ from .const import (
 )
 from .device_intelligence import extract_radio_identity, safe_metadata
 from .enocean_library.utils import combine_hex, to_hex_string
+from .runtime import get_gateway
 from .schema import CONF_UI_DEVICES, exact_finite_int, valid_ui_devices
 
 SERVICE_LEARN_SCHEMA = vol.Schema(
@@ -248,11 +249,22 @@ class LearnManager:
 
 
 async def _async_handle_learn_service(call: ServiceCall) -> None:
-    """Start a learn window from the enocean_custom.learn service."""
+    """Start a learn window from the enocean_custom.learn service.
+
+    The action is registered in ``async_setup`` and therefore exists while the
+    entry is unloaded; without a dongle no telegram can be captured, so that
+    case fails with a translated validation error instead of a silent timeout.
+    """
+    if get_gateway(call.hass) is None:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="gateway_not_loaded",
+        )
     manager = get_learn_manager(call.hass)
     if not manager.start(call.data["timeout"], owner="service"):
         raise HomeAssistantError(
-            "An EnOcean teach-in window is already in progress; try again once it ends."
+            translation_domain=DOMAIN,
+            translation_key="learn_in_progress",
         )
 
 

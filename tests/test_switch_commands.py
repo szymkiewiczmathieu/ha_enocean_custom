@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT))
 from homeassistant import loader
 from homeassistant.config_entries import ConfigEntries, ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import frame
 
 from custom_components.enocean_custom.const import DOMAIN
@@ -201,7 +202,11 @@ class ExecutorCommandStateWriteTests(unittest.IsolatedAsyncioTestCase):
 
     async def _run_in_executor(self, entity, command):
         entity.hass = self.hass
-        await self.hass.async_add_executor_job(command)
+        # A refused command is reported to the caller as a translated error,
+        # after the transport result has been recorded and scheduled.
+        with self.assertRaises(HomeAssistantError) as raised:
+            await self.hass.async_add_executor_job(command)
+        self.assertEqual(raised.exception.translation_key, "command_rejected")
         await self.hass.async_block_till_done()
         return self.hass.states.get(entity.entity_id)
 

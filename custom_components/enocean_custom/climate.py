@@ -39,6 +39,7 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.core import CoreState, Event, HomeAssistant, State
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers import entity_registry as er
@@ -886,21 +887,38 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
         )
         return min(range(64), key=lambda code: abs(durations[code] - seconds))
 
-    def teach_in_actor(self):
+    def teach_in_actor(self) -> None:
         """Teach the configured thermostat/valve actor."""
         if self._profile == PROFILE_A5_20_04:
             # 4BS bidirectional variation 3 response: A5-20-04, manufacturer 0,
             # EEP accepted, sender stored, response, and LRN=0.
-            self._send_a5_20_04([0x80, 0x20, 0x00, 0xF0])
-            return
-        legacy_teach_in = [0x40, 0x30, 0x02, 0x86]
-        self.sendPacket(legacy_teach_in)
+            sent = self._send_a5_20_04([0x80, 0x20, 0x00, 0xF0])
+        else:
+            sent = self.sendPacket([0x40, 0x30, 0x02, 0x86])
+        if not sent:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="teach_in_rejected",
+                translation_placeholders={"name": self.dev_name},
+            )
 
-    def teach_in_actor_switch(self):
+    def teach_in_actor_switch(self) -> None:
         """Teach the legacy SRC-D08 rocker input."""
-        if self._profile == PROFILE_SRC_D08:
-            rocker_teach_in = [0x70]
-            self.sendPacket(rocker_teach_in)
+        if self._profile != PROFILE_SRC_D08:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="rocker_teach_in_not_supported",
+                translation_placeholders={
+                    "name": self.dev_name,
+                    "profile": str(self._profile),
+                },
+            )
+        if not self.sendPacket([0x70]):
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="teach_in_rejected",
+                translation_placeholders={"name": self.dev_name},
+            )
 
     def _send_a5_20_04(
         self,

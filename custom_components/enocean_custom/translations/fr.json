@@ -339,6 +339,29 @@
       "button_pressed_channel_1": "Bouton canal 2 appuyé"
     }
   },
+  "exceptions": {
+    "base_id_unavailable": {
+      "message": "Le dongle n'a pas encore communiqué son Base ID : la commande pour {name} n'a pas été envoyée. Il est redemandé automatiquement ; réessayez dans quelques secondes ou rechargez l'intégration."
+    },
+    "command_rejected": {
+      "message": "Le dongle a refusé de mettre en file la commande pour {name} : le worker série est arrêté ou sa file d'émission est pleine. Vérifiez la connexion USB et la page Réparations."
+    },
+    "light_sender_missing": {
+      "message": "{name} n'a aucun ID d'émission pour transmettre. Configurez-en un d'abord (Base ID du dongle plus un décalage)."
+    },
+    "teach_in_rejected": {
+      "message": "Le télégramme d'apprentissage pour {name} a été refusé par le dongle."
+    },
+    "rocker_teach_in_not_supported": {
+      "message": "{name} utilise le profil {profile}, qui n'a pas de télégramme d'apprentissage interrupteur (RPS). Utilisez l'action d'apprentissage de l'actionneur."
+    },
+    "learn_in_progress": {
+      "message": "Une fenêtre d'apprentissage EnOcean est déjà en cours ; réessayez lorsqu'elle sera terminée."
+    },
+    "gateway_not_loaded": {
+      "message": "Le dongle EnOcean n'est pas chargé : aucune fenêtre d'apprentissage ne peut être ouverte. Configurez ou rechargez d'abord l'intégration."
+    }
+  },
   "issues": {
     "serial_communicator_stopped": {
       "title": "Le worker série EnOcean s'est arrêté",

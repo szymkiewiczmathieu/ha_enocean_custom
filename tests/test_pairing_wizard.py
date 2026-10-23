@@ -284,7 +284,11 @@ class PairingWizardTests(unittest.IsolatedAsyncioTestCase):
             [RORG.VLD, 1, 1, 100, 0xA1, 0xB2, 0xC3, 0xD4, 0],
         )
         entry.runtime_data.base_id = None
-        entity.turn_off()
+        # Without a Base ID nothing may leave with a placeholder sender; the
+        # caller is told why through a translated error.
+        with self.assertRaises(HomeAssistantError) as raised:
+            entity.turn_off()
+        self.assertEqual(raised.exception.translation_key, "base_id_unavailable")
         self.assertEqual(len(entry.runtime_data.sent), 1)
 
     async def test_rejected_response_and_wrong_feedback_never_confirm(self):

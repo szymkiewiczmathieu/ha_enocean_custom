@@ -19,7 +19,7 @@ from homeassistant.components.light import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ID, CONF_NAME
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers import entity_registry as er
@@ -183,7 +183,11 @@ class EnOceanLight(EnOceanEntity, LightEntity):
     ) -> None:
         """Queue a gateway command and stage its state until RET_OK."""
         if self._sender_id is None:
-            return
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="light_sender_missing",
+                translation_placeholders={"name": self.dev_name},
+            )
         data = [
             RORG.BS4,
             0x02,
@@ -193,7 +197,7 @@ class EnOceanLight(EnOceanEntity, LightEntity):
             *self._sender_id,
             0x00,
         ]
-        self.send_command(
+        queued = self.send_command(
             data,
             build_radio_optional(self.dev_id or None),
             0x01,
@@ -203,12 +207,20 @@ class EnOceanLight(EnOceanEntity, LightEntity):
                 requested_brightness,
             ),
         )
+        if not queued:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="command_rejected",
+                translation_placeholders={"name": self.dev_name},
+            )
 
     def send_teach_in(self) -> None:
         """Transmit the A5-38-08 teach-in telegram for this sender identity."""
         if self._sender_id is None:
-            raise HomeAssistantError(
-                "This light has no sender_id to teach in; set one first."
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="light_sender_missing",
+                translation_placeholders={"name": self.dev_name},
             )
         data = [
             RORG.BS4,
@@ -218,7 +230,9 @@ class EnOceanLight(EnOceanEntity, LightEntity):
         ]
         if not self.send_command(data, build_radio_optional(), 0x01):
             raise HomeAssistantError(
-                f"EnOcean teach-in for {self.name} was rejected by the dongle"
+                translation_domain=DOMAIN,
+                translation_key="teach_in_rejected",
+                translation_placeholders={"name": self.dev_name},
             )
 
     def _command_response(

@@ -1263,6 +1263,12 @@ async def _assert_learn_service_starts_window_and_registers_once() -> None:
     with TemporaryDirectory() as config_dir:
         hass = HomeAssistant(config_dir)
         try:
+            # The action refuses to open a window without a loaded dongle, so
+            # expose one the way production does: as the entry's runtime_data.
+            hass.config_entries = ConfigEntries(hass, {})
+            entry = _new_test_config_entry()
+            entry.runtime_data = SimpleNamespace(available=True)
+            hass.config_entries._entries[entry.entry_id] = entry
             learn.async_register_learn_service(hass)
             learn.async_register_learn_service(hass)  # simulate a second reload
             if not hass.services.has_service(DOMAIN, SERVICE_LEARN):
@@ -1776,13 +1782,27 @@ def main() -> None:
 
     rejected_light = light.EnOceanLight(valid_id, valid_id, "rejected")
     rejected_light.send_command = lambda *_args, **_kwargs: False  # type: ignore[method-assign]
-    rejected_light.turn_on(brightness=255)
+    try:
+        rejected_light.turn_on(brightness=255)
+    except HomeAssistantError as err:
+        if err.translation_key != "command_rejected":
+            raise AssertionError(f"unexpected light error key: {err}") from err
+    else:
+        raise AssertionError("a rejected light command did not raise")
     if rejected_light.is_on:
         raise AssertionError("Light became optimistic-on after a rejected command")
 
     rejected_switch = switch.EnOceanSwitch(valid_id, "rejected", 0, "default")
     rejected_switch.send_command = lambda *_args, **_kwargs: False  # type: ignore[method-assign]
-    rejected_switch.turn_on()
+    rejected_switch.schedule_update_ha_state = lambda: None  # type: ignore[method-assign]
+    rejected_switch.hass = _hass_with_gateway(SimpleNamespace(base_id=valid_id))
+    try:
+        rejected_switch.turn_on()
+    except HomeAssistantError as err:
+        if err.translation_key != "command_rejected":
+            raise AssertionError(f"unexpected switch error key: {err}") from err
+    else:
+        raise AssertionError("a rejected switch command did not raise")
     if rejected_switch.is_on:
         raise AssertionError("Switch became optimistic-on after a rejected command")
 

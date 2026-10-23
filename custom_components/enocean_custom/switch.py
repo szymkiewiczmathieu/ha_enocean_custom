@@ -15,6 +15,7 @@ from homeassistant.components.switch import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ID, CONF_NAME, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -224,7 +225,11 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
                 LOGGER.warning(
                     "Skipping D2 command because the dongle Base ID is unavailable"
                 )
-                return
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="base_id_unavailable",
+                    translation_placeholders={"name": self.dev_name},
+                )
             output = 100 if target else 0
             frames = (
                 (
@@ -240,12 +245,20 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
                 ),
             )
         command_sequence = self._begin_command_transport()
-        self._send_state_packets(
+        queued = self._send_state_packets(
             list(frames),
             completed=lambda accepted: self._record_command_transport_result(
                 command_sequence, accepted
             ),
         )
+        if not queued:
+            # The transport result (False) is already recorded and scheduled
+            # for writing; the caller still deserves to know why nothing left.
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="command_rejected",
+                translation_placeholders={"name": self.dev_name},
+            )
 
     def _begin_command_transport(self) -> int:
         """Start a transport result transaction without changing relay state."""
@@ -278,15 +291,17 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
         packets: list[tuple[list[int], list[int]]],
         *,
         completed: Callable[[bool], None] | None = None,
-    ) -> None:
+    ) -> int:
         """Queue packets and report aggregate ESP3 delivery, not relay state.
 
         The entity state is deliberately changed only by ``value_changed`` after
         a matching D2-01 CMD 0x4 status telegram.  ESP3 acceptance proves only
-        transport delivery to the dongle, not physical relay actuation.
+        transport delivery to the dongle, not physical relay actuation. Returns
+        how many packets the dongle accepted into its queue.
         """
         outstanding = len(packets)
         all_accepted = True
+        queued_count = 0
 
         def response_received(accepted: bool) -> None:
             nonlocal all_accepted, outstanding
@@ -302,8 +317,11 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
                 0x01,
                 response_callback=response_received,
             )
-            if not queued:
+            if queued:
+                queued_count += 1
+            else:
                 response_received(False)
+        return queued_count
 
     @override
     def value_changed(self, packet) -> None:

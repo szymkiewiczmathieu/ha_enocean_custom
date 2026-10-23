@@ -339,6 +339,29 @@
       "button_pressed_channel_1": "Channel 2 button pressed"
     }
   },
+  "exceptions": {
+    "base_id_unavailable": {
+      "message": "The dongle has not reported its Base ID, so the command for {name} was not sent. It is requested again automatically; retry in a few seconds or reload the integration."
+    },
+    "command_rejected": {
+      "message": "The dongle refused to queue the command for {name}: the serial worker is stopped or its transmit queue is full. Check the USB connection and the Repairs page."
+    },
+    "light_sender_missing": {
+      "message": "{name} has no sender ID to transmit with. Configure one first (dongle Base ID plus an offset)."
+    },
+    "teach_in_rejected": {
+      "message": "The teach-in telegram for {name} was rejected by the dongle."
+    },
+    "rocker_teach_in_not_supported": {
+      "message": "{name} uses the {profile} profile, which has no rocker (RPS) teach-in telegram. Use the actuator teach-in action instead."
+    },
+    "learn_in_progress": {
+      "message": "An EnOcean teach-in window is already in progress; try again once it ends."
+    },
+    "gateway_not_loaded": {
+      "message": "The EnOcean dongle is not loaded, so no teach-in window can be opened. Set up or reload the integration first."
+    }
+  },
   "issues": {
     "serial_communicator_stopped": {
       "title": "The EnOcean serial worker stopped",
