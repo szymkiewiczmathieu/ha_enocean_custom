@@ -47,15 +47,12 @@ from custom_components.enocean_custom import (
     switch,
 )
 from custom_components.enocean_custom.const import (
-    DATA_ENOCEAN,
     DOMAIN,
-    ENOCEAN_DONGLE,
     EVENT_DEVICE_LEARNED,
     SERVICE_LEARN,
     SIGNAL_DONGLE_STATUS,
     SIGNAL_RECEIVE_MESSAGE,
 )
-from custom_components.enocean_custom.device import EnOceanEntity
 from custom_components.enocean_custom.diagnostics import (
     async_get_config_entry_diagnostics,
 )
@@ -76,11 +73,21 @@ from custom_components.enocean_custom.enocean_library.protocol.packet import (
     Packet,
     ResponsePacket,
 )
+from custom_components.enocean_custom.entity import EnOceanEntity
 from custom_components.enocean_custom.schema import CONF_UI_DEVICES
 
 STRINGS = json.loads(
     (ROOT / "custom_components/enocean_custom/strings.json").read_text(encoding="utf-8")
 )
+
+
+def _hass_with_gateway(gateway: Any) -> SimpleNamespace:
+    """Mimic the loaded config entry that owns the dongle (``runtime_data``)."""
+    entry = SimpleNamespace(runtime_data=gateway)
+    return SimpleNamespace(
+        config_entries=SimpleNamespace(async_entries=lambda domain: [entry]),
+        data={},
+    )
 
 
 async def _assert_off_without_sensor_sends_switch_off() -> None:
@@ -215,7 +222,7 @@ async def _assert_real_climate_send_chain() -> None:
     writes = []
     entity.async_write_ha_state = lambda: writes.append(True)  # type: ignore[method-assign]
     fake_dongle = CapturingDongle()
-    entity.hass = SimpleNamespace(data={DATA_ENOCEAN: {ENOCEAN_DONGLE: fake_dongle}})
+    entity.hass = _hass_with_gateway(fake_dongle)
 
     off_transaction = asyncio.create_task(entity.async_set_hvac_mode(HVACMode.OFF))
     await asyncio.sleep(0)
@@ -263,9 +270,7 @@ async def _assert_real_climate_send_chain() -> None:
     concurrent._attr_hvac_mode = HVACMode.HEAT
     concurrent._attr_target_temp = 20.0
     concurrent_dongle = CapturingDongle()
-    concurrent.hass = SimpleNamespace(
-        data={DATA_ENOCEAN: {ENOCEAN_DONGLE: concurrent_dongle}}
-    )
+    concurrent.hass = _hass_with_gateway(concurrent_dongle)
     off_task = asyncio.create_task(concurrent.async_set_hvac_mode(HVACMode.OFF))
     await asyncio.sleep(0)
     temperature_task = asyncio.create_task(

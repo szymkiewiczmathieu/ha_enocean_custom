@@ -55,13 +55,16 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, LOGGER
-from .device import EnOceanEntity, build_radio_optional
 from .enocean_library.protocol.constants import RORG
 from .enocean_library.utils import combine_hex
+from .entity import EnOceanEntity, build_radio_optional
 from .identity import climate_unique_id
 from .learn import register_known_id
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devices
 from .yaml_import import track_yaml_device
+
+# Control runs on the entity's own timers and pushed telegrams; nothing polls.
+PARALLEL_UPDATES = 0
 
 PROFILE_SRC_D08 = "SRC-D08"
 PROFILE_A5_20_04 = "A5-20-04"

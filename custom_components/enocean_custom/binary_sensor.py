@@ -20,12 +20,15 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
-from .device import EnOceanEntity
 from .enocean_library.protocol.constants import RORG
+from .entity import EnOceanEntity
 from .identity import A514_EEP, a514_contact_unique_id, binary_sensor_unique_id
 from .learn import register_known_id
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, valid_ui_devices
 from .yaml_import import track_yaml_device
+
+# Every state change is pushed by the serial worker; nothing here polls.
+PARALLEL_UPDATES = 0
 
 DEFAULT_NAME = "EnOcean binary sensor"
 EVENT_BUTTON_PRESSED = "button_pressed"

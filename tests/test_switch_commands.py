@@ -6,7 +6,7 @@ import sys
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from types import SimpleNamespace
+from types import MappingProxyType, SimpleNamespace
 from typing import ClassVar
 from unittest import TestCase
 from unittest.mock import Mock
@@ -15,13 +15,23 @@ ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
 from homeassistant import loader
+from homeassistant.config_entries import ConfigEntries, ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import frame
 
-from custom_components.enocean_custom.const import DATA_ENOCEAN, DOMAIN, ENOCEAN_DONGLE
+from custom_components.enocean_custom.const import DOMAIN
 from custom_components.enocean_custom.enocean_library.protocol.constants import RORG
 from custom_components.enocean_custom.light import EnOceanLight
 from custom_components.enocean_custom.switch import EnOceanSwitch
+
+
+def _hass_with_gateway(gateway) -> SimpleNamespace:
+    """Mimic the loaded config entry that owns the dongle (``runtime_data``)."""
+    entry = SimpleNamespace(runtime_data=gateway)
+    return SimpleNamespace(
+        config_entries=SimpleNamespace(async_entries=lambda domain: [entry]),
+        data={},
+    )
 
 
 class FakeDongle:
@@ -57,7 +67,7 @@ class SwitchCommandTests(TestCase):
     def _entity(self, *, channel: int = 0, switch_type: str = "default"):
         dongle = FakeDongle(self.base_id)
         entity = EnOceanSwitch(list(self.sender), "relay", channel, switch_type)
-        entity.hass = SimpleNamespace(data={DATA_ENOCEAN: {ENOCEAN_DONGLE: dongle}})
+        entity.hass = _hass_with_gateway(dongle)
         # Transport results may complete on the executor thread, so they must
         # schedule the write; only loop-side feedback writes state directly.
         entity.schedule_update_ha_state = Mock()
@@ -167,7 +177,23 @@ class ExecutorCommandStateWriteTests(unittest.IsolatedAsyncioTestCase):
         loader.async_setup(self.hass)
         frame.async_setup(self.hass)
         await loader.async_get_integration(self.hass, DOMAIN)
-        self.hass.data[DATA_ENOCEAN] = {ENOCEAN_DONGLE: StoppedGateway()}
+        # The stopped dongle is reached the way production reaches it: as the
+        # ``runtime_data`` of the single EnOcean config entry.
+        self.hass.config_entries = ConfigEntries(self.hass, {})
+        entry = ConfigEntry(
+            data={"device": "/dev/test-executor"},
+            discovery_keys=MappingProxyType({}),
+            domain=DOMAIN,
+            minor_version=1,
+            options={},
+            source="user",
+            subentries_data=None,
+            title="EnOcean",
+            unique_id=None,
+            version=1,
+        )
+        entry.runtime_data = StoppedGateway()
+        self.hass.config_entries._entries[entry.entry_id] = entry
 
     async def asyncTearDown(self) -> None:
         await self.hass.async_stop(force=True)

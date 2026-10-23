@@ -13,7 +13,6 @@ sys.path.insert(0, str(ROOT))
 
 try:  # The bare unit-test environment has neither Home Assistant nor pyserial.
     from custom_components.enocean_custom import dongle as dongle_module
-    from custom_components.enocean_custom.device import get_gateway_base_id
     from custom_components.enocean_custom.dongle import EnOceanDongle
     from custom_components.enocean_custom.enocean_library.communicators.communicator import (
         Communicator,
@@ -25,6 +24,7 @@ try:  # The bare unit-test environment has neither Home Assistant nor pyserial.
     from custom_components.enocean_custom.enocean_library.protocol.packet import (
         ResponsePacket,
     )
+    from custom_components.enocean_custom.entity import get_gateway_base_id
 
     RUNTIME_AVAILABLE = True
 except ModuleNotFoundError:  # pragma: no cover - exercised by bare CI env

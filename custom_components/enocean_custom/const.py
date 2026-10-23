@@ -8,11 +8,13 @@ from homeassistant.const import Platform
 DOMAIN: Final = "enocean_custom"
 MANUFACTURER = "EnOcean"
 
+# ``hass.data[DATA_ENOCEAN]`` holds only integration-wide state that is not
+# tied to the config entry: YAML-claimed sender ids, the teach-in manager and
+# the YAML migration inventory. The dongle and its inbox live on
+# ``ConfigEntry.runtime_data`` (see ``runtime.py``).
 DATA_ENOCEAN = DOMAIN
 DATA_KNOWN_IDS = "known_ids"
 DATA_LEARN_MANAGER = "learn_manager"
-DATA_DEVICE_INBOX = "device_inbox"
-ENOCEAN_DONGLE = "dongle"
 
 ERROR_INVALID_DONGLE_PATH = "invalid_dongle_path"
 EVENT_DEVICE_LEARNED = f"{DOMAIN}_device_learned"

@@ -20,21 +20,20 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
-from .const import (
-    DATA_ENOCEAN,
-    DOMAIN,
-    ENOCEAN_DONGLE,
-    LOGGER,
-)
-from .device import EnOceanEntity, build_radio_optional, get_gateway_base_id
+from .const import DOMAIN, LOGGER
 from .enocean_library.protocol.constants import RORG
 from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
 from .enocean_library.utils import combine_hex
+from .entity import EnOceanEntity, build_radio_optional, get_gateway_base_id
 from .identity import switch_unique_id
 from .learn import register_known_id
+from .runtime import get_gateway
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devices
 from .ubiwizz import UBIWIZZ_ACTUATOR_PROFILES, valid_ubiwizz_actuator_channel
 from .yaml_import import track_yaml_device
+
+# Every state change is pushed by the serial worker; nothing here polls.
+PARALLEL_UPDATES = 0
 
 CONF_ACTUATOR_PROFILE = "actuator_profile"
 CONF_CHANNEL, CONF_SWITCH_TYPE = "channel", "switch_type"
@@ -219,12 +218,7 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
                 ([RORG.RPS, 0x00, *self.dev_id, 0x20], build_radio_optional()),
             )
         else:
-            hass = getattr(self, "hass", None)
-            gateway = (
-                hass.data.get(DATA_ENOCEAN, {}).get(ENOCEAN_DONGLE)
-                if hass is not None
-                else None
-            )
+            gateway = get_gateway(getattr(self, "hass", None))
             sender_id = get_gateway_base_id(gateway)
             if sender_id is None:
                 LOGGER.warning(

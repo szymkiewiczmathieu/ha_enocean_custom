@@ -28,9 +28,7 @@ try:  # Bare unittest collection intentionally has no Home Assistant dependency.
 
     from custom_components.enocean_custom import options_flow, switch
     from custom_components.enocean_custom.const import (
-        DATA_ENOCEAN,
         DOMAIN,
-        ENOCEAN_DONGLE,
         SERVICE_SEND_TEACH_IN,
         SIGNAL_RECEIVE_MESSAGE,
     )
@@ -275,8 +273,9 @@ class PairingWizardTests(unittest.IsolatedAsyncioTestCase):
     async def test_existing_default_switch_uses_base_id_and_refuses_unknown_sender(
         self,
     ):
+        # The switch reaches the dongle through the entry's ``runtime_data``,
+        # exactly like production; no global mirror is involved.
         entry = self._entry()
-        self.hass.data[DATA_ENOCEAN] = {ENOCEAN_DONGLE: entry.runtime_data}
         entity = EnOceanSwitch([0x11, 0x22, 0x33, 0x44], "Relay", 1, "default")
         entity.hass = self.hass
         entity.turn_on()

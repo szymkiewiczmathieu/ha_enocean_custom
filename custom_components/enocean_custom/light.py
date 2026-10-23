@@ -27,9 +27,9 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .const import DOMAIN, SERVICE_SEND_TEACH_IN
-from .device import EnOceanEntity, build_radio_optional
 from .enocean_library.protocol.constants import RORG
 from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
+from .entity import EnOceanEntity, build_radio_optional
 from .identity import light_unique_id
 from .learn import register_known_id
 from .schema import (
@@ -40,6 +40,9 @@ from .schema import (
     valid_ui_devices,
 )
 from .yaml_import import track_yaml_device
+
+# Every state change is pushed by the serial worker; nothing here polls.
+PARALLEL_UPDATES = 0
 
 CONF_CHANNEL = "channel"
 CONF_SENDER_ID = "sender_id"

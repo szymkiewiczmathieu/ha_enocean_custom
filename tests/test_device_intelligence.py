@@ -27,7 +27,6 @@ try:
     from homeassistant.helpers import entity_registry as er
 
     from custom_components.enocean_custom.const import DOMAIN, UI_DEVICE_PLATFORMS
-    from custom_components.enocean_custom.device import EnOceanEntity
     from custom_components.enocean_custom.device_intelligence import (
         EEP_IMPLEMENTATIONS,
         MAX_MANUFACTURER_ID,
@@ -54,6 +53,7 @@ try:
         async_get_config_entry_diagnostics,
     )
     from custom_components.enocean_custom.enocean_library.protocol.constants import RORG
+    from custom_components.enocean_custom.entity import EnOceanEntity
     from custom_components.enocean_custom.options_flow import (
         EnOceanOptionsFlow,
         _parse_commissioning_code,

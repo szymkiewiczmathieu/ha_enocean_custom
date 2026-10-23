@@ -36,8 +36,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .const import DOMAIN, LOGGER
-from .device import EnOceanEntity
 from .enocean_library.protocol.constants import RORG
+from .entity import EnOceanEntity
 from .identity import (
     A514_EEP,
     SENSOR_KEY_A514_SUPPLY_VOLTAGE,
@@ -53,6 +53,9 @@ from .identity import (
 from .learn import register_known_id
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devices
 from .yaml_import import track_yaml_device
+
+# Every state change is pushed by the serial worker; nothing here polls.
+PARALLEL_UPDATES = 0
 
 CONF_MAX_TEMP = "max_temp"
 CONF_MIN_TEMP = "min_temp"

@@ -11,13 +11,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
-from .const import (
-    DATA_DEVICE_INBOX,
-    DATA_ENOCEAN,
-    DOMAIN,
-    ENOCEAN_DONGLE,
-    UI_DEVICE_PLATFORMS,
-)
+from .const import DOMAIN, UI_DEVICE_PLATFORMS
 from .dongle import EnOceanDongle
 from .enocean_library.utils import combine_hex
 from .inbox import DeviceInbox
@@ -32,7 +26,14 @@ CONFIG_SCHEMA = vol.Schema(
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Import a legacy YAML gateway when no config entry exists."""
+    """Register the integration-wide action and import a legacy YAML gateway.
+
+    ``enocean_custom.learn`` does not depend on a loaded entry, so it is
+    registered here rather than in ``async_setup_entry`` (Quality Scale
+    ``action-setup``): a call made while the entry is unloaded fails with a
+    clear error instead of "service not found".
+    """
+    async_register_learn_service(hass)
     if DOMAIN not in config or hass.config_entries.async_entries(DOMAIN):
         return True
     hass.async_create_task(
@@ -49,8 +50,11 @@ async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry[EnOceanDongle],
 ) -> bool:
-    """Start the serial owner and forward all UI-capable platforms."""
-    integration_data = hass.data.setdefault(DATA_ENOCEAN, {})
+    """Start the serial owner and forward all UI-capable platforms.
+
+    The dongle and its passive inbox live on ``entry.runtime_data`` only;
+    platforms and flows resolve them through ``runtime.get_gateway``.
+    """
     try:
         gateway = await hass.async_add_executor_job(
             EnOceanDongle,
@@ -62,8 +66,6 @@ async def async_setup_entry(
             "Unable to open the configured EnOcean dongle"
         ) from None
 
-    integration_data[ENOCEAN_DONGLE] = gateway
-
     def _configured_ids() -> set[int]:
         configured = set(get_known_ids(hass))
         for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, [])):
@@ -71,11 +73,9 @@ async def async_setup_entry(
         return configured
 
     inbox = DeviceInbox(_configured_ids)
-    integration_data[DATA_DEVICE_INBOX] = inbox
     gateway.set_inbox(inbox)
     entry.runtime_data = gateway
     await gateway.async_setup()
-    async_register_learn_service(hass)
 
     try:
         await hass.config_entries.async_forward_entry_setups(
@@ -85,8 +85,6 @@ async def async_setup_entry(
     except Exception:
         gateway.set_inbox(None)
         await gateway.async_unload()
-        integration_data.pop(ENOCEAN_DONGLE, None)
-        integration_data.pop(DATA_DEVICE_INBOX, None)
         inbox.clear()
         entry.runtime_data = None
         raise
@@ -118,15 +116,13 @@ async def async_unload_entry(
     # A teach-in window is intentionally not entry-scoped. It remains active
     # across an options-triggered reload and closes on its own bounded timeout.
     gateway = entry.runtime_data
-    inbox = hass.data.get(DATA_ENOCEAN, {}).get(DATA_DEVICE_INBOX)
+    inbox = gateway.inbox
     gateway.set_inbox(None)
     if not await gateway.async_unload():
         gateway.set_inbox(inbox)
         return False
 
-    hass.data.get(DATA_ENOCEAN, {}).pop(ENOCEAN_DONGLE, None)
     if inbox is not None:
         inbox.clear()
-    hass.data.get(DATA_ENOCEAN, {}).pop(DATA_DEVICE_INBOX, None)
     purge_yaml_inventory(hass)
     return True

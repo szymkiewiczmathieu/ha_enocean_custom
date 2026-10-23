@@ -11,9 +11,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity
 
 from .const import (
-    DATA_ENOCEAN,
     DOMAIN,
-    ENOCEAN_DONGLE,
     LOGGER,
     SIGNAL_DONGLE_STATUS,
     SIGNAL_RECEIVE_MESSAGE,
@@ -21,6 +19,7 @@ from .const import (
 from .device_intelligence import resolve_product
 from .enocean_library.protocol.packet import Packet as ESP3Packet
 from .enocean_library.utils import combine_hex as enocean_id_as_int
+from .runtime import get_gateway
 
 
 def build_radio_optional(destination: list[int] | None = None) -> list[int]:
@@ -133,8 +132,7 @@ class EnOceanEntity(Entity):
                 self._dongle_status_changed,
             )
         )
-        integration_data = self.hass.data.get(DATA_ENOCEAN, {})
-        gateway = integration_data.get(ENOCEAN_DONGLE)
+        gateway = get_gateway(self.hass)
         self._attr_available = bool(gateway and gateway.available)
 
     @callback
@@ -170,8 +168,7 @@ class EnOceanEntity(Entity):
     ) -> bool:
         """Queue an ESP3 packet through the entry-owned dongle."""
         packet = ESP3Packet(packet_type, data=data, optional=optional)
-        integration_data = self.hass.data.get(DATA_ENOCEAN, {})
-        gateway = integration_data.get(ENOCEAN_DONGLE)
+        gateway = get_gateway(self.hass)
         if gateway is None:
             self._attr_available = False
             return False

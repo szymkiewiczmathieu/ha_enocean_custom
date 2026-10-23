@@ -46,7 +46,6 @@ from .const import (
     SIGNAL_RECEIVE_MESSAGE,
     UI_DEVICE_PLATFORMS,
 )
-from .device import build_radio_optional, get_gateway_base_id
 from .device_catalog import UBIWIZZ_LIGHT_D2_01_08
 from .device_intelligence import (
     UNKNOWN_PLACEHOLDER,
@@ -72,6 +71,7 @@ from .enocean_library.protocol.packet import (
     UTETeachInPacket,
 )
 from .enocean_library.utils import combine_hex, to_hex_string
+from .entity import build_radio_optional, get_gateway_base_id
 from .identity import ui_device_entity_identities
 from .inbox import get_device_inbox
 from .learn import get_known_ids, get_learn_manager

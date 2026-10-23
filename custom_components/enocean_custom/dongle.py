@@ -139,6 +139,11 @@ class EnOceanDongle:
         """Attach the passive registry owned by the current config entry."""
         self._inbox = inbox
 
+    @property
+    def inbox(self) -> DeviceInbox | None:
+        """Return the passive registry attached by the config entry, if any."""
+        return self._inbox
+
     async def async_unload(self) -> bool:
         """Stop the sole serial owner before allowing config-entry reload."""
         self._stopping = True

@@ -7,8 +7,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from .const import DATA_DEVICE_INBOX, DATA_ENOCEAN
 from .enocean_library.protocol.constants import RORG
+from .runtime import get_inbox
 
 MAX_UNCONFIGURED_SENDERS = 64
 _REPEATER_RORGS = frozenset((int(RORG.RPS), int(RORG.BS1), int(RORG.BS4)))
@@ -114,4 +114,4 @@ class DeviceInbox:
 
 def get_device_inbox(hass) -> DeviceInbox | None:
     """Return the entry-owned inbox when the integration is loaded."""
-    return getattr(hass, "data", {}).get(DATA_ENOCEAN, {}).get(DATA_DEVICE_INBOX)
+    return get_inbox(hass)
