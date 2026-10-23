@@ -53,8 +53,17 @@ release: 2026.7.3 (declared in `hacs.json`); the test matrix also validates
 ## Configure devices
 
 Use **Configure** on the integration to learn a device, add a QR/ID, pair an
-actuator, manage UI-backed devices, or import eligible YAML `binary_sensor` and
-`switch` rows. YAML remains supported and can coexist with UI-managed devices.
+actuator, declare the profile of an existing device, manage UI-backed devices,
+or import eligible YAML `binary_sensor` and `switch` rows. YAML remains
+supported and can coexist with UI-managed devices.
+
+**Declare the profile of an existing device** records an EEP on a row whose
+profile is unknown or was only asserted by hand. The existing entity keeps its
+identity; decoders and companion entities follow the declared profile. The
+typical case is a smoke detector added as a plain `smoke` binary sensor: declare
+`F6-05-02` and it becomes a real detector (alarm from DB0 `0x10`/`0x00`) with a
+diagnostic **Battery low** entity (`0x30`). A profile that would turn the
+entity into a different class is refused; remove and re-add the device instead.
 
 ```yaml
 switch:
@@ -215,10 +224,10 @@ automation from the blueprint and fill in the inputs.
 The authoritative matrix of decoded profiles (EEP), their platforms,
 configuration mode and support level is maintained in
 [docs/device-intelligence.md](docs/device-intelligence.md#implementation-matrix).
-In short: F6-02-01/02 rockers, F6-10-00 handles, D5-00-01 contacts, A5-14-01
-window sensors, A5-12-01 meters, 8-bit A5 temperature/humidity profiles with a
-manual scale, A5-38-08 dimmer commands, A5-20-04 valves (YAML), and D2-01
-actuators (D2-01-0A/0B/08/12).
+In short: F6-02-01/02 rockers, F6-05-02 smoke detectors, F6-10-00 handles,
+D5-00-01 contacts, A5-14-01 window sensors, A5-12-01 meters, 8-bit A5
+temperature/humidity profiles with a manual scale, A5-38-08 dimmer commands,
+A5-20-04 valves (YAML), and D2-01 actuators (D2-01-0A/0B/08/12).
 
 ## Known limitations
 

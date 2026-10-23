@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import override
 
 import voluptuous as vol
@@ -17,6 +18,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_DEVICE_CLASS, CONF_ID, CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
@@ -26,8 +28,10 @@ from .entity import EnOceanEntity, EnOceanGatewayEntity
 from .identity import (
     A514_EEP,
     GATEWAY_KEY_CONNECTED,
+    SMOKE_EEP,
     a514_contact_unique_id,
     binary_sensor_unique_id,
+    smoke_battery_low_unique_id,
 )
 from .learn import register_known_id
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, valid_ui_devices
@@ -86,21 +90,111 @@ async def async_setup_entry(
     for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, [])):
         if row["platform"] != "binary_sensor":
             continue
-        entity = (
-            EnOceanA514Contact(row["id"], row["name"])
-            if (row.get("radio_metadata") or {}).get("eep") == A514_EEP
-            else EnOceanBinarySensor(row["id"], row["name"], row["device_class"])
-        )
         category = silence_category(row)
-        entity.set_radio_metadata(row.get("radio_metadata")).configure_silence(
-            settings.timeout_for(category), repair=category in REPAIR_CATEGORIES
-        )
-        configured.append(entity)
+        for entity in _entities_for_row(row):
+            entity.set_radio_metadata(row.get("radio_metadata")).configure_silence(
+                settings.timeout_for(category), repair=category in REPAIR_CATEGORIES
+            )
+            configured.append(entity)
     gateway = getattr(entry, "runtime_data", None)
     entry_id = getattr(entry, "entry_id", None)
     if gateway is not None and entry_id:
         configured.append(EnOceanGatewayConnectivity(gateway, entry_id))
     async_add_entities(configured)
+
+
+def _entities_for_row(row: dict) -> list[EnOceanEntity]:
+    """Choose the entity classes a binary_sensor row creates.
+
+    The declared EEP decides, never the telegram: a row without a declared
+    profile stays the historical rocker/contact decoder, whatever its device
+    class says, so existing installations keep their behaviour.
+    """
+    eep = (row.get("radio_metadata") or {}).get("eep")
+    if eep == A514_EEP:
+        return [EnOceanA514Contact(row["id"], row["name"])]
+    if eep == SMOKE_EEP:
+        return [
+            EnOceanSmokeDetector(row["id"], row["name"], row["device_class"]),
+            EnOceanSmokeBatteryLow(row["id"], row["name"]),
+        ]
+    return [EnOceanBinarySensor(row["id"], row["name"], row["device_class"])]
+
+
+@dataclass(frozen=True, slots=True)
+class SmokeStatus:
+    """Decoded F6-05-02 DB0: alarm state (None when the frame says nothing about it)."""
+
+    alarm: bool | None
+    battery_low: bool
+
+
+def decode_f6_05_02(packet) -> SmokeStatus | None:
+    """Decode the three documented F6-05-02 values, ignoring everything else.
+
+    EEP F6-05-02 (vendored EEP.xml): DB0 ``0x00`` smoke alarm off, ``0x10``
+    smoke alarm on, ``0x30`` energy low. An energy-low frame says nothing
+    about the alarm, so the alarm state is left untouched by it.
+    """
+    if getattr(packet, "rorg", None) != RORG.RPS or len(packet.data) < 2:
+        return None
+    value = packet.data[1]
+    if value == 0x00:
+        return SmokeStatus(alarm=False, battery_low=False)
+    if value == 0x10:
+        return SmokeStatus(alarm=True, battery_low=False)
+    if value == 0x30:
+        return SmokeStatus(alarm=None, battery_low=True)
+    return None
+
+
+class EnOceanSmokeDetector(EnOceanEntity, BinarySensorEntity):
+    """F6-05-02 smoke alarm, created only for a row that declares the profile."""
+
+    _attr_device_class = BinarySensorDeviceClass.SMOKE
+
+    def __init__(
+        self,
+        dev_id: list[int],
+        dev_name: str,
+        device_class: BinarySensorDeviceClass | str | None,
+    ) -> None:
+        """Keep the row's historical identity so an upgraded row keeps its entity."""
+        super().__init__(dev_id, dev_name)
+        self._attr_name = dev_name
+        self._attr_unique_id = binary_sensor_unique_id(dev_id, device_class)
+
+    @override
+    def value_changed(self, packet) -> None:
+        """Apply the alarm state; an energy-low frame leaves it alone."""
+        status = decode_f6_05_02(packet)
+        if status is None or status.alarm is None:
+            return
+        self._attr_is_on = status.alarm
+        self.schedule_update_ha_state()
+
+
+class EnOceanSmokeBatteryLow(EnOceanEntity, BinarySensorEntity):
+    """F6-05-02 energy-low companion (on = battery low)."""
+
+    _attr_device_class = BinarySensorDeviceClass.BATTERY
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_has_entity_name = True
+    _attr_translation_key = "smoke_battery_low"
+
+    def __init__(self, dev_id: list[int], dev_name: str) -> None:
+        """Bind the companion to the detector's sender."""
+        super().__init__(dev_id, dev_name)
+        self._attr_unique_id = smoke_battery_low_unique_id(dev_id)
+
+    @override
+    def value_changed(self, packet) -> None:
+        """Energy low on 0x30; an alarm-on/off frame means the battery is fine."""
+        status = decode_f6_05_02(packet)
+        if status is None:
+            return
+        self._attr_is_on = status.battery_low
+        self.schedule_update_ha_state()
 
 
 class EnOceanGatewayConnectivity(EnOceanGatewayEntity, BinarySensorEntity):

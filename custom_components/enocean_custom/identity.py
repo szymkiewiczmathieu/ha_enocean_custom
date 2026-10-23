@@ -53,6 +53,13 @@ A514_EEP: Final = "A5-14-01"
 A514_CONTACT_UNIQUE_ID_SUFFIX: Final = "-a5-14-01-contact"
 
 
+# F6-05-02 smoke detectors (2.10.0). The profile is declared explicitly (never
+# inferred from an RPS telegram). A binary_sensor row that declares it keeps
+# its historical primary identity, so a detector added before 2.10 as a plain
+# smoke binary sensor keeps its entity; the low-battery companion is new.
+SMOKE_EEP: Final = "F6-05-02"
+SMOKE_BATTERY_LOW_UNIQUE_ID_SUFFIX: Final = "-f6-05-02-battery-low"
+
 # Per-sender radio diagnostics, added in 2.10.0: one set per device rather than
 # per row, disabled by default. They are not part of
 # ``ui_device_entity_identities`` (which stays frozen for parity with existing
@@ -108,6 +115,11 @@ def binary_sensor_unique_id(dev_id: list[int], device_class: object) -> str:
 def a514_contact_unique_id(dev_id: list[int]) -> str:
     """Return the identity of the automatically mapped A5-14-01 contact."""
     return f"{combine_hex(dev_id)}{A514_CONTACT_UNIQUE_ID_SUFFIX}"
+
+
+def smoke_battery_low_unique_id(dev_id: list[int]) -> str:
+    """Return the identity of the F6-05-02 low-battery companion."""
+    return f"{combine_hex(dev_id)}{SMOKE_BATTERY_LOW_UNIQUE_ID_SUFFIX}"
 
 
 def light_unique_id(dev_id: list[int] | None, sender_id: list[int] | None) -> str:
@@ -171,7 +183,10 @@ def ui_device_entity_identities(
                 (platform, a514_contact_unique_id(dev_id)),
                 ("sensor", sensor_unique_id(dev_id, SENSOR_KEY_A514_SUPPLY_VOLTAGE)),
             )
-        return ((platform, binary_sensor_unique_id(dev_id, device["device_class"])),)
+        primary = (platform, binary_sensor_unique_id(dev_id, device["device_class"]))
+        if metadata.get("eep") == SMOKE_EEP:
+            return (primary, (platform, smoke_battery_low_unique_id(dev_id)))
+        return (primary,)
     if platform == "sensor":
         return tuple(
             (platform, sensor_unique_id(dev_id, key))

@@ -76,9 +76,24 @@
           "ute_discover": "Associer un module Ubiwizz à partir de sa requête UTE",
           "radio_probe": "Tester passivement la radio d'un module (aucune commande radio)",
           "ubiwizz_repeater": "Diagnostic répéteur Ubiwizz (aucune commande radio)",
+          "declare_profile": "Déclarer le profil d'un équipement existant",
           "manage": "Gérer les équipements de l'interface",
           "settings": "Disponibilité et équipements silencieux",
           "import_yaml": "Importer les équipements YAML"
+        }
+      },
+      "declare_profile": {
+        "title": "Déclarer un profil",
+        "description": "Choisissez un équipement dont le profil est encore inconnu ou seulement déclaré manuellement. Un profil déclaré est une assertion de l'opérateur, jamais une preuve matérielle. Exemple : un détecteur de fumée ajouté comme simple capteur binaire « fumée » devient un détecteur F6-05-02 avec alarme et pile faible, tout en conservant son entité existante.",
+        "data": {
+          "device": "Équipement"
+        }
+      },
+      "declare_profile_eep": {
+        "title": "Profil de {name}",
+        "description": "Équipement {name} ({platform}, {captured_id}). Saisissez l'EEP exactement comme le fabricant l'indique, par exemple F6-05-02 pour un détecteur de fumée ou F6-10-00 pour une poignée de fenêtre. L'entité existante conserve son identité ; les entités compagnes sont ajoutées au rechargement de l'intégration.",
+        "data": {
+          "manual_eep": "Profil EEP"
         }
       },
       "settings": {
@@ -287,6 +302,7 @@
       "invalid_command_frequency": "La fréquence des commandes doit être une durée positive valide d'au moins une seconde.",
       "invalid_device_details": "Les détails de l'équipement sont invalides.",
       "invalid_eep": "L'EEP manuel doit respecter le format hexadécimal exact XX-XX-XX, ex. A5-12-01.",
+      "profile_changes_identity": "Ce profil transformerait l'entité existante en une autre classe d'entité. Supprimez l'équipement et ajoutez-le de nouveau avec ce profil.",
       "commissioning_identity_mismatch": "L'ID scanné ou saisi ne correspond pas exactement au relais sélectionné dans l'interface. Aucune radio n'a été émise.",
       "commissioning_identity_conflict": "L'identité scannée contredit une preuve radio ou produit existante. Aucune radio n'a été émise.",
       "invalid_ubiwizz_repeater": "Choisissez exactement D2-01-01 ou D2-01-12 et le niveau répéteur 1 ou 2."
@@ -294,6 +310,7 @@
     "abort": {
       "learn_timeout": "Aucun expéditeur EnOcean inconnu n'a été entendu avant expiration du délai.",
       "no_ui_devices": "Aucun équipement géré depuis l'interface à supprimer.",
+      "no_undeclared_devices": "Tous les équipements de l'interface déclarent déjà un profil.",
       "no_commissionable_devices": "Aucun relais default géré par l'interface sur le canal 0 ou 1, sans preuve radio/produit contradictoire, n'est disponible pour l'identification du commissioning assisté.",
       "commissioning_device_disappeared": "L'interrupteur sélectionné a été supprimé pendant le commissioning ; il n'a pas été recréé.",
       "commissioning_relay_unconfirmed": "La confirmation physique D2-01-12 requise pour le relais n'a pas été donnée. Aucune radio n'a été émise et les options sont restées inchangées.",
@@ -330,6 +347,9 @@
     "binary_sensor": {
       "gateway_connected": {
         "name": "Dongle connecté"
+      },
+      "smoke_battery_low": {
+        "name": "Pile faible"
       }
     },
     "select": {

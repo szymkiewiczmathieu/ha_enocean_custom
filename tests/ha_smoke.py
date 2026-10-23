@@ -1491,6 +1491,9 @@ def _assert_options_schemas_are_ws_serializable() -> None:
         options_flow._commission_existing_schema({"0": "Existing relay"}),
         options_flow._commission_existing_confirmation_schema(),
         options_flow._availability_schema(),
+        options_flow._declare_profile_schema({"0": "Smoke detector"}),
+        options_flow._declare_profile_eep_schema(),
+        options_flow._declare_profile_eep_schema("F6-05-02"),
         vol.Schema({}),  # instructions and both terminal success forms
     ]
     schemas.extend(

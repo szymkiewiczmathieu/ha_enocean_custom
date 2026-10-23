@@ -76,9 +76,24 @@
           "ute_discover": "Associate a Ubiwizz module from its UTE request",
           "radio_probe": "Passively test a module radio signal (no radio command)",
           "ubiwizz_repeater": "Ubiwizz repeater diagnostic (no radio command)",
+          "declare_profile": "Declare the profile of an existing device",
           "manage": "Manage UI devices",
           "settings": "Availability and silent devices",
           "import_yaml": "Import YAML devices"
+        }
+      },
+      "declare_profile": {
+        "title": "Declare a profile",
+        "description": "Choose a device whose profile is still unknown or only asserted manually. A declared profile is an operator assertion, never hardware proof. Example: a smoke detector added as a plain smoke binary sensor becomes an F6-05-02 detector with alarm and low-battery entities while keeping its existing entity.",
+        "data": {
+          "device": "Device"
+        }
+      },
+      "declare_profile_eep": {
+        "title": "Profile for {name}",
+        "description": "Device {name} ({platform}, {captured_id}). Enter the EEP exactly as the manufacturer prints it, for example F6-05-02 for a smoke detector or F6-10-00 for a window handle. The existing entity keeps its identity; companion entities are added when the integration reloads.",
+        "data": {
+          "manual_eep": "EEP profile"
         }
       },
       "settings": {
@@ -287,6 +302,7 @@
       "invalid_command_frequency": "Command frequency must be a valid positive duration of at least one second.",
       "invalid_device_details": "The device details are invalid.",
       "invalid_eep": "The manual EEP must use the exact XX-XX-XX hexadecimal format, e.g. A5-12-01.",
+      "profile_changes_identity": "This profile would turn the existing entity into a different entity class. Remove the device and add it again with the profile instead.",
       "commissioning_identity_mismatch": "The scanned or typed ID does not exactly match the selected UI relay. No radio was sent.",
       "commissioning_identity_conflict": "The scanned identity contradicts existing radio or product evidence. No radio was sent.",
       "invalid_ubiwizz_repeater": "Choose exactly D2-01-01 or D2-01-12 and repeater level 1 or 2."
@@ -294,6 +310,7 @@
     "abort": {
       "learn_timeout": "No unknown EnOcean sender was heard before the timeout.",
       "no_ui_devices": "No UI-managed devices to remove.",
+      "no_undeclared_devices": "Every UI device already declares a profile.",
       "no_commissionable_devices": "No UI-managed default relay on channel 0 or 1 without contradictory radio/product evidence is available to identify for assisted commissioning.",
       "commissioning_device_disappeared": "The selected switch was removed during commissioning; it was not recreated.",
       "commissioning_relay_unconfirmed": "The required physical D2-01-12 relay confirmation was not given. No radio was sent and options were left unchanged.",
@@ -330,6 +347,9 @@
     "binary_sensor": {
       "gateway_connected": {
         "name": "Dongle connected"
+      },
+      "smoke_battery_low": {
+        "name": "Battery low"
       }
     },
     "select": {

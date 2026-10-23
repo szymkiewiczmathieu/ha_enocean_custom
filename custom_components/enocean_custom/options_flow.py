@@ -315,6 +315,33 @@ def _ubiwizz_repeater_schema() -> vol.Schema:
     )
 
 
+def _declare_profile_schema(choices: dict[str, str]) -> vol.Schema:
+    """Return the websocket-serializable chooser of a device without a profile."""
+    return vol.Schema(
+        {
+            vol.Required("device"): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        {"value": value, "label": label}
+                        for value, label in choices.items()
+                    ]
+                )
+            )
+        }
+    )
+
+
+def _declare_profile_eep_schema(default: str = "") -> vol.Schema:
+    """Return the manual EEP form used to declare a profile on an existing row."""
+    return vol.Schema(
+        {
+            vol.Required(_CONF_MANUAL_EEP, default=default): selector.TextSelector(
+                selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+            )
+        }
+    )
+
+
 def _availability_schema(settings: AvailabilitySettings | None = None) -> vol.Schema:
     """Return the silence-detection settings form, pre-filled with the current values."""
     current = settings if settings is not None else availability_settings({})
@@ -562,6 +589,7 @@ class EnOceanOptionsFlow(OptionsFlow):
             "ute_discover",
             "radio_probe",
             "ubiwizz_repeater",
+            "declare_profile",
             "manage",
             "settings",
         ]
@@ -571,6 +599,111 @@ class EnOceanOptionsFlow(OptionsFlow):
             step_id="init",
             menu_options=menu_options,
         )
+
+    def _undeclared_rows(self) -> dict[int, dict[str, Any]]:
+        """Return the valid rows whose profile is unknown or only asserted."""
+        rows: dict[int, dict[str, Any]] = {}
+        raw_devices = self.config_entry.options.get(CONF_UI_DEVICES, [])
+        if not isinstance(raw_devices, list):
+            return rows
+        for index, raw in enumerate(raw_devices):
+            valid = valid_ui_devices([raw])
+            if valid and not metadata_declares_eep(valid[0].get(CONF_RADIO_METADATA)):
+                rows[index] = valid[0]
+        return rows
+
+    async def async_step_declare_profile(self, user_input=None):
+        """Pick an existing device whose profile is still unknown or manual.
+
+        Declaring a profile is an operator assertion recorded as such; it adds
+        decoders and companion entities but never changes the identity of the
+        entity the row already created.
+        """
+        rows = self._undeclared_rows()
+        if not rows:
+            return self.async_abort(reason="no_undeclared_devices")
+        choices = {
+            str(index): (
+                f"{device['name']} ({device['platform']}, "
+                f"{to_hex_string(device['id'])})"
+            )
+            for index, device in rows.items()
+        }
+        if user_input is None:
+            return self.async_show_form(
+                step_id="declare_profile", data_schema=_declare_profile_schema(choices)
+            )
+        try:
+            self._manage_index = int(user_input["device"])
+        except (KeyError, TypeError, ValueError):
+            return self.async_abort(reason="device_form_missing")
+        if self._manage_index not in rows:
+            return self.async_abort(reason="device_form_missing")
+        return await self.async_step_declare_profile_eep()
+
+    async def async_step_declare_profile_eep(self, user_input=None):
+        """Record a manual EEP on the selected row, identity preserved."""
+        index = self._manage_index
+        rows = self._undeclared_rows()
+        if index is None or index not in rows:
+            return self.async_abort(reason="device_form_missing")
+        device = rows[index]
+        placeholders = {
+            "name": device["name"],
+            "platform": device["platform"],
+            "captured_id": to_hex_string(device["id"]),
+        }
+
+        def show(errors: dict[str, str] | None = None, default: str = ""):
+            return self.async_show_form(
+                step_id="declare_profile_eep",
+                data_schema=_declare_profile_eep_schema(default),
+                description_placeholders=placeholders,
+                errors=errors or {},
+            )
+
+        if user_input is None:
+            return show()
+        submitted = user_input.get(_CONF_MANUAL_EEP)
+        eep = parse_manual_eep(submitted)
+        if eep is None:
+            return show(
+                {_CONF_MANUAL_EEP: "invalid_eep"},
+                submitted if isinstance(submitted, str) else "",
+            )
+        metadata = apply_manual_eep(device.get(CONF_RADIO_METADATA), eep)
+        metadata.setdefault("sender_id", list(device["id"]))
+        raw_devices = list(self.config_entry.options.get(CONF_UI_DEVICES, []))
+        updated_raw = {**raw_devices[index], CONF_RADIO_METADATA: metadata}
+        try:
+            updated = UI_DEVICE_SCHEMA(updated_raw)
+        except vol.Invalid:
+            return show({"base": "invalid_device_details"}, eep)
+        before = ui_device_entity_identities(device)
+        after = ui_device_entity_identities(updated)
+        if after[0] != before[0]:
+            # The row would be re-created as a different entity class: that is
+            # a new device, not a declaration on this one.
+            return show({_CONF_MANUAL_EEP: "profile_changes_identity"}, eep)
+        registry = er.async_get(self.hass)
+        others = {
+            identity
+            for position, raw in enumerate(raw_devices)
+            if position != index
+            for existing in valid_ui_devices([raw])
+            for identity in ui_device_entity_identities(existing)
+        }
+        for platform, unique_id in after:
+            if (platform, unique_id) in before:
+                continue
+            if (platform, unique_id) in others or registry.async_get_entity_id(
+                platform, DOMAIN, unique_id
+            ) is not None:
+                return show({"base": "unique_id_exists"}, eep)
+        raw_devices[index] = updated_raw
+        updated_options = dict(self.config_entry.options)
+        updated_options[CONF_UI_DEVICES] = raw_devices
+        return self.async_create_entry(title="", data=updated_options)
 
     async def async_step_settings(self, user_input=None):
         """Edit silence detection: enabled flag and one timeout per category.
