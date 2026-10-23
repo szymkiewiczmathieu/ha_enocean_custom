@@ -564,11 +564,27 @@ def parse_commissioning_identity(value: Any) -> CommissioningIdentity | None:
     )
 
 
+# Every A5 sensor profile (and D2-14-41) described by the vendored EEP.xml and
+# not handled by a dedicated decoder is decodable by the generic sensor path
+# (device_class ``eep``): one platform, the profile must be chosen or declared.
+GENERIC_SENSOR_IMPLEMENTATION = EEPImplementation(("sensor",), ConfigMode.ASSISTED)
+
+
 def implementation_for(eep: Any) -> EEPImplementation | None:
-    """Return the repository implementation for an EEP, if any."""
+    """Return the repository implementation for an EEP, if any.
+
+    Dedicated decoders win; profiles covered only by the EEP.xml-driven generic
+    sensor decoder report the generic implementation.
+    """
     if not isinstance(eep, str):
         return None
-    return EEP_IMPLEMENTATIONS.get(eep)
+    if (implementation := EEP_IMPLEMENTATIONS.get(eep)) is not None:
+        return implementation
+    from .eep_catalog import is_generic_supported
+
+    if is_generic_supported(eep):
+        return GENERIC_SENSOR_IMPLEMENTATION
+    return None
 
 
 def support_for(eep: str | None, *, manual: bool = False) -> SupportVerdict:

@@ -378,10 +378,11 @@ class ManualEepAssertionTests(unittest.TestCase):
         self.assertTrue(set(metadata) <= PERSISTED_METADATA_FIELDS)
 
     def test_an_unimplemented_profile_is_unsupported(self):
-        # A5-14-01 left this list in v2.2 because a decoder now exists for it.
-        # A5-10-12 is a Cositherm RX profile that is still not implemented, so
-        # the matrix stays narrower than the catalog.
-        for eep in ("D2-34-10", "A5-10-12", "FF-FF-FF"):
+        # A5-14-01 left this list in v2.2 because a decoder now exists for it,
+        # and A5-10-12 in v2.10 because the generic EEP.xml decoder covers it.
+        # D2-34-10 has no public bit-level description and A5-10-FF does not
+        # exist, so the matrix stays narrower than the catalog.
+        for eep in ("D2-34-10", "A5-10-FF", "FF-FF-FF"):
             metadata = apply_manual_eep(None, eep.lower())
             self.assertEqual(metadata["eep"], eep, eep)
             self.assertEqual(metadata["evidence"], Evidence.MANUAL.value, eep)

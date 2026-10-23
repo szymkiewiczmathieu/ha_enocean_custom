@@ -173,6 +173,7 @@
         "description": "Captured EnOcean ID: {captured_id}, name: {name}. QR add configures only and sends no commissioning radio.",
         "data": {
           "device_class": "Device class",
+          "eep": "EEP profile for the generic decoder (device class eep)",
           "channel": "Channel",
           "switch_type": "Switch type",
           "sender_id": "Sender ID",
@@ -303,6 +304,7 @@
       "invalid_device_details": "The device details are invalid.",
       "invalid_eep": "The manual EEP must use the exact XX-XX-XX hexadecimal format, e.g. A5-12-01.",
       "profile_changes_identity": "This profile would turn the existing entity into a different entity class. Remove the device and add it again with the profile instead.",
+      "eep_unsupported": "The eep device class needs a profile covered by the generic decoder: pick one from the list, or let a 4BS teach-in declare it.",
       "commissioning_identity_mismatch": "The scanned or typed ID does not exactly match the selected UI relay. No radio was sent.",
       "commissioning_identity_conflict": "The scanned identity contradicts existing radio or product evidence. No radio was sent.",
       "invalid_ubiwizz_repeater": "Choose exactly D2-01-01 or D2-01-12 and repeater level 1 or 2."
@@ -350,6 +352,15 @@
       },
       "smoke_battery_low": {
         "name": "Battery low"
+      },
+      "eep_occupancy": {
+        "name": "Occupancy"
+      },
+      "eep_contact": {
+        "name": "Contact"
+      },
+      "eep_rain": {
+        "name": "Rain"
       }
     },
     "select": {
@@ -395,6 +406,60 @@
       },
       "gateway_base_id": {
         "name": "Base ID"
+      },
+      "eep_temperature": {
+        "name": "Temperature"
+      },
+      "eep_actual_setpoint": {
+        "name": "Actual set point"
+      },
+      "eep_humidity": {
+        "name": "Humidity"
+      },
+      "eep_illuminance": {
+        "name": "Illuminance"
+      },
+      "eep_illuminance_range_1": {
+        "name": "Illuminance (range 1)"
+      },
+      "eep_illuminance_range_2": {
+        "name": "Illuminance (range 2)"
+      },
+      "eep_dawn": {
+        "name": "Dawn light"
+      },
+      "eep_supply_voltage": {
+        "name": "Supply voltage"
+      },
+      "eep_wind_speed": {
+        "name": "Wind speed"
+      },
+      "eep_setpoint": {
+        "name": "Set point"
+      },
+      "eep_controller_output": {
+        "name": "Controller output"
+      },
+      "eep_blind_position": {
+        "name": "Blind position"
+      },
+      "eep_blind_angle": {
+        "name": "Blind angle"
+      },
+      "eep_acceleration_x": {
+        "name": "Acceleration X"
+      },
+      "eep_acceleration_y": {
+        "name": "Acceleration Y"
+      },
+      "eep_acceleration_z": {
+        "name": "Acceleration Z"
+      },
+      "eep_co2": {
+        "name": "CO2"
+      },
+      "eep_voc": {
+        "name": "VOC"
       }
     }
   },

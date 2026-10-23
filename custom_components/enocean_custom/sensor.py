@@ -39,6 +39,7 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .availability import REPAIR_CATEGORIES, availability_settings, silence_category
 from .const import DOMAIN, LOGGER
+from .eep_catalog import EepField, EepProfile, generic_profile
 from .enocean_library.protocol.constants import RORG
 from .enocean_library.utils import combine_hex, to_hex_string
 from .entity import EnOceanEntity, EnOceanGatewayEntity
@@ -47,6 +48,7 @@ from .identity import (
     GATEWAY_KEY_BASE_ID,
     GATEWAY_KEY_LAST_TELEGRAM,
     GATEWAY_KEY_RECEIVED_TELEGRAMS,
+    GENERIC_SENSOR_DEVICE_CLASS,
     SENSOR_KEY_A514_SUPPLY_VOLTAGE,
     SENSOR_KEY_CONTACT,
     SENSOR_KEY_ENERGY,
@@ -59,6 +61,7 @@ from .identity import (
     SENSOR_KEY_TEMPERATURE,
     SENSOR_KEY_WINDOWHANDLE,
     device_names_by_sender,
+    generic_field_key,
     sensor_unique_id,
 )
 from .inbox import PacketObservation, packet_observation
@@ -253,6 +256,20 @@ async def async_setup_entry(
             continue
         if row["platform"] != "sensor":
             continue
+        if row[CONF_DEVICE_CLASS] == GENERIC_SENSOR_DEVICE_CLASS:
+            # The row carries a generic EEP (validated by the schema); every
+            # numeric field of the profile becomes one sensor.
+            profile = generic_profile((row.get("radio_metadata") or {}).get("eep"))
+            if profile is None:
+                continue
+            entities.extend(
+                EnOceanEepValueSensor(row["id"], row["name"], profile, field)
+                .set_radio_metadata(row.get("radio_metadata"))
+                .configure_silence(silence[0], repair=silence[1])
+                for field in profile.exposed_fields
+                if field.is_value
+            )
+            continue
         config = PLATFORM_SCHEMA(
             {
                 "platform": DOMAIN,
@@ -344,6 +361,67 @@ class EnOceanGatewayBaseId(EnOceanGatewayEntity, SensorEntity):
         if not isinstance(base_id, (list, tuple)) or len(base_id) != 4:
             return None
         return to_hex_string(list(base_id))
+
+
+class EnOceanEepValueSensor(EnOceanEntity, RestoreSensor):
+    """One numeric field of a generic EEP.xml profile.
+
+    Decoding uses the bit offsets, ranges and scales of the vendored EEP.xml;
+    the shortcut of the specification selects the device class, unit and
+    translated name. Out-of-range raw values (documented as invalid or
+    reserved) are skipped rather than published.
+    """
+
+    _attr_has_entity_name = True
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(
+        self,
+        dev_id: list[int],
+        dev_name: str,
+        profile: EepProfile,
+        field: EepField,
+    ) -> None:
+        """Bind one profile field to one sender."""
+        super().__init__(dev_id, dev_name)
+        self._profile = profile
+        self._field = field
+        self._attr_unique_id = sensor_unique_id(dev_id, generic_field_key(field.slug))
+        self._attr_native_unit_of_measurement = field.normalized_unit
+        semantics = field.semantics
+        if semantics is None:
+            # Unmapped shortcut: the XML description is the only name we have.
+            self._attr_name = field.description
+            return
+        self._attr_translation_key = semantics.translation_key
+        if semantics.device_class is not None:
+            self._attr_device_class = SensorDeviceClass(semantics.device_class)
+        if semantics.diagnostic:
+            self._attr_entity_category = EntityCategory.DIAGNOSTIC
+        self._attr_entity_registry_enabled_default = semantics.enabled_default
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str]:
+        """Name the profile and field so the source of a value is auditable."""
+        return {"eep": self._profile.eep, "eep_field": self._field.shortcut}
+
+    @override
+    async def async_added_to_hass(self) -> None:
+        """Restore the last decoded value."""
+        await super().async_added_to_hass()
+        if self._attr_native_value is not None:
+            return
+        if (sensor_data := await self.async_get_last_sensor_data()) is not None:
+            self._attr_native_value = sensor_data.native_value
+
+    @override
+    def value_changed(self, packet) -> None:
+        """Decode a data telegram of the declared profile."""
+        decoded = self._profile.decode(getattr(packet, "data", None))
+        if decoded is None or self._field.slug not in decoded:
+            return
+        self._attr_native_value = decoded[self._field.slug]
+        self.schedule_update_ha_state()
 
 
 def _radio_diagnostic_entities(rows: list[dict]) -> list[EnOceanRadioDiagnosticSensor]:

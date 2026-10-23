@@ -71,6 +71,7 @@ from .device_intelligence import (
     reconcile_commissioning_metadata,
     safe_metadata,
 )
+from .eep_catalog import generic_profiles, is_generic_supported
 from .enocean_library.protocol.constants import PACKET, RORG
 from .enocean_library.protocol.d2 import is_matching_d2_01_feedback
 from .enocean_library.protocol.packet import (
@@ -81,7 +82,11 @@ from .enocean_library.protocol.packet import (
 )
 from .enocean_library.utils import combine_hex, to_hex_string
 from .entity import build_radio_optional, get_gateway_base_id
-from .identity import sender_diagnostic_identities, ui_device_entity_identities
+from .identity import (
+    GENERIC_SENSOR_DEVICE_CLASS,
+    sender_diagnostic_identities,
+    ui_device_entity_identities,
+)
 from .inbox import get_device_inbox
 from .learn import get_known_ids, get_learn_manager
 from .light import CONF_SENDER_ID
@@ -113,6 +118,7 @@ _FLOW_OWNER = "options_flow"
 _HEX_BYTE = re.compile(r"^[0-9A-Fa-f]{2}$")
 _CONF_QR_CODE = "qr_code"
 _CONF_MANUAL_EEP = "manual_eep"
+_CONF_GENERIC_EEP = "eep"
 _CONF_ACTUATOR_TYPE = "actuator_type"
 _CONF_FAILURE_ACTION = "failure_action"
 _CONF_CONFIRM_RELAY_D2 = "confirm_relay_d2"
@@ -1937,6 +1943,13 @@ class EnOceanOptionsFlow(OptionsFlow):
         """Abort after no unknown sender was heard before the timeout."""
         return self.async_abort(reason="learn_timeout")
 
+    def _declared_generic_eep(self) -> str | None:
+        """Return the declared EEP when the generic sensor decoder covers it."""
+        if not metadata_declares_eep(self._radio_metadata):
+            return None
+        eep = (self._radio_metadata or {}).get("eep")
+        return eep if is_generic_supported(eep) else None
+
     def _manual_eep_offered(self) -> bool:
         """Return whether the operator may still assert a profile by hand.
 
@@ -2058,9 +2071,31 @@ class EnOceanOptionsFlow(OptionsFlow):
                 )
             )
         elif platform == "sensor":
-            schema_dict[vol.Optional(CONF_DEVICE_CLASS, default="powersensor")] = (
-                selector.SelectSelector(
-                    selector.SelectSelectorConfig(options=list(SENSOR_TYPES))
+            # A profile declared by a 4BS teach-in (or a label) and covered by
+            # the generic EEP.xml decoder pre-selects the ``eep`` class.
+            declared = self._declared_generic_eep()
+            schema_dict[
+                vol.Optional(
+                    CONF_DEVICE_CLASS,
+                    default=GENERIC_SENSOR_DEVICE_CLASS if declared else "powersensor",
+                )
+            ] = selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[*SENSOR_TYPES, GENERIC_SENSOR_DEVICE_CLASS]
+                )
+            )
+            eep_options = [
+                {"value": eep, "label": f"{eep} · {profile.description}"}
+                for eep, profile in generic_profiles().items()
+            ]
+            eep_key = (
+                vol.Optional(_CONF_GENERIC_EEP, default=declared)
+                if declared
+                else vol.Optional(_CONF_GENERIC_EEP)
+            )
+            schema_dict[eep_key] = selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=eep_options, mode=selector.SelectSelectorMode.DROPDOWN
                 )
             )
             for field, default, minimum, maximum in (
@@ -2174,6 +2209,19 @@ class EnOceanOptionsFlow(OptionsFlow):
                 )
 
         if platform == "sensor":
+            if user_input.get(CONF_DEVICE_CLASS) == GENERIC_SENSOR_DEVICE_CLASS:
+                # A declared profile wins; otherwise the chosen one is recorded
+                # as a manual assertion. Either way it must have a decoder.
+                declared = self._declared_generic_eep()
+                chosen = declared or parse_manual_eep(user_input.get(_CONF_GENERIC_EEP))
+                if not is_generic_supported(chosen):
+                    return self._show_details_form(
+                        platform, errors={_CONF_GENERIC_EEP: "eep_unsupported"}
+                    )
+                if declared is None:
+                    self._radio_metadata = apply_manual_eep(
+                        self._radio_metadata, chosen
+                    )
             for field, minimum, maximum in (
                 (CONF_MAX_TEMP, -100, 100),
                 (CONF_MIN_TEMP, -100, 100),

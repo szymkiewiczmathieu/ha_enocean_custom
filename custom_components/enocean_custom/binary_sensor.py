@@ -23,14 +23,18 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .availability import REPAIR_CATEGORIES, availability_settings, silence_category
+from .eep_catalog import EepField, EepProfile, generic_profile
 from .enocean_library.protocol.constants import RORG
 from .entity import EnOceanEntity, EnOceanGatewayEntity
 from .identity import (
     A514_EEP,
     GATEWAY_KEY_CONNECTED,
+    GENERIC_SENSOR_DEVICE_CLASS,
     SMOKE_EEP,
     a514_contact_unique_id,
     binary_sensor_unique_id,
+    generic_field_key,
+    sensor_unique_id,
     smoke_battery_low_unique_id,
 )
 from .learn import register_known_id
@@ -88,10 +92,14 @@ async def async_setup_entry(
     settings = availability_settings(getattr(entry, "options", {}))
     configured = []
     for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, [])):
-        if row["platform"] != "binary_sensor":
+        if row["platform"] == "sensor":
+            entities = _generic_binary_entities(row)
+        elif row["platform"] == "binary_sensor":
+            entities = _entities_for_row(row)
+        else:
             continue
         category = silence_category(row)
-        for entity in _entities_for_row(row):
+        for entity in entities:
             entity.set_radio_metadata(row.get("radio_metadata")).configure_silence(
                 settings.timeout_for(category), repair=category in REPAIR_CATEGORIES
             )
@@ -101,6 +109,57 @@ async def async_setup_entry(
     if gateway is not None and entry_id:
         configured.append(EnOceanGatewayConnectivity(gateway, entry_id))
     async_add_entities(configured)
+
+
+def _generic_binary_entities(row: dict) -> list[EnOceanEntity]:
+    """Return the binary companions of a generic ``eep`` sensor row (PIR, contact...)."""
+    if row.get("device_class") != GENERIC_SENSOR_DEVICE_CLASS:
+        return []
+    profile = generic_profile((row.get("radio_metadata") or {}).get("eep"))
+    if profile is None:
+        return []
+    return [
+        EnOceanEepBinarySensor(row["id"], row["name"], profile, field)
+        for field in profile.exposed_fields
+        if not field.is_value
+    ]
+
+
+class EnOceanEepBinarySensor(EnOceanEntity, BinarySensorEntity):
+    """One enumerated field of a generic EEP.xml profile mapped to a binary sensor."""
+
+    _attr_has_entity_name = True
+
+    def __init__(
+        self, dev_id: list[int], dev_name: str, profile: EepProfile, field: EepField
+    ) -> None:
+        """Bind one enum field (PIR, contact, rain) to one sender."""
+        super().__init__(dev_id, dev_name)
+        self._profile = profile
+        self._field = field
+        semantics = field.semantics
+        self._on_values = semantics.on_values if semantics else frozenset()
+        self._attr_unique_id = sensor_unique_id(dev_id, generic_field_key(field.slug))
+        if semantics is not None:
+            self._attr_translation_key = semantics.translation_key
+            if semantics.device_class is not None:
+                self._attr_device_class = BinarySensorDeviceClass(
+                    semantics.device_class
+                )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str]:
+        """Name the profile and field so the source of a state is auditable."""
+        return {"eep": self._profile.eep, "eep_field": self._field.shortcut}
+
+    @override
+    def value_changed(self, packet) -> None:
+        """Decode a data telegram of the declared profile."""
+        decoded = self._profile.decode(getattr(packet, "data", None))
+        if decoded is None or self._field.slug not in decoded:
+            return
+        self._attr_is_on = decoded[self._field.slug] in self._on_values
+        self.schedule_update_ha_state()
 
 
 def _entities_for_row(row: dict) -> list[EnOceanEntity]:

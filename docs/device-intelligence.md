@@ -86,6 +86,47 @@ A platform is pre-selected in the options flow only when the mode is
 `automatic` or `assisted` **and** exactly one platform applies. The selection
 always remains changeable, and a manufacturer conflict suppresses it entirely.
 
+### Generic EEP.xml decoder (sensor device class `eep`)
+
+Since 2.10.0 a `sensor` row may use the device class `eep` together with a
+profile stored in `radio_metadata.eep`. The decoder (`eep_catalog.py`) is
+driven entirely by the vendored `EEP.xml`: bit offsets, ranges and scales come
+from the file, and only the specification *shortcuts* are mapped to Home
+Assistant device classes and units (`TMP` → temperature °C, `HUM` → humidity %,
+`ILL`/`ILL1`/`ILL2`/`DWS` → illuminance lx, `Conc` → CO₂ ppm or VOC ppb, `SVC`
+→ supply voltage V (diagnostic, disabled by default), `WND` → wind speed m/s,
+`SP` → raw set point, `ACX`/`ACY`/`ACZ` → acceleration g (disabled by default);
+enums `PIR`/`PIRS` → occupancy, `CO` → contact, `RAN` → rain). Each numeric
+field becomes one `sensor` (`<id>-eep_<shortcut>`), each mapped enum one
+`binary_sensor`. 4BS teach-in telegrams (LRN bit clear) and raw values outside
+the documented range are ignored. The profile is pre-filled when a 4BS teach-in
+declared it, otherwise it is chosen from the list and recorded as a manual
+assertion.
+
+Profiles covered (43), excluding the dedicated decoders above, bidirectional
+A5-20-01 and the A5-38-08 command profile:
+
+| Profile(s) | Description (EEP.xml) | Entities |
+| --- | --- | --- |
+| `A5-02-01` … `A5-02-0B`, `A5-02-10` … `A5-02-1B`, `A5-02-20`, `A5-02-30` | Temperature sensors (8 and 10 bit ranges) | temperature |
+| `A5-04-01`, `A5-04-03` | Temperature and humidity | humidity, temperature |
+| `A5-06-01`, `A5-06-02` | Light sensors | supply voltage, illuminance range 1 and 2 |
+| `A5-07-01` | Occupancy with supply voltage | supply voltage, occupancy |
+| `A5-08-01` | Light, temperature and occupancy | supply voltage, illuminance, temperature, occupancy |
+| `A5-09-04` | CO₂ sensor | humidity, CO₂, temperature |
+| `A5-09-05` | VOC sensor | VOC |
+| `A5-10-03`, `A5-10-05`, `A5-10-06`, `A5-10-10`, `A5-10-12` | Room operating panels | set point, humidity where present, temperature |
+| `A5-11-02` | Temperature controller output | controller output, actual set point |
+| `A5-11-03` | Blind status | blind position, blind angle |
+| `A5-13-01` (command 1 only) | Weather station | dawn light, temperature, wind speed, rain |
+| `A5-30-03` | Digital inputs, wake and temperature | temperature |
+| `D2-14-41` | Indoor temperature, humidity, acceleration, illumination, contact | temperature, humidity, illuminance, acceleration X/Y/Z, contact |
+
+The `EEP.xml` file dates from EEP 2.6.x. A generic profile is **implemented**,
+not **validated**: compare the first real telegram of your product with the
+entities before relying on them, and report mismatches with the device
+diagnostics (the last raw telegram is included).
+
 ### NodOn catalogue boundary
 
 This bounded inventory records manufacturer documentation, not radio identity,

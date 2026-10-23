@@ -60,6 +60,12 @@ A514_CONTACT_UNIQUE_ID_SUFFIX: Final = "-a5-14-01-contact"
 SMOKE_EEP: Final = "F6-05-02"
 SMOKE_BATTERY_LOW_UNIQUE_ID_SUFFIX: Final = "-f6-05-02-battery-low"
 
+# Generic EEP.xml-driven sensor rows (2.10.0): ``device_class: eep`` plus a
+# generic profile in ``radio_metadata.eep``. One entity per exposed field,
+# keyed by the specification shortcut (``<id>-eep_tmp``, ``<id>-eep_hum``).
+GENERIC_SENSOR_DEVICE_CLASS: Final = "eep"
+GENERIC_KEY_PREFIX: Final = "eep_"
+
 # Per-sender radio diagnostics, added in 2.10.0: one set per device rather than
 # per row, disabled by default. They are not part of
 # ``ui_device_entity_identities`` (which stays frozen for parity with existing
@@ -152,6 +158,32 @@ def device_names_by_sender(rows: Any) -> dict[int, str]:
     return names
 
 
+def generic_field_key(slug: str) -> str:
+    """Return the description key of one generic field (``eep_<shortcut slug>``)."""
+    return f"{GENERIC_KEY_PREFIX}{slug}"
+
+
+def generic_eep_identities(dev_id: list[int], eep: Any) -> tuple[tuple[str, str], ...]:
+    """Return every ``(platform, unique_id)`` a generic sensor row creates.
+
+    Numeric fields become sensors, mapped enums binary sensors, in XML order.
+    The catalog is imported lazily: identity formulas must stay cheap to import
+    and this is the only one that needs the vendored EEP description.
+    """
+    from .eep_catalog import generic_profile
+
+    profile = generic_profile(eep)
+    if profile is None:
+        return ((("sensor"), sensor_unique_id(dev_id, GENERIC_SENSOR_DEVICE_CLASS)),)
+    return tuple(
+        (
+            "sensor" if field.is_value else "binary_sensor",
+            sensor_unique_id(dev_id, generic_field_key(field.slug)),
+        )
+        for field in profile.exposed_fields
+    )
+
+
 def sensor_keys_for_device_class(device_class: object) -> tuple[str, ...]:
     """Return the description keys the sensor platform creates for a class."""
     if isinstance(device_class, str) and device_class in SENSOR_KEYS_BY_DEVICE_CLASS:
@@ -188,6 +220,9 @@ def ui_device_entity_identities(
             return (primary, (platform, smoke_battery_low_unique_id(dev_id)))
         return (primary,)
     if platform == "sensor":
+        if device.get("device_class") == GENERIC_SENSOR_DEVICE_CLASS:
+            metadata = device.get("radio_metadata") or {}
+            return generic_eep_identities(dev_id, metadata.get("eep"))
         return tuple(
             (platform, sensor_unique_id(dev_id, key))
             for key in sensor_keys_for_device_class(device.get("device_class"))

@@ -16,6 +16,8 @@ from .device_intelligence import (
     Evidence,
     SupportVerdict,
 )
+from .eep_catalog import is_generic_supported
+from .identity import GENERIC_SENSOR_DEVICE_CLASS
 from .ubiwizz import UBIWIZZ_ACTUATOR_PROFILES, valid_ubiwizz_actuator_channel
 
 
@@ -161,8 +163,15 @@ def _validate_platform_fields(device: dict) -> dict:
             "windowhandle",
             "contact",
             "shuttercontact",
+            GENERIC_SENSOR_DEVICE_CLASS,
         ):
             raise vol.Invalid("unsupported sensor device_class")
+        if device["device_class"] == GENERIC_SENSOR_DEVICE_CLASS:
+            eep = (device.get(CONF_RADIO_METADATA) or {}).get("eep")
+            if not is_generic_supported(eep):
+                raise vol.Invalid(
+                    "device_class eep requires a radio_metadata EEP with a generic decoder"
+                )
         if (
             device["device_class"] == "temperature"
             and device["min_temp"] >= device["max_temp"]

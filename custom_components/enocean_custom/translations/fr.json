@@ -173,6 +173,7 @@
         "description": "ID EnOcean capturé : {captured_id}, nom : {name}. L'ajout QR configure uniquement et n'émet aucune radio de commissioning.",
         "data": {
           "device_class": "Classe d'appareil",
+          "eep": "Profil EEP pour le décodeur générique (classe eep)",
           "channel": "Canal",
           "switch_type": "Type d'interrupteur",
           "sender_id": "ID d'émission",
@@ -303,6 +304,7 @@
       "invalid_device_details": "Les détails de l'équipement sont invalides.",
       "invalid_eep": "L'EEP manuel doit respecter le format hexadécimal exact XX-XX-XX, ex. A5-12-01.",
       "profile_changes_identity": "Ce profil transformerait l'entité existante en une autre classe d'entité. Supprimez l'équipement et ajoutez-le de nouveau avec ce profil.",
+      "eep_unsupported": "La classe d'appareil eep exige un profil couvert par le décodeur générique : choisissez-en un dans la liste, ou laissez un teach-in 4BS le déclarer.",
       "commissioning_identity_mismatch": "L'ID scanné ou saisi ne correspond pas exactement au relais sélectionné dans l'interface. Aucune radio n'a été émise.",
       "commissioning_identity_conflict": "L'identité scannée contredit une preuve radio ou produit existante. Aucune radio n'a été émise.",
       "invalid_ubiwizz_repeater": "Choisissez exactement D2-01-01 ou D2-01-12 et le niveau répéteur 1 ou 2."
@@ -350,6 +352,15 @@
       },
       "smoke_battery_low": {
         "name": "Pile faible"
+      },
+      "eep_occupancy": {
+        "name": "Présence"
+      },
+      "eep_contact": {
+        "name": "Contact"
+      },
+      "eep_rain": {
+        "name": "Pluie"
       }
     },
     "select": {
@@ -395,6 +406,60 @@
       },
       "gateway_base_id": {
         "name": "Base ID"
+      },
+      "eep_temperature": {
+        "name": "Température"
+      },
+      "eep_actual_setpoint": {
+        "name": "Consigne réelle"
+      },
+      "eep_humidity": {
+        "name": "Humidité"
+      },
+      "eep_illuminance": {
+        "name": "Éclairement"
+      },
+      "eep_illuminance_range_1": {
+        "name": "Éclairement (plage 1)"
+      },
+      "eep_illuminance_range_2": {
+        "name": "Éclairement (plage 2)"
+      },
+      "eep_dawn": {
+        "name": "Lumière du jour"
+      },
+      "eep_supply_voltage": {
+        "name": "Tension d'alimentation"
+      },
+      "eep_wind_speed": {
+        "name": "Vitesse du vent"
+      },
+      "eep_setpoint": {
+        "name": "Consigne"
+      },
+      "eep_controller_output": {
+        "name": "Sortie du régulateur"
+      },
+      "eep_blind_position": {
+        "name": "Position du store"
+      },
+      "eep_blind_angle": {
+        "name": "Angle du store"
+      },
+      "eep_acceleration_x": {
+        "name": "Accélération X"
+      },
+      "eep_acceleration_y": {
+        "name": "Accélération Y"
+      },
+      "eep_acceleration_z": {
+        "name": "Accélération Z"
+      },
+      "eep_co2": {
+        "name": "CO2"
+      },
+      "eep_voc": {
+        "name": "COV"
       }
     }
   },
