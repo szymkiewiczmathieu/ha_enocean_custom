@@ -23,6 +23,8 @@ from homeassistant.helpers.service_info.usb import UsbServiceInfo
 
 from . import dongle
 from .const import (
+    CONFIG_ENTRY_MINOR_VERSION,
+    CONFIG_ENTRY_VERSION,
     DOMAIN,
     ERROR_INVALID_DONGLE_PATH,
     LOGGER,
@@ -36,7 +38,8 @@ MANUAL_SCHEMA = vol.Schema({vol.Required(CONF_DEVICE): cv.string})
 class EnOceanFlowHandler(ConfigFlow, domain=DOMAIN):
     """Configure the single serial gateway used by this integration."""
 
-    VERSION = 1
+    VERSION = CONFIG_ENTRY_VERSION
+    MINOR_VERSION = CONFIG_ENTRY_MINOR_VERSION
     MANUAL_PATH_VALUE = "manual"
 
     def __init__(self) -> None:

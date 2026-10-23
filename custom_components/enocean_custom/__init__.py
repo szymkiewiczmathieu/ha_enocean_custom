@@ -11,11 +11,18 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
-from .const import DOMAIN, UI_DEVICE_PLATFORMS
+from .const import (
+    CONFIG_ENTRY_MINOR_VERSION,
+    CONFIG_ENTRY_VERSION,
+    DOMAIN,
+    LOGGER,
+    UI_DEVICE_PLATFORMS,
+)
 from .dongle import EnOceanDongle
 from .enocean_library.utils import combine_hex
 from .inbox import DeviceInbox
 from .learn import async_register_learn_service, get_known_ids
+from .migration import explicit_rps_actuator_profiles
 from .schema import CONF_UI_DEVICES, valid_ui_devices
 from .yaml_import import purge_yaml_inventory
 
@@ -43,6 +50,35 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             data=config[DOMAIN],
         )
     )
+    return True
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Rewrite options stored by an older release; entry data never changes.
+
+    Minor version 2 makes the former runtime inference of the Ubiwizz
+    UBID1507C profile explicit in the affected ``RPS`` switch rows (see
+    ``migration.py``). A newer minor version (downgrade scenario) is left
+    alone; a newer major version is refused.
+    """
+    if entry.version > CONFIG_ENTRY_VERSION:
+        return False
+    if entry.minor_version < 2:
+        rows, changed = explicit_rps_actuator_profiles(
+            entry.options.get(CONF_UI_DEVICES, [])
+        )
+        options = dict(entry.options)
+        if changed:
+            options[CONF_UI_DEVICES] = rows
+        hass.config_entries.async_update_entry(
+            entry, options=options, minor_version=CONFIG_ENTRY_MINOR_VERSION
+        )
+        LOGGER.info(
+            "Migrated EnOcean options to minor version %d: %d RPS switch rows "
+            "now carry the explicit ubiwizz_ubid1507c profile",
+            CONFIG_ENTRY_MINOR_VERSION,
+            changed,
+        )
     return True
 
 

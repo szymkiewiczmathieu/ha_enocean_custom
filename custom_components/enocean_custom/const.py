@@ -8,6 +8,12 @@ from homeassistant.const import Platform
 DOMAIN: Final = "enocean_custom"
 MANUFACTURER = "EnOcean"
 
+# Config entry schema version. The minor version is bumped when stored options
+# are rewritten in a backward-compatible way (see migration.py); a downgrade to
+# an older release still loads the entry.
+CONFIG_ENTRY_VERSION: Final = 1
+CONFIG_ENTRY_MINOR_VERSION: Final = 2
+
 # ``hass.data[DATA_ENOCEAN]`` holds only integration-wide state that is not
 # tied to the config entry: YAML-claimed sender ids, the teach-in manager and
 # the YAML migration inventory. The dongle and its inbox live on

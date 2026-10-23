@@ -135,7 +135,12 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Create switches stored by the options flow."""
+    """Create switches stored by the options flow.
+
+    The actuator profile is read from the row only. It is never inferred from
+    ``switch_type``: rows that relied on the pre-2.10 RPS inference were
+    migrated once to carry the profile explicitly (``migration.py``).
+    """
     entities = [
         EnOceanSwitch(
             row["id"],
@@ -143,8 +148,7 @@ async def async_setup_entry(
             row["channel"],
             row.get("switch_type") or "default",
             (row.get("radio_metadata") or {}).get("eep"),
-            row.get(CONF_ACTUATOR_PROFILE)
-            or ("ubiwizz_ubid1507c" if row.get("switch_type") == "RPS" else None),
+            row.get(CONF_ACTUATOR_PROFILE),
         ).set_radio_metadata(row.get("radio_metadata"))
         for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
         if row["platform"] == "switch"
