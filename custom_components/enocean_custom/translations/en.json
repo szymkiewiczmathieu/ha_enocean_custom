@@ -299,6 +299,7 @@
       "radio_probe_target_other": "A complete non-UTE telegram from this module reached Home Assistant. No response was sent and configuration was unchanged.",
       "ute_discovery_not_ready": "The listener must be armed before the local PRESS sequence.",
       "ute_discovery_write_unconfirmed": "The UTE response was queued but its physical USB300 serial write was not confirmed. No device was saved.",
+      "ute_discovery_timeout": "The UTE response was written to the dongle, but no ESP3 transport result arrived within the bounded wait. No device was saved.",
       "ute_discovery_queue_rejected": "The UTE response was not accepted into the dongle queue. No device was saved.",
       "ute_discovery_base_id_unavailable": "The dongle Base ID is unavailable, so the matching request was not answered and no device was saved.",
       "ute_discovery_transport_rejected": "The matching UTE request was received and a response was written, but ESP3 rejected its transport result. No device was saved.",

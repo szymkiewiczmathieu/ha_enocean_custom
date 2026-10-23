@@ -299,6 +299,7 @@
       "radio_probe_target_other": "Un télégramme complet non UTE de ce module a atteint Home Assistant. Aucune réponse n'a été envoyée et la configuration est inchangée.",
       "ute_discovery_not_ready": "L’écoute doit être armée avant la séquence PRESS locale.",
       "ute_discovery_write_unconfirmed": "La réponse UTE a été mise en file, mais son écriture physique USB300 n’a pas été confirmée. Aucun équipement n’a été enregistré.",
+      "ute_discovery_timeout": "La réponse UTE a été écrite vers le dongle, mais aucun résultat de transport ESP3 n’est arrivé dans le délai imparti. Aucun équipement n’a été enregistré.",
       "ute_discovery_queue_rejected": "La réponse UTE n’a pas été acceptée dans la file du dongle. Aucun équipement n’a été enregistré.",
       "ute_discovery_base_id_unavailable": "Le Base ID du dongle est indisponible ; la requête correspondante n’a pas reçu de réponse et aucun équipement n’a été enregistré.",
       "ute_discovery_transport_rejected": "La requête UTE correspondante a été reçue et une réponse a été écrite, mais ESP3 a rejeté le transport. Aucun équipement n’a été enregistré.",

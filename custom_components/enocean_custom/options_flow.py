@@ -121,9 +121,10 @@ PAIRING_TIMEOUT = 120.0
 PAIRING_RELAY_INTERVAL = 4.0
 PAIRING_DIMMER_INTERVAL = 5.0
 PAIRING_DIMMER_ATTEMPTS = 3
-# Bound the ESP3 acknowledgement wait after the operator has explicitly
-# matched UTE CMD0 is received. It is not a generic broadcast or a relay
-# command; its response is bounded by UTE_DISCOVERY_TIMEOUT.
+# Upper bound, in seconds, on the wait for the dongle to confirm the physical
+# write and the ESP3 result of the one directed UTE response. It starts once
+# the matching module request has been answered, not when the listener is
+# armed: the listening window itself is bounded by LEARN_TIMEOUT_DEFAULT.
 UTE_DISCOVERY_TIMEOUT = 30.0
 
 
@@ -638,12 +639,21 @@ class EnOceanOptionsFlow(OptionsFlow):
     async def _async_wait_for_ute_result(
         self, generation: int, complete: asyncio.Event
     ) -> None:
-        """Wait for the opened listener, then only for a matched response transport."""
+        """Wait for the listener window, then for the queued response's transport.
+
+        ``_ute_request_received`` closes the listener *before* it queues the
+        directed response, so this task wakes up while the dongle has not yet
+        reported the physical write or the ESP3 result: both arrive later, on
+        the event loop, from the serial worker. A window that closed without
+        any queued response (expiry, unmatched traffic) is the only
+        ``no_request`` case; a queued response is awaited up to
+        ``UTE_DISCOVERY_TIMEOUT``.
+        """
         manager = get_learn_manager(self.hass)
         await manager.wait()
         if generation != self._ute_discovery_generation:
             return
-        if self._ute_discovery_outcome is None:
+        if self._ute_discovery_outcome is None and not self._ute_discovery_queued:
             self._complete_ute_discovery(generation, "no_request")
             return
         try:
@@ -822,6 +832,7 @@ class EnOceanOptionsFlow(OptionsFlow):
             reason={
                 "no_request": "ute_discovery_no_request",
                 "deadline_missed": "ute_discovery_deadline_missed",
+                "timeout": "ute_discovery_timeout",
                 "write_unconfirmed": "ute_discovery_write_unconfirmed",
                 "queue_rejected": "ute_discovery_queue_rejected",
                 "base_id_unavailable": "ute_discovery_base_id_unavailable",
