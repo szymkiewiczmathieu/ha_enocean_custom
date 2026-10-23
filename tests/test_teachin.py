@@ -15,6 +15,8 @@ ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
 try:  # The bare CI lifecycle environment has no Home Assistant installed.
+    # Imported first: Home Assistant 2026.10 aliases ``voluptuous`` to probatio.
+    import homeassistant  # noqa: F401
     import voluptuous as vol
     from homeassistant.config_entries import ConfigEntries, ConfigEntry
     from homeassistant.core import HomeAssistant

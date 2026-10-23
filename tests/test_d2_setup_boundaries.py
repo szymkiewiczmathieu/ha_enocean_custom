@@ -6,6 +6,8 @@ import unittest
 from typing import ClassVar
 from unittest.mock import Mock
 
+# Imported first: Home Assistant 2026.10 aliases ``voluptuous`` to probatio.
+import homeassistant  # noqa: F401
 import voluptuous as vol
 
 from custom_components.enocean_custom.schema import valid_ui_devices

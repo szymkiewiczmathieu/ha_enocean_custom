@@ -890,9 +890,13 @@ class ReleaseHardeningTests(unittest.TestCase):
         self.assertNotIn("random.seed(", CLIMATE_PATH.read_text())
 
     def test_hacs_metadata_has_only_supported_keys(self):
-        self.assertEqual(
-            set(json.loads(HACS_PATH.read_text())), {"name", "render_readme"}
-        )
+        metadata = json.loads(HACS_PATH.read_text())
+        self.assertEqual(set(metadata), {"name", "render_readme", "homeassistant"})
+        # The minimum Home Assistant version HACS enforces is the oldest
+        # release the CI matrix still validates against.
+        self.assertEqual(metadata["homeassistant"], "2026.7.3")
+        workflow = (ROOT / ".github/workflows/validate.yml").read_text()
+        self.assertIn('"2026.7.3"', workflow)
 
     def test_hacs_brand_icon_is_valid_square_png(self):
         """Ship the local brand icon required by current HACS."""

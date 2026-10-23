@@ -15,6 +15,10 @@ from types import MappingProxyType, SimpleNamespace
 from typing import Any
 from unittest.mock import Mock
 
+# Home Assistant 2026.10 installs probatio under the ``voluptuous`` name when
+# its package is imported; importing it first keeps ``vol`` here and inside the
+# integration bound to the same module, so ``except vol.Invalid`` matches.
+import homeassistant  # noqa: F401
 import voluptuous as vol
 import yaml
 from homeassistant.components.climate.const import HVACMode
@@ -1453,11 +1457,26 @@ async def _assert_learn_windows_are_owned_and_serialized() -> None:
             await hass.async_stop(force=True)
 
 
+def _serialize_form_schema(schema: vol.Schema) -> Any:
+    """Serialize a form schema exactly as the websocket flow handler does.
+
+    Home Assistant 2026.7 renders forms through ``voluptuous_serialize``;
+    2026.10 replaced it with ``probatio.to_field_list``. Both raise ValueError
+    for a schema the frontend cannot render.
+    """
+    import homeassistant.helpers.config_validation as cv
+
+    try:
+        import voluptuous_serialize
+    except ModuleNotFoundError:
+        import probatio
+
+        return probatio.to_field_list(schema, custom_serializer=cv.custom_serializer)
+    return voluptuous_serialize.convert(schema, custom_serializer=cv.custom_serializer)
+
+
 def _assert_options_schemas_are_ws_serializable() -> None:
     """The P0 regression: every options schema must survive the WS handler."""
-    import homeassistant.helpers.config_validation as cv
-    import voluptuous_serialize
-
     flow = options_flow.EnOceanOptionsFlow()
     schemas = [
         options_flow._qr_code_schema(),
@@ -1488,7 +1507,7 @@ def _assert_options_schemas_are_ws_serializable() -> None:
     schemas.append(flow._device_form_schema())
     for schema in schemas:
         try:
-            voluptuous_serialize.convert(schema, custom_serializer=cv.custom_serializer)
+            _serialize_form_schema(schema)
         except ValueError as err:
             raise AssertionError(
                 f"new options schema is not WS-serializable: {err}"
@@ -1971,8 +1990,10 @@ def main() -> None:
     asyncio.run(_assert_device_intelligence_flow_and_device_registry())
     asyncio.run(_assert_learn_windows_are_owned_and_serialized())
     _assert_options_schemas_are_ws_serializable()
+    from homeassistant.const import __version__ as ha_version
+
     print(
-        "HA_2026_7_3_SMOKE_OK "
+        f"HA_SMOKE_OK homeassistant={ha_version} "
         f"invalid_cases_rejected={len(invalid_cases)} "
         f"platform_invalid_cases_rejected={len(invalid_platform_configs)} "
         f"malformed_packets_dropped={len(malformed_packets)} "

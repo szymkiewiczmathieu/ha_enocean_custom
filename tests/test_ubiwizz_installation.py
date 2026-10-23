@@ -5,6 +5,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest import TestCase
 
+# Imported first: Home Assistant 2026.10 aliases ``voluptuous`` to probatio.
+import homeassistant  # noqa: F401
 import voluptuous as vol
 
 from custom_components.enocean_custom.enocean_library.protocol.constants import RORG

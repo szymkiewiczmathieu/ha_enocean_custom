@@ -10,6 +10,8 @@ from tempfile import TemporaryDirectory
 from types import MappingProxyType
 
 try:
+    # Imported first: Home Assistant 2026.10 aliases ``voluptuous`` to probatio.
+    import homeassistant  # noqa: F401
     import voluptuous as vol
     from homeassistant.components.device_automation import (
         InvalidDeviceAutomationConfig,

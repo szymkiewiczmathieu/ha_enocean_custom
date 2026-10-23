@@ -16,8 +16,9 @@ _COMPONENT = _REPO / "custom_components" / "enocean_custom"
 sys.path.insert(0, str(_REPO))
 
 try:
+    # Imported first: Home Assistant 2026.10 aliases ``voluptuous`` to probatio.
+    import homeassistant  # noqa: F401
     import voluptuous as vol
-    import voluptuous_serialize
     from homeassistant.config_entries import ConfigEntries, ConfigEntry
     from homeassistant.core import HomeAssistant
     from homeassistant.data_entry_flow import FlowResultType
@@ -553,7 +554,20 @@ class ManualEepOptionsFlowTests(unittest.IsolatedAsyncioTestCase):
 
     @staticmethod
     def _assert_ws_serializable(result) -> None:
-        """Fail when the form would crash the websocket flow handler."""
+        """Fail when the form would crash the websocket flow handler.
+
+        Home Assistant 2026.7 renders forms through ``voluptuous_serialize``;
+        2026.10 replaced it with ``probatio.to_field_list``.
+        """
+        try:
+            import voluptuous_serialize
+        except ModuleNotFoundError:
+            import probatio
+
+            probatio.to_field_list(
+                result["data_schema"], custom_serializer=cv.custom_serializer
+            )
+            return
         voluptuous_serialize.convert(
             result["data_schema"], custom_serializer=cv.custom_serializer
         )

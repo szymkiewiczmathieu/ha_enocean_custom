@@ -3,12 +3,29 @@
 [![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
 [![Validation](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml)
 
-Local-first Home Assistant integration for ESP3 EnOcean USB dongles. It provides
-configuration-entry and YAML setup, guided device learning, diagnostics, native
-rocker triggers, and bounded actuator control without cloud services or
-telemetry.
+Local-first Home Assistant integration for ESP3 EnOcean USB dongles (USB 300
+and compatible). It provides configuration-entry and YAML setup, guided device
+learning, diagnostics, native rocker triggers, automation blueprints and
+bounded actuator control without cloud services or telemetry.
 
 **Current release:** [v2.9.8](CHANGELOG.md) · Apache-2.0 · HACS custom repository
+
+## Contents
+
+- [Install](#install)
+- [Configure devices](#configure-devices)
+- [How data is updated](#how-data-is-updated)
+- [Actions](#actions)
+- [Triggers and events](#triggers-and-events)
+- [Automation blueprints](#automation-blueprints)
+- [Use cases](#use-cases)
+- [Supported devices](#supported-devices)
+- [Known limitations](#known-limitations)
+- [Ubiwizz UBID1507C](#ubiwizz-ubid1507c)
+- [Removing devices or the integration](#removing-devices-or-the-integration)
+- [Troubleshooting](#troubleshooting)
+- [Diagnostics and support](#diagnostics-and-support)
+- [Release and licensing](#release-and-licensing)
 
 ## Install
 
@@ -18,17 +35,26 @@ telemetry.
    **Integration** custom repository.
 3. Install **EnOcean Custom**, then restart Home Assistant.
 4. Open **Settings → Devices & services**, add **EnOcean Custom**, and select a
-   persistent serial path such as `/dev/serial/by-id/...`.
+   persistent serial path such as `/dev/serial/by-id/...`. A USB 300 plugged in
+   is also discovered automatically and offered for confirmation.
+
+The only installation parameter is the serial device:
+
+| Parameter | Meaning |
+| --- | --- |
+| `device` | Path of the ESP3 serial port, preferably the stable `/dev/serial/by-id/usb-EnOcean_GmbH_EnOcean_USB_300_...` alias. |
 
 A dongle must have one reader. Do not configure `enocean` and `enocean_custom`
 against the same serial device. If the port changes, use **Reconfigure** on the
-existing entry rather than creating a second entry.
+existing entry rather than creating a second entry. Minimum Home Assistant
+release: 2026.7.3 (declared in `hacs.json`); the test matrix also validates
+2026.10.x.
 
 ## Configure devices
 
-Use **Configure** on the integration to learn a device, add a QR/ID, manage
-UI-backed devices, or import eligible YAML `binary_sensor` and `switch` rows.
-YAML remains supported and can coexist with UI-managed devices.
+Use **Configure** on the integration to learn a device, add a QR/ID, pair an
+actuator, manage UI-backed devices, or import eligible YAML `binary_sensor` and
+`switch` rows. YAML remains supported and can coexist with UI-managed devices.
 
 ```yaml
 switch:
@@ -71,6 +97,71 @@ identity model are in [Device Intelligence](docs/device-intelligence.md).
 - **Diagnostics are privacy-aware.** They expose lifecycle and aggregate radio
   evidence while redacting configured paths and device identifiers.
 
+## How data is updated
+
+The integration is `local_push`: nothing is polled. A single serial worker
+thread owns the dongle, parses every ESP3 frame and dispatches radio telegrams
+on Home Assistant's event loop. Each entity listens only to telegrams from its
+own four-byte sender ID.
+
+- **Battery-less transmitters** (rockers, handles, contacts, A5 sensors) update
+  the instant their telegram is received; between telegrams the last value is
+  kept.
+- **Actuators** (switches, lights) change state only on their own feedback
+  telegram (D2-01 status, A5-12 power report), never on the command alone.
+  ESP3 `OK` is recorded in the `last_command_esp3_accepted` attribute.
+- **Availability** mirrors the serial worker: when the dongle stops, every
+  entity becomes unavailable and a Repair issue is raised; when the integration
+  reloads, availability returns.
+- **Exactly one ESP3 command is in flight.** The worker waits for the dongle's
+  response before writing the next packet; a missing response stops the
+  transport instead of mis-attributing a later response.
+
+## Actions
+
+| Action | Target / fields | What it does | Radio transmission |
+| --- | --- | --- | --- |
+| `enocean_custom.learn` | `timeout` (15–300 s, default 60) | Opens one teach-in window; the first unknown sender fires `enocean_custom_device_learned` with its ID, hex form and safe radio evidence. Refused while another window is open or the dongle is not loaded. | none |
+| `enocean_custom.send_teach_in` | one or more `light` entities | Sends the A5-38-08 4BS teach-in telegram with the light's configured sender ID. | yes, on request |
+| `enocean_custom.climate_teach_in_actor` | one or more `climate` entities | Sends the configured profile's teach-in telegram (SRC-D08 panel or A5-20-04 variation 3). | yes, on request |
+| `enocean_custom.climate_teach_in_actor_switch` | one or more `climate` entities | Sends the legacy RPS rocker teach-in of an SRC-D08; refused on other profiles. | yes, on request |
+| `enocean_custom.reload` | — | Reloads YAML-configured platforms. | none |
+
+Every refusal (unknown Base ID, dongle unavailable, missing sender ID,
+rejected teach-in, unsupported profile) is reported as a translated error in
+the UI and in automation traces.
+
+## Triggers and events
+
+Every rocker device (a `binary_sensor` row for an F6-02 switch) offers native
+device triggers in the automation editor:
+
+| Trigger type | Fires when |
+| --- | --- |
+| `button_pressed` | any button is pressed |
+| `button_released` | the rocker is released |
+| `button_pressed_channel_0` | the first rocker (A) is pressed |
+| `button_pressed_channel_1` | the second rocker (B) is pressed |
+
+Each trigger accepts the optional filters `which` (`0`, `1`, `10` for both) and
+`onoff` (`1` = upper/I side, `0` = lower/O side). The same information is
+available in the `button_pressed` bus event:
+
+```yaml
+event_type: button_pressed
+data:
+  name: Kitchen rocker
+  id: [0, 58, 170, 240]
+  pushed: 1          # 1 pressed, 0 released, null for other telegrams
+  which: 0           # rocker half: 0, 1, or 10 for both
+  onoff: 1           # 1 = I (upper), 0 = O (lower)
+  repeated_telegram: 0
+```
+
+`enocean_custom_device_learned` is fired once per captured sender during a
+learn window (`id`, `hex`, `evidence`, `support`, and the declared `eep` when a
+UTE or 4BS teach-in carried one).
+
 ## Automation blueprints
 
 Three ready-made automations live in
@@ -85,11 +176,62 @@ automation from the blueprint and fill in the inputs.
 | `handle_open_hvac_off.yaml` | A window handle left `open` or `tilt` beyond a grace period switches the chosen climate entities off and notifies you; `closed` restores the HVAC mode you pick. | [Import](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fszymkiewiczmathieu%2Fha_enocean_custom%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fenocean_custom%2Fhandle_open_hvac_off.yaml) |
 | `smoke_alarm_notify.yaml` | A smoke alarm notifies every phone (`notify.notify`) and turns the chosen lights fully on; a second message is sent when the alarm clears. | [Import](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fszymkiewiczmathieu%2Fha_enocean_custom%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fenocean_custom%2Fsmoke_alarm_notify.yaml) |
 
+## Use cases
+
+- **Lighting from battery-less rockers.** Learn each F6-02 wall switch, keep it
+  paired with its relay, and additionally drive Home Assistant lights or scenes
+  from the native triggers (blueprint `rocker_to_light.yaml`).
+- **Window handles that pause heating.** HOPPE/Ubiwizz F6-10-00 handles report
+  `open`, `tilt` and `closed`; pause the room's climate entity while a window is
+  open and restore it when it closes (blueprint `handle_open_hvac_off.yaml`).
+- **Smoke alarms on every phone.** A smoke `binary_sensor` turns the escape
+  route on and notifies the household (blueprint `smoke_alarm_notify.yaml`).
+- **Relays with real feedback.** Ubiwizz UBID1507C and NodOn D2-01 actuators are
+  switched with directed D2 commands and only report `on`/`off` after their own
+  status telegram, so dashboards never show a state the relay did not confirm.
+- **Door and window contacts.** D5-00-01 contacts and A5-14-01 window sensors
+  feed presence, security and ventilation automations.
+
+## Supported devices
+
+The authoritative matrix of decoded profiles (EEP), their platforms,
+configuration mode and support level is maintained in
+[docs/device-intelligence.md](docs/device-intelligence.md#implementation-matrix).
+In short: F6-02-01/02 rockers, F6-10-00 handles, D5-00-01 contacts, A5-14-01
+window sensors, A5-12-01 meters, 8-bit A5 temperature/humidity profiles with a
+manual scale, A5-38-08 dimmer commands, A5-20-04 valves (YAML), and D2-01
+actuators (D2-01-0A/0B/08/12).
+
+## Known limitations
+
+- **One dongle per Home Assistant instance** (`single_config_entry`). A second
+  dongle needs a second instance.
+- **No automatic UTE acknowledgement.** The integration never answers a
+  teach-in it did not explicitly ask for; pairing is always an operator action
+  in the guided flows. Devices that require an unsolicited answer must be
+  paired through those flows.
+- **Ordinary RPS (F6) and 1BS (D5) telegrams carry no EEP.** Rockers, handles
+  and contacts stay `profile_unknown` until you choose the platform/profile;
+  nothing is inferred from an ID.
+- **8-bit A5 sensors need a manual scale** (`min_temp`, `max_temp`,
+  `range_from`, `range_to`) in this release.
+- **ESP3 `OK` only proves the dongle transmitted.** It never proves that a
+  relay switched or that a device retained a pairing.
+- **Adding or removing a UI device reloads the whole entry.** Entities are
+  unavailable for about a second while the serial worker restarts.
+- **Secure (encrypted) telegrams, Smart Ack and Remote Management are not
+  supported.** Secure telegrams are parsed as opaque frames and ignored.
+- **The 868 MHz band allows about 1 % transmit duty cycle.** Avoid automations
+  that hammer D2 actuators with commands every few seconds.
+
 ## Ubiwizz UBID1507C
 
 The explicit `ubiwizz_ubid1507c` profile represents the documented two-output
 `D2-01-12` module. It permits only channels `0` and `1`; selecting that profile
-is an operator choice and is never inferred from a telegram, QR code, or EURID.
+is an operator choice and is never inferred from a telegram, QR code, EURID or
+switch type. Rows created before 2.10.0 with `switch_type: RPS`, which the
+switch platform used to treat as UBID1507C at runtime, were migrated once to
+carry the profile explicitly so their behaviour is unchanged.
 
 ```yaml
 switch:
@@ -113,6 +255,33 @@ read-only: it sends no radio, observes no state, and persists nothing. The
 integration exposes no remote repeater write service because supplied Ubiwizz
 documentation does not define a module-specific protocol or read-back. Do not
 confuse the module repeater with the USB gateway's `CO_WR_REPEATER` command.
+
+## Removing devices or the integration
+
+- **One UI-managed device:** **Configure → Manage UI devices**, pick the device,
+  confirm. The row is removed from the entry options and every entity registry
+  row it created is deleted; the sender ID becomes teachable again immediately.
+- **A YAML device:** delete its block from `configuration.yaml` and restart
+  Home Assistant. A UI deletion is refused while the same ID is still in YAML.
+- **The whole integration:** **Settings → Devices & services → EnOcean Custom →
+  Delete**. The serial worker is stopped and joined before the entry is removed,
+  UI devices disappear with the entry, and no files are written outside
+  Home Assistant's own `.storage`. Remove any remaining `enocean_custom:` YAML
+  blocks and imported blueprints yourself; the dongle keeps its own
+  configuration (Base ID, learned links) untouched.
+
+## Troubleshooting
+
+| Symptom | What to check |
+| --- | --- |
+| **"No valid dongle found for this path"** when adding the integration | Use the `/dev/serial/by-id/...` alias, make sure no other integration or container opens the port, and that the user running Home Assistant may access it. |
+| **Repair issue "The EnOcean serial worker stopped"** and all entities unavailable | The dongle was unplugged, the port vanished or a response timed out. Reconnect the dongle, then reload the integration (**Settings → Devices & services → EnOcean Custom → ⋮ → Reload**). |
+| **Error "The dongle has not reported its Base ID"** on a switch | The start-up `CO_RD_IDBASE` read was refused or lost. The integration retries it automatically (three attempts with backoff); wait a few seconds or reload. |
+| **Error "The dongle refused to queue the command"** | The serial worker is stopped or its transmit queue is full. Check the Repair issue and the logs. |
+| **A rocker/contact entity never changes** | Confirm the four-byte ID with a learn session or the passive radio test; the row must use the sender ID printed in the telegram, not the dongle's Base ID. |
+| **A switch stays `unknown` after a command** | Normal until the actuator answers with its status telegram. If it never does, the module is not paired with the dongle's Base ID: run the guided pairing or UTE association. |
+| **Handle shows `unknown`** | Only the documented F6-10-00 nibbles map to `open`/`tilt`/`closed`; any other value is deliberately `unknown`. |
+| **Need details for a bug report** | Enable debug logging for `custom_components.enocean_custom` and download the diagnostics (identifiers are redacted). |
 
 ## Diagnostics and support
 
