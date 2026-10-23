@@ -38,6 +38,12 @@ def get_gateway_base_id(gateway: object) -> list[int] | None:
         or any(isinstance(byte, bool) or not isinstance(byte, int) for byte in base_id)
         or any(not 0 <= byte <= 0xFF for byte in base_id)
     ):
+        # The start-up read may have been refused or lost. Let the gateway
+        # re-issue it within its own bounds so a later command can succeed
+        # without a reload; this command is still skipped.
+        retry = getattr(gateway, "retry_base_id", None)
+        if callable(retry):
+            retry()
         return None
     return list(base_id)
 

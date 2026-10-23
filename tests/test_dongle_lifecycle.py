@@ -285,12 +285,13 @@ class DongleLifecycleTests(unittest.IsolatedAsyncioTestCase):
         )
 
     def test_diagnostics_redact_path_from_thread_name(self):
-        namespace = _load_dongle_members("available", "diagnostics")
+        namespace = _load_dongle_members("available", "base_id", "diagnostics")
         dongle = namespace["EnOceanDongle"]()
         dongle.serial_path = "/dev/serial/by-id/private-hardware-serial"
         dongle.identifier = "configured EnOcean dongle"
         dongle._available = True
         dongle._stopping = False
+        dongle._base_id_retry_count = 0
         dongle._started_at = None
         dongle._last_packet_at = None
         dongle._last_error = None
@@ -310,19 +311,26 @@ class DongleLifecycleTests(unittest.IsolatedAsyncioTestCase):
             "EnOceanSerialCommunicator[/dev/serial/by-id/private-hardware-serial]"
         )
         dongle._communicator.transmit = None
+        dongle._communicator.current_base_id = [0xFF, 0x87, 0xCA, 0x00]
 
         diagnostics = dongle.diagnostics()
 
         self.assertNotIn("private-hardware-serial", str(diagnostics))
         self.assertIn("[REDACTED]", diagnostics["thread_name"])
+        # The Base ID is an identifier: only its resolution is exposed.
+        self.assertNotIn("0xFF", str(diagnostics))
+        self.assertNotIn("255", str(diagnostics))
+        self.assertTrue(diagnostics["base_id_resolved"])
+        self.assertEqual(diagnostics["base_id_retries"], 0)
 
     def test_diagnostics_survives_an_unavailable_queue_depth(self):
-        namespace = _load_dongle_members("available", "diagnostics")
+        namespace = _load_dongle_members("available", "base_id", "diagnostics")
         dongle = namespace["EnOceanDongle"]()
         dongle.serial_path = "/dev/test"
         dongle.identifier = "configured EnOcean dongle"
         dongle._available = True
         dongle._stopping = False
+        dongle._base_id_retry_count = 2
         dongle._started_at = None
         dongle._last_packet_at = None
         dongle._last_error = None
@@ -340,10 +348,13 @@ class DongleLifecycleTests(unittest.IsolatedAsyncioTestCase):
         dongle._communicator.is_alive.return_value = True
         dongle._communicator.name = "EnOceanSerialCommunicator"
         dongle._communicator.transmit.qsize.side_effect = NotImplementedError
+        dongle._communicator.current_base_id = None
 
         diagnostics = dongle.diagnostics()
 
         self.assertIsNone(diagnostics["transmit_queue_depth"])
+        self.assertFalse(diagnostics["base_id_resolved"])
+        self.assertEqual(diagnostics["base_id_retries"], 2)
         namespace["_LOGGER"].debug.assert_called_once_with(
             "EnOcean transmit queue depth is unavailable"
         )

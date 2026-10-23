@@ -168,6 +168,11 @@ class Communicator(threading.Thread):
                 self.logger.debug("Received EnOcean packet type=%s", packet.packet_type)
 
     @property
+    def base_id_request_pending(self):
+        """Return whether a CO_RD_IDBASE command is queued or awaiting its response."""
+        return self._base_id_requested
+
+    @property
     def current_base_id(self):
         """Return the resolved Base ID without issuing or waiting for a request."""
         if not isinstance(self._base_id, (list, tuple)) or len(self._base_id) != 4:

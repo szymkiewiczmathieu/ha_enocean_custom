@@ -9,6 +9,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from os.path import samefile
 from threading import Lock
+from time import monotonic
 from typing import Any
 
 import serial
@@ -32,6 +33,14 @@ _LOGGER = logging.getLogger(__name__)
 class EnOceanDongle:
     """Own the serial worker and expose its health to Home Assistant."""
 
+    # The start-up CO_RD_IDBASE read can be refused or lost. Rather than
+    # blocking every D2/UTE command until a reload, a command that needs the
+    # Base ID re-issues the read on demand: at most BASE_ID_RETRY_LIMIT times
+    # per worker, with a growing delay between attempts and never while a
+    # read is still pending.
+    BASE_ID_RETRY_LIMIT = 3
+    BASE_ID_RETRY_BACKOFF_SECONDS = (5.0, 30.0, 120.0)
+
     def __init__(self, hass, serial_path: str) -> None:
         """Initialize the EnOcean dongle and open its serial descriptor."""
         self.serial_path = serial_path
@@ -39,6 +48,9 @@ class EnOceanDongle:
         self.hass = hass
         self._available = False
         self._stopping = False
+        self._base_id_retry_count = 0
+        self._base_id_retry_not_before = 0.0
+        self._base_id_retry_lock = Lock()
         self._started_at: datetime | None = None
         self._last_packet_at: datetime | None = None
         self._last_error: str | None = None
@@ -79,6 +91,40 @@ class EnOceanDongle:
     def base_id(self) -> list[int] | None:
         """Return the already-resolved radio sender ID without blocking HA."""
         return self._communicator.current_base_id
+
+    def retry_base_id(self) -> bool:
+        """Re-request the Base ID for a command that needs it, within bounds.
+
+        Returns True when a new CO_RD_IDBASE command was queued. Safe from the
+        event loop (flows) and from the executor (switch commands). Nothing is
+        sent while the Base ID is known, the worker is unavailable, a read is
+        still pending, the retry budget is spent, or the backoff has not
+        elapsed; the caller still skips its current command.
+        """
+        if self.base_id is not None or not self.available:
+            return False
+        with self._base_id_retry_lock:
+            now = monotonic()
+            if (
+                self._communicator.base_id_request_pending
+                or self._base_id_retry_count >= self.BASE_ID_RETRY_LIMIT
+                or now < self._base_id_retry_not_before
+            ):
+                return False
+            attempt = self._base_id_retry_count
+            self._base_id_retry_count += 1
+            backoff = self.BASE_ID_RETRY_BACKOFF_SECONDS[
+                min(attempt, len(self.BASE_ID_RETRY_BACKOFF_SECONDS) - 1)
+            ]
+            self._base_id_retry_not_before = now + backoff
+        queued = self._communicator.request_base_id()
+        _LOGGER.warning(
+            "Dongle Base ID is still unknown; %s (attempt %d of %d)",
+            "re-requesting it" if queued else "its re-request was not queued",
+            attempt + 1,
+            self.BASE_ID_RETRY_LIMIT,
+        )
+        return queued
 
     async def async_setup(self) -> None:
         """Start the serial worker and clear any stale repair issue."""
@@ -272,6 +318,8 @@ class EnOceanDongle:
             "thread_alive": self._communicator.is_alive(),
             "thread_name": thread_name,
             "stopping": self._stopping,
+            "base_id_resolved": self.base_id is not None,
+            "base_id_retries": self._base_id_retry_count,
             "started_at": self._started_at.isoformat() if self._started_at else None,
             "last_packet_at": (
                 self._last_packet_at.isoformat() if self._last_packet_at else None
