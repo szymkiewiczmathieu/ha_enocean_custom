@@ -12,16 +12,25 @@ from .runtime import get_inbox
 
 MAX_UNCONFIGURED_SENDERS = 64
 _REPEATER_RORGS = frozenset((int(RORG.RPS), int(RORG.BS1), int(RORG.BS4)))
+# ERP1 radio data is at most 21 bytes (RORG, payload, sender, status); anything
+# longer is not a telegram this integration decodes and is not retained.
+MAX_PAYLOAD_BYTES = 24
 
 
 @dataclass(frozen=True, slots=True)
 class PacketObservation:
-    """Minimal immutable packet snapshot transferred to the HA loop."""
+    """Minimal immutable packet snapshot transferred to the HA loop.
+
+    ``payload`` is the ERP1 data with the four sender bytes blanked, so a
+    device diagnostic can show the last raw telegram without exposing the
+    identifier a second time.
+    """
 
     sender_id: int
     rorg: int
     rssi_dbm: int | None
     repeater_count: int | None
+    payload: tuple[int, ...] | None = None
 
 
 @dataclass(slots=True)
@@ -33,6 +42,21 @@ class InboxEntry:
     last_rssi_dbm: int | None = None
     last_repeater_count: int | None = None
     rorgs: set[int] = field(default_factory=set)
+    last_payload: tuple[int, ...] | None = None
+
+
+def _anonymized_payload(data: Any) -> tuple[int, ...] | None:
+    """Return the ERP1 data bytes with the sender address zeroed, or None."""
+    if not isinstance(data, (list, tuple)) or not 6 <= len(data) <= MAX_PAYLOAD_BYTES:
+        return None
+    if any(
+        isinstance(byte, bool) or not isinstance(byte, int) or not 0 <= byte <= 0xFF
+        for byte in data
+    ):
+        return None
+    masked = list(data)
+    masked[-5:-1] = [0, 0, 0, 0]
+    return tuple(masked)
 
 
 def packet_observation(packet: Any) -> PacketObservation | None:
@@ -60,7 +84,8 @@ def packet_observation(packet: Any) -> PacketObservation | None:
     ):
         # ERP1 status bits 0..3 are the repeater counter for RPS/1BS/4BS.
         repeater_count = status & 0x0F
-    return PacketObservation(sender_id, rorg, rssi_dbm, repeater_count)
+    payload = _anonymized_payload(getattr(packet, "data", None))
+    return PacketObservation(sender_id, rorg, rssi_dbm, repeater_count, payload)
 
 
 class DeviceInbox:
@@ -83,6 +108,8 @@ class DeviceInbox:
         entry.last_rssi_dbm = observation.rssi_dbm
         entry.last_repeater_count = observation.repeater_count
         entry.rorgs.add(observation.rorg)
+        if observation.payload is not None:
+            entry.last_payload = observation.payload
         self._entries[observation.sender_id] = entry
         self._evict_unknown_lru()
 

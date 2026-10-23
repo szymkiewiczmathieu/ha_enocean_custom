@@ -313,10 +313,14 @@ unless a far device needs it.
 
 ## Diagnostics and support
 
-Use **Download diagnostics** when reporting an issue. Include the Home
-Assistant and integration versions, dongle model, exact profile, reproduction
-steps, and redacted logs. See [SUPPORT.md](SUPPORT.md) for the issue checklist
-and support options.
+Use **Download diagnostics** when reporting an issue, either on the integration
+(serial worker health, counters, dongle version, availability settings) or on a
+single device (its configured rows by shape, radio facts from the inbox, the
+last raw telegram with its sender bytes blanked, and its entities). Both exports
+redact identifiers, names and the serial path. Include the Home Assistant and
+integration versions, dongle model, exact profile, reproduction steps, and
+redacted logs. See [SUPPORT.md](SUPPORT.md) for the issue checklist and support
+options.
 
 ## Release and licensing
 
