@@ -1,0 +1,65 @@
+blueprint:
+  name: EnOcean rocker controls a light
+  description: >-
+    Turns a light on when the upper (I) side of an EnOcean F6-02 rocker is
+    pressed and off when the lower (O) side is pressed. Choose the rocker
+    device, the rocker half and the light. The automation relies on the native
+    EnOcean Custom device trigger, so Home Assistant transmits nothing on the
+    radio: the rocker keeps working with its directly paired actuators too.
+  domain: automation
+  author: EnOcean Custom
+  homeassistant:
+    min_version: 2026.7.0
+  input:
+    rocker:
+      name: Rocker switch
+      description: >-
+        The EnOcean device of the rocker (the binary_sensor row created for its
+        sender). Any F6-02-01/F6-02-02 rocker works, including rockers that are
+        already paired with a relay.
+      selector:
+        device:
+          filter:
+            - integration: enocean_custom
+    channel:
+      name: Rocker half
+      description: >-
+        Channel 1 is the first rocker (A, data 0x50/0x70), channel 2 the second
+        rocker (B, data 0x10/0x30) of a two-rocker switch.
+      default: "0"
+      selector:
+        select:
+          options:
+            - label: Channel 1 (rocker A)
+              value: "0"
+            - label: Channel 2 (rocker B)
+              value: "1"
+    light_target:
+      name: Light
+      description: The light, lights or area to control.
+      selector:
+        target:
+          entity:
+            domain: light
+
+mode: restart
+max_exceeded: silent
+
+triggers:
+  - trigger: device
+    domain: enocean_custom
+    device_id: !input rocker
+    type: button_pressed
+    which: !input channel
+
+actions:
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.event.data.onoff == 1 }}"
+        sequence:
+          - action: light.turn_on
+            target: !input light_target
+    default:
+      - action: light.turn_off
+        target: !input light_target

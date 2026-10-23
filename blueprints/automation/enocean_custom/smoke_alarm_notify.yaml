@@ -1,0 +1,77 @@
+blueprint:
+  name: EnOcean smoke alarm notifies and lights the way
+  description: >-
+    When an EnOcean smoke detector raises its alarm (an F6-05-02 detector or any
+    binary sensor with the smoke device class), every selected light is turned
+    fully on and a notification is sent. A second notification is sent when the
+    alarm clears. Use notify.notify to reach every registered phone, or a
+    specific notify.mobile_app_* action.
+  domain: automation
+  author: EnOcean Custom
+  homeassistant:
+    min_version: 2026.7.0
+  input:
+    smoke_sensors:
+      name: Smoke detectors
+      description: One or more EnOcean Custom smoke binary sensors.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - integration: enocean_custom
+              domain: binary_sensor
+              device_class: smoke
+    lights:
+      name: Lights to turn on
+      description: Lights, areas or the whole house to light the escape route.
+      selector:
+        target:
+          entity:
+            domain: light
+    notify_service:
+      name: Notification action
+      description: notify.notify reaches every registered notification target.
+      default: notify.notify
+      selector:
+        text:
+
+mode: queued
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    id: alarm
+    entity_id: !input smoke_sensors
+    to: "on"
+  - trigger: state
+    id: cleared
+    entity_id: !input smoke_sensors
+    from: "on"
+    to: "off"
+
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: alarm
+        sequence:
+          - action: light.turn_on
+            target: !input lights
+            data:
+              brightness_pct: 100
+          - action: !input notify_service
+            data:
+              title: Smoke alarm
+              message: >-
+                {{ state_attr(trigger.entity_id, 'friendly_name') }} detected
+                smoke. Check the house now.
+      - conditions:
+          - condition: trigger
+            id: cleared
+        sequence:
+          - action: !input notify_service
+            data:
+              title: Smoke alarm cleared
+              message: >-
+                {{ state_attr(trigger.entity_id, 'friendly_name') }} no longer
+                reports smoke.

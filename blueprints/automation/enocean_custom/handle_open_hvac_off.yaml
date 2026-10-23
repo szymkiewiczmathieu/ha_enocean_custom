@@ -1,0 +1,106 @@
+blueprint:
+  name: EnOcean window handle pauses heating or cooling
+  description: >-
+    When an EnOcean F6-10-00 window handle reports open or tilted for longer
+    than the grace period, the selected climate entities are switched off and a
+    notification is sent. When the handle reports closed again, the chosen HVAC
+    mode is restored. The handle states are the integration's frozen values
+    `open`, `tilt` and `closed`.
+  domain: automation
+  author: EnOcean Custom
+  homeassistant:
+    min_version: 2026.7.0
+  input:
+    handle:
+      name: Window handle
+      description: The EnOcean Custom window-handle sensor (device class windowhandle).
+      selector:
+        entity:
+          filter:
+            - integration: enocean_custom
+              domain: sensor
+    delay_minutes:
+      name: Grace period
+      description: >-
+        How long the window may stay open or tilted before heating or cooling
+        is switched off. Zero reacts immediately.
+      default: 5
+      selector:
+        number:
+          min: 0
+          max: 120
+          unit_of_measurement: min
+          mode: slider
+    climate_target:
+      name: Climate entities
+      description: The thermostats or valves to pause while the window is open.
+      selector:
+        target:
+          entity:
+            domain: climate
+    restore_mode:
+      name: HVAC mode to restore
+      description: Mode set again once the handle reports closed.
+      default: heat
+      selector:
+        select:
+          options:
+            - label: Heat
+              value: heat
+            - label: Cool
+              value: cool
+            - label: Heat/cool
+              value: heat_cool
+            - label: Auto
+              value: auto
+    notify_service:
+      name: Notification action
+      description: >-
+        For example notify.mobile_app_my_phone, or notify.notify to reach every
+        registered notification target.
+      default: notify.notify
+      selector:
+        text:
+
+mode: restart
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    id: opened
+    entity_id: !input handle
+    to:
+      - open
+      - tilt
+    for:
+      minutes: !input delay_minutes
+  - trigger: state
+    id: closed
+    entity_id: !input handle
+    to: closed
+
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: opened
+        sequence:
+          - action: climate.set_hvac_mode
+            target: !input climate_target
+            data:
+              hvac_mode: "off"
+          - action: !input notify_service
+            data:
+              title: Window open
+              message: >-
+                {{ state_attr(trigger.entity_id, 'friendly_name') }} is
+                {{ trigger.to_state.state }}; heating and cooling were switched
+                off.
+      - conditions:
+          - condition: trigger
+            id: closed
+        sequence:
+          - action: climate.set_hvac_mode
+            target: !input climate_target
+            data:
+              hvac_mode: !input restore_mode

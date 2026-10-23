@@ -71,6 +71,20 @@ identity model are in [Device Intelligence](docs/device-intelligence.md).
 - **Diagnostics are privacy-aware.** They expose lifecycle and aggregate radio
   evidence while redacting configured paths and device identifiers.
 
+## Automation blueprints
+
+Three ready-made automations live in
+[`blueprints/automation/enocean_custom/`](blueprints/automation/enocean_custom/).
+Import each one with its button (or paste the raw file URL into **Settings →
+Automations & scenes → Blueprints → Import blueprint**), then create an
+automation from the blueprint and fill in the inputs.
+
+| Blueprint | What it does | Import |
+| --- | --- | --- |
+| `rocker_to_light.yaml` | One half of an F6-02 rocker turns a light on (I) and off (O) through the native device trigger. Home Assistant transmits nothing: the rocker keeps driving its directly paired relays as well. | [Import](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fszymkiewiczmathieu%2Fha_enocean_custom%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fenocean_custom%2Frocker_to_light.yaml) |
+| `handle_open_hvac_off.yaml` | A window handle left `open` or `tilt` beyond a grace period switches the chosen climate entities off and notifies you; `closed` restores the HVAC mode you pick. | [Import](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fszymkiewiczmathieu%2Fha_enocean_custom%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fenocean_custom%2Fhandle_open_hvac_off.yaml) |
+| `smoke_alarm_notify.yaml` | A smoke alarm notifies every phone (`notify.notify`) and turns the chosen lights fully on; a second message is sent when the alarm clears. | [Import](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fszymkiewiczmathieu%2Fha_enocean_custom%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fenocean_custom%2Fsmoke_alarm_notify.yaml) |
+
 ## Ubiwizz UBID1507C
 
 The explicit `ubiwizz_ubid1507c` profile represents the documented two-output
