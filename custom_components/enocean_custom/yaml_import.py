@@ -58,9 +58,7 @@ def track_yaml_device(
                 CONF_ID: list(config[CONF_ID]),
                 "platform": platform,
                 CONF_NAME: config[CONF_NAME],
-                CONF_DEVICE_CLASS: _stored_device_class(
-                    config.get(CONF_DEVICE_CLASS)
-                ),
+                CONF_DEVICE_CLASS: _stored_device_class(config.get(CONF_DEVICE_CLASS)),
                 "channel": config.get("channel", 0),
                 "switch_type": config.get("switch_type", "default"),
             }

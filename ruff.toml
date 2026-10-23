@@ -1,0 +1,6 @@
+# Ruff covers every maintained Python file: the integration package, scripts
+# and tests. The vendored EnOcean library keeps its upstream style and is
+# excluded here; the three files maintained inside it (communicator.py,
+# serialcommunicator.py and protocol/d2.py) are passed explicitly by the CI
+# workflow, because Ruff lints explicitly named paths even when excluded.
+extend-exclude = ["custom_components/enocean_custom/enocean_library"]

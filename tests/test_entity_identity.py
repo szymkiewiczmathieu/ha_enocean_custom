@@ -91,7 +91,9 @@ def _rows() -> dict[str, dict[str, Any]]:
         "sensor_humidity": _row("sensor", name="room", device_class="humidity"),
         "sensor_power": _row("sensor", name="plug", device_class="powersensor"),
         "sensor_default": _row("sensor", name="plug"),
-        "sensor_windowhandle": _row("sensor", name="handle", device_class="windowhandle"),
+        "sensor_windowhandle": _row(
+            "sensor", name="handle", device_class="windowhandle"
+        ),
         "sensor_contact": _row("sensor", name="pantry", device_class="contact"),
         "sensor_shuttercontact": _row(
             "sensor", name="legacy", device_class="shuttercontact"
@@ -133,7 +135,9 @@ class FrozenFormulaTests(unittest.TestCase):
         self.assertEqual(set(rows), set(EXPECTED_IDENTITIES))
         for name, row in rows.items():
             with self.subTest(row=name):
-                self.assertEqual(ui_device_entity_identities(row), EXPECTED_IDENTITIES[name])
+                self.assertEqual(
+                    ui_device_entity_identities(row), EXPECTED_IDENTITIES[name]
+                )
                 # The flow's primary identity is the row's own-platform entity.
                 self.assertEqual(
                     options_flow._unique_id_for(row), EXPECTED_IDENTITIES[name][0][1]
@@ -159,11 +163,16 @@ class FrozenFormulaTests(unittest.TestCase):
                     }
                 )
                 self.assertEqual(
-                    [entity.unique_id for entity in sensor._entities_from_config(config)],
+                    [
+                        entity.unique_id
+                        for entity in sensor._entities_from_config(config)
+                    ],
                     [sensor_unique_id(DEVICE_ID, key) for key in keys],
                 )
         self.assertEqual(sensor_keys_for_device_class(None), ("powersensor", "energy"))
-        self.assertEqual(sensor_keys_for_device_class("bogus"), ("powersensor", "energy"))
+        self.assertEqual(
+            sensor_keys_for_device_class("bogus"), ("powersensor", "energy")
+        )
         self.assertEqual(set(SENSOR_KEYS_BY_DEVICE_CLASS), set(sensor.SENSOR_TYPES))
 
 

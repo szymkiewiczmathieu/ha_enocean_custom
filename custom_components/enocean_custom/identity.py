@@ -32,17 +32,15 @@ SENSOR_DEFAULT_DEVICE_CLASS: Final = SENSOR_KEY_POWER
 # Entity description keys the sensor platform instantiates for one
 # device_class, in creation order. ``powersensor`` deliberately creates two
 # entities (instantaneous power and accumulated energy).
-SENSOR_KEYS_BY_DEVICE_CLASS: Final[Mapping[str, tuple[str, ...]]] = (
-    MappingProxyType(
-        {
-            "temperature": (SENSOR_KEY_TEMPERATURE,),
-            "humidity": (SENSOR_KEY_HUMIDITY,),
-            "powersensor": (SENSOR_KEY_POWER, SENSOR_KEY_ENERGY),
-            "windowhandle": (SENSOR_KEY_WINDOWHANDLE,),
-            "contact": (SENSOR_KEY_CONTACT,),
-            "shuttercontact": (SENSOR_KEY_SHUTTERCONTACT,),
-        }
-    )
+SENSOR_KEYS_BY_DEVICE_CLASS: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
+    {
+        "temperature": (SENSOR_KEY_TEMPERATURE,),
+        "humidity": (SENSOR_KEY_HUMIDITY,),
+        "powersensor": (SENSOR_KEY_POWER, SENSOR_KEY_ENERGY),
+        "windowhandle": (SENSOR_KEY_WINDOWHANDLE,),
+        "contact": (SENSOR_KEY_CONTACT,),
+        "shuttercontact": (SENSOR_KEY_SHUTTERCONTACT,),
+    }
 )
 
 # A binary_sensor row whose radio-declared profile is A5-14-01 is created as a
@@ -97,7 +95,9 @@ def sensor_keys_for_device_class(device_class: object) -> tuple[str, ...]:
     return SENSOR_KEYS_BY_DEVICE_CLASS[SENSOR_DEFAULT_DEVICE_CLASS]
 
 
-def ui_device_entity_identities(device: Mapping[str, Any]) -> tuple[tuple[str, str], ...]:
+def ui_device_entity_identities(
+    device: Mapping[str, Any],
+) -> tuple[tuple[str, str], ...]:
     """Return every ``(platform, unique_id)`` the platforms create for one row.
 
     The first pair is the entity on the row's own platform; later pairs are
