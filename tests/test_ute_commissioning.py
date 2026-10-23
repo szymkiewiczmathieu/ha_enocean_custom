@@ -24,9 +24,17 @@ try:
 
     from custom_components.enocean_custom import options_flow
     from custom_components.enocean_custom.const import DOMAIN
-    from custom_components.enocean_custom.enocean_library.protocol.constants import PACKET, RORG
-    from custom_components.enocean_custom.enocean_library.protocol.packet import UTETeachInPacket
-    from custom_components.enocean_custom.schema import CONF_UI_DEVICES, UI_DEVICE_SCHEMA
+    from custom_components.enocean_custom.enocean_library.protocol.constants import (
+        PACKET,
+        RORG,
+    )
+    from custom_components.enocean_custom.enocean_library.protocol.packet import (
+        UTETeachInPacket,
+    )
+    from custom_components.enocean_custom.schema import (
+        CONF_UI_DEVICES,
+        UI_DEVICE_SCHEMA,
+    )
 
     HA_AVAILABLE = True
 except ModuleNotFoundError:  # pragma: no cover
@@ -53,15 +61,28 @@ class FakeDongle:
 
 
 def ute_request(
-    *, sender=TARGET_ID, eep_type=0x12, manufacturer=0x046, channels=0,
-    flags=0x80, age_ms=0,
+    *,
+    sender=TARGET_ID,
+    eep_type=0x12,
+    manufacturer=0x046,
+    channels=0,
+    flags=0x80,
+    age_ms=0,
 ):
     """Build one inbound bidirectional UTE CMD0 as transmitted by an actuator."""
     packet = UTETeachInPacket(
         PACKET.RADIO_ERP1,
         data=[
-            RORG.UTE, flags, channels, manufacturer & 0xFF,
-            (manufacturer >> 8) & 0x07, eep_type, 0x01, 0xD2, *sender, 0,
+            RORG.UTE,
+            flags,
+            channels,
+            manufacturer & 0xFF,
+            (manufacturer >> 8) & 0x07,
+            eep_type,
+            0x01,
+            0xD2,
+            *sender,
+            0,
         ],
         optional=[3, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0],
     )
@@ -92,10 +113,16 @@ class UteRequestFlowTests(unittest.IsolatedAsyncioTestCase):
 
     def new_flow(self, *, base_id=BASE_ID, devices=None):
         entry = ConfigEntry(
-            data={"device": "/dev/test"}, discovery_keys=MappingProxyType({}),
-            domain=DOMAIN, minor_version=1,
+            data={"device": "/dev/test"},
+            discovery_keys=MappingProxyType({}),
+            domain=DOMAIN,
+            minor_version=1,
             options={CONF_UI_DEVICES: [] if devices is None else devices},
-            source="user", subentries_data=None, title="EnOcean", unique_id=None, version=1,
+            source="user",
+            subentries_data=None,
+            title="EnOcean",
+            unique_id=None,
+            version=1,
         )
         entry.runtime_data = FakeDongle(base_id)
         self.hass.config_entries._entries[entry.entry_id] = entry
@@ -126,7 +153,9 @@ class UteRequestFlowTests(unittest.IsolatedAsyncioTestCase):
         flow._ute_request_received(ute_request())
         self.assertEqual(len(dongle.sent), 1)
         answer = dongle.sent[0]
-        self.assertEqual(answer.data, [RORG.UTE, 0x91, 0, 0x46, 0, 0x12, 1, 0xD2, *BASE_ID, 0])
+        self.assertEqual(
+            answer.data, [RORG.UTE, 0x91, 0, 0x46, 0, 0x12, 1, 0xD2, *BASE_ID, 0]
+        )
         self.assertEqual(answer.optional, [3, *TARGET_ID, 0xFF, 0])
         dongle.written_callbacks[0]()
         dongle.response_callbacks[0](True)
@@ -174,7 +203,9 @@ class UteRequestFlowTests(unittest.IsolatedAsyncioTestCase):
         flow._ute_request_received(ute_request(eep_type=0x08))
         self.assertEqual(dongle.sent[0].data[5], 0x08)
 
-    async def test_selected_individual_channel_and_all_channel_request_are_answered(self):
+    async def test_selected_individual_channel_and_all_channel_request_are_answered(
+        self,
+    ):
         flow, dongle = self.new_flow()
         await self.arm(flow, channel=1)
         flow._ute_request_received(ute_request(channels=1))
@@ -185,10 +216,14 @@ class UteRequestFlowTests(unittest.IsolatedAsyncioTestCase):
         flow._ute_request_received(ute_request(channels=0xFF))
         self.assertEqual(dongle.sent[0].data[2], 0xFF)
 
-    async def test_wrong_sender_flags_manufacturer_and_individual_channel_are_silent(self):
+    async def test_wrong_sender_flags_manufacturer_and_individual_channel_are_silent(
+        self,
+    ):
         for packet in (
-            ute_request(sender=OTHER_ID), ute_request(flags=0xA0),
-            ute_request(manufacturer=0x047), ute_request(channels=1),
+            ute_request(sender=OTHER_ID),
+            ute_request(flags=0xA0),
+            ute_request(manufacturer=0x047),
+            ute_request(channels=1),
         ):
             flow, dongle = self.new_flow()
             await self.arm(flow)

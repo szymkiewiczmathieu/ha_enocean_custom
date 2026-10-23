@@ -66,6 +66,8 @@ from .enocean_library.protocol.constants import PACKET, RORG
 from .enocean_library.protocol.d2 import is_matching_d2_01_feedback
 from .enocean_library.protocol.packet import (
     Packet as ESP3Packet,
+)
+from .enocean_library.protocol.packet import (
     UTETeachInPacket,
 )
 from .enocean_library.utils import combine_hex, to_hex_string
@@ -94,7 +96,6 @@ from .ubiwizz_repeater import (
     UbiwizzRepeaterDiagnosticRequest,
     parse_ubiwizz_repeater_request,
 )
-from .ute import build_ute_association_packet
 from .yaml_import import yaml_inventory
 
 _FLOW_OWNER = "options_flow"
@@ -555,9 +556,13 @@ class EnOceanOptionsFlow(OptionsFlow):
         channel = _exact_int(user_input.get(CONF_CHANNEL))
         target_id = _parse_commissioning_code(user_input.get(_CONF_QR_CODE))
         if channel not in UBID1507C.output_channels:
-            return self._show_ute_discovery_form(errors={CONF_CHANNEL: "invalid_channel"})
+            return self._show_ute_discovery_form(
+                errors={CONF_CHANNEL: "invalid_channel"}
+            )
         if target_id is None:
-            return self._show_ute_discovery_form(errors={_CONF_QR_CODE: "invalid_ute_target"})
+            return self._show_ute_discovery_form(
+                errors={_CONF_QR_CODE: "invalid_ute_target"}
+            )
         if self._ute_discovery_identity_is_occupied(target_id, channel):
             return self.async_abort(reason="ute_discovery_collision")
 
@@ -615,7 +620,9 @@ class EnOceanOptionsFlow(OptionsFlow):
         if task is None:
             generation = self._ute_discovery_generation
             task = self.hass.async_create_task(
-                self._async_wait_for_ute_result(generation, self._ute_discovery_complete),
+                self._async_wait_for_ute_result(
+                    generation, self._ute_discovery_complete
+                ),
                 "EnOcean targeted UTE association",
             )
             self._ute_discovery_task = task
@@ -673,7 +680,9 @@ class EnOceanOptionsFlow(OptionsFlow):
         ):
             return
         received = getattr(packet, "received", None)
-        if not isinstance(received, datetime) or datetime.now(UTC) - received > timedelta(milliseconds=500):
+        if not isinstance(received, datetime) or datetime.now(
+            UTC
+        ) - received > timedelta(milliseconds=500):
             get_learn_manager(self.hass).stop(owner=_FLOW_OWNER)
             self._complete_ute_discovery(generation, "deadline_missed")
             return
@@ -698,7 +707,9 @@ class EnOceanOptionsFlow(OptionsFlow):
             response_callback=lambda accepted: self._ute_discovery_transport_received(
                 generation, token, accepted
             ),
-            written_callback=lambda: self._ute_discovery_packet_written(generation, token),
+            written_callback=lambda: self._ute_discovery_packet_written(
+                generation, token
+            ),
         )
         if queued:
             self._ute_discovery_queued = True
@@ -773,12 +784,17 @@ class EnOceanOptionsFlow(OptionsFlow):
             return
         self._complete_ute_discovery(
             generation,
-            "success" if self._ute_discovery_response_accepted else "transport_rejected",
+            "success"
+            if self._ute_discovery_response_accepted
+            else "transport_rejected",
         )
 
     @callback
     def _complete_ute_discovery(self, generation: int, outcome: str) -> None:
-        if generation != self._ute_discovery_generation or self._ute_discovery_outcome is not None:
+        if (
+            generation != self._ute_discovery_generation
+            or self._ute_discovery_outcome is not None
+        ):
             return
         self._ute_discovery_outcome = outcome
         self._ute_discovery_response_token = None
@@ -822,7 +838,9 @@ class EnOceanOptionsFlow(OptionsFlow):
         receiver that sees no complete telegram at all.
         """
         if user_input is None:
-            return self.async_show_form(step_id="radio_probe", data_schema=_qr_code_schema())
+            return self.async_show_form(
+                step_id="radio_probe", data_schema=_qr_code_schema()
+            )
         target_id = _parse_commissioning_code(user_input.get(_CONF_QR_CODE))
         if target_id is None:
             return self.async_show_form(

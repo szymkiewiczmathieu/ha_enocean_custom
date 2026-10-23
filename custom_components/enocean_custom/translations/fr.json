@@ -74,6 +74,7 @@
           "pair_actuator": "Appairer un actionneur (guidé)",
           "commission_existing": "Commissionner un relais D2 existant (assisté)",
           "ute_discover": "Associer un module Ubiwizz à partir de sa requête UTE",
+          "radio_probe": "Tester passivement la radio d'un module (aucune commande radio)",
           "ubiwizz_repeater": "Diagnostic répéteur Ubiwizz (aucune commande radio)",
           "manage": "Gérer les équipements de l'interface",
           "import_yaml": "Importer les équipements YAML"
@@ -219,6 +220,20 @@
           "ute_ready": "L’écoute UTE est armée ; je démarre maintenant la séquence PRESS locale"
         }
       },
+      "radio_probe": {
+        "title": "Test radio passif d'un module",
+        "description": "Saisissez l'EURID exact. Ce test écoute un télégramme complet de ce module, mais n'émet jamais de radio, ne crée aucun appareil et ne modifie pas la configuration.",
+        "data": {
+          "qr_code": "EURID du module ou étiquette de mise en service"
+        }
+      },
+      "radio_probe_confirm": {
+        "title": "Lancer le test passif",
+        "description": "Le récepteur est armé. Effectuez une fois l'action locale documentée du module, puis confirmez immédiatement. Ce test n'envoie aucune commande radio et ne peut pas modifier l'appairage.",
+        "data": {
+          "ute_ready": "Le récepteur passif est armé ; je fais maintenant l'action locale"
+        }
+      },
       "ubiwizz_repeater": {
         "title": "Diagnostic répéteur Ubiwizz",
         "description": "Limite de diagnostic uniquement. Choisissez le profil indiqué dans la documentation du module et le niveau à évaluer. Cela n'identifie pas un modèle Ubiwizz, n'observe pas son état répéteur, ne modifie pas sa configuration et n'émet pas de radio.",
@@ -242,7 +257,8 @@
     "progress": {
       "waiting_for_device": "Appuyez maintenant sur le bouton de l'équipement. Attente jusqu'à 60 secondes d'un expéditeur EnOcean inconnu.",
       "pairing_actuator": "Appairage en cours pendant au plus {timeout} secondes. Les commandes sont répétées ; garde le module en mode appairage.",
-      "waiting_for_ute_request": "Attente jusqu’à {timeout} secondes de la requête UTE du module exact. Home Assistant répondra uniquement à une requête correspondante, dans le délai protocolaire."
+      "waiting_for_ute_request": "Attente jusqu’à {timeout} secondes de la requête UTE du module exact. Home Assistant répondra uniquement à une requête correspondante, dans le délai protocolaire.",
+      "waiting_for_radio_probe": "Attente d'un télégramme complet du module sélectionné pendant {timeout} secondes au maximum. Ce diagnostic n'envoie aucune commande radio."
     },
     "error": {
       "unique_id_exists": "Un équipement avec cette identité existe déjà. Le mode apprentissage ne fusionne ni n'écrase jamais un équipement existant.",
@@ -277,6 +293,10 @@
       "no_yaml_devices_to_import": "Aucun équipement YAML ne reste à importer.",
       "yaml_import_cancelled": "Import YAML annulé. Aucun équipement n'a été modifié.",
       "ubiwizz_repeater_request_missing": "La session de diagnostic du répéteur a expiré ; recommence.",
+      "radio_probe_not_ready": "Le test radio passif n'a pas été initialisé.",
+      "radio_probe_no_target_packet": "Aucun télégramme radio complet de ce module n'a atteint Home Assistant avant l'expiration du test. Aucune radio n'a été émise et la configuration est inchangée.",
+      "radio_probe_target_ute": "Un télégramme UTE complet de ce module a atteint Home Assistant. Aucune réponse n'a été envoyée et la configuration est inchangée.",
+      "radio_probe_target_other": "Un télégramme complet non UTE de ce module a atteint Home Assistant. Aucune réponse n'a été envoyée et la configuration est inchangée.",
       "ute_discovery_not_ready": "L’écoute doit être armée avant la séquence PRESS locale.",
       "ute_discovery_write_unconfirmed": "La réponse UTE a été mise en file, mais son écriture physique USB300 n’a pas été confirmée. Aucun équipement n’a été enregistré.",
       "ute_discovery_queue_rejected": "La réponse UTE n’a pas été acceptée dans la file du dongle. Aucun équipement n’a été enregistré.",
