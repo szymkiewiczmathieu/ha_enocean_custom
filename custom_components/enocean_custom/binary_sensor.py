@@ -22,18 +22,13 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .device import EnOceanEntity
 from .enocean_library.protocol.constants import RORG
-from .enocean_library.utils import combine_hex
+from .identity import A514_EEP, a514_contact_unique_id, binary_sensor_unique_id
 from .learn import register_known_id
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, valid_ui_devices
 from .yaml_import import track_yaml_device
 
 DEFAULT_NAME = "EnOcean binary sensor"
 EVENT_BUTTON_PRESSED = "button_pressed"
-
-# Suffix of the unique_id minted by EnOceanA514Contact. It is the only exact
-# discriminator between the two binary sensor classes of this platform, since
-# device_class is free-form user input for rockers.
-A514_CONTACT_UNIQUE_ID_SUFFIX = "-a5-14-01-contact"
 
 ATTR_ONOFF, ATTR_WHICH, ATTR_REPEATED_TELEGRAM = (
     "OnOff",
@@ -80,7 +75,7 @@ async def async_setup_entry(
     configured = (
         (
             EnOceanA514Contact(row["id"], row["name"])
-            if (row.get("radio_metadata") or {}).get("eep") == "A5-14-01"
+            if (row.get("radio_metadata") or {}).get("eep") == A514_EEP
             else EnOceanBinarySensor(row["id"], row["name"], row["device_class"])
         ).set_radio_metadata(row.get("radio_metadata"))
         for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
@@ -102,7 +97,7 @@ class EnOceanBinarySensor(EnOceanEntity, BinarySensorEntity):
         super().__init__(dev_id, dev_name)
         self._attr_device_class = device_class
         self._attr_name = dev_name
-        self._attr_unique_id = f"{combine_hex(dev_id)}-{device_class}"
+        self._attr_unique_id = binary_sensor_unique_id(dev_id, device_class)
         self.onoff = -1
         self.which = -1
         self.repeated_telegram: int = -1
@@ -173,7 +168,7 @@ class EnOceanA514Contact(EnOceanEntity, BinarySensorEntity):
         """Initialize an automatically mapped contact."""
         super().__init__(dev_id, dev_name)
         self._attr_name = dev_name
-        self._attr_unique_id = f"{combine_hex(dev_id)}{A514_CONTACT_UNIQUE_ID_SUFFIX}"
+        self._attr_unique_id = a514_contact_unique_id(dev_id)
 
     @override
     def value_changed(self, packet) -> None:

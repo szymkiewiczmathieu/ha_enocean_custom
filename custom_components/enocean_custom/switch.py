@@ -30,6 +30,7 @@ from .device import EnOceanEntity, build_radio_optional, get_gateway_base_id
 from .enocean_library.protocol.constants import RORG
 from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
 from .enocean_library.utils import combine_hex
+from .identity import switch_unique_id
 from .learn import register_known_id
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devices
 from .ubiwizz import UBIWIZZ_ACTUATOR_PROFILES, valid_ubiwizz_actuator_channel
@@ -76,7 +77,7 @@ PLATFORM_SCHEMA = vol.All(
 
 def generate_unique_id(dev_id: list[int], channel: int) -> str:
     """Build the channel-aware identity used since the core integration."""
-    return f"{combine_hex(dev_id)}-{channel}"
+    return switch_unique_id(dev_id, channel)
 
 
 def _migrate_to_new_unique_id(

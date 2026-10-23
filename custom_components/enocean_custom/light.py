@@ -30,7 +30,7 @@ from .const import DOMAIN, SERVICE_SEND_TEACH_IN
 from .device import EnOceanEntity, build_radio_optional
 from .enocean_library.protocol.constants import RORG
 from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
-from .enocean_library.utils import combine_hex
+from .identity import light_unique_id
 from .learn import register_known_id
 from .schema import (
     CONF_UI_DEVICES,
@@ -149,7 +149,7 @@ class EnOceanLight(EnOceanEntity, LightEntity):
         self._attr_brightness = 50
         self._attr_is_on = None
         self._attr_name = dev_name
-        self._attr_unique_id = str(combine_hex(dev_id or sender_id or []))
+        self._attr_unique_id = light_unique_id(dev_id, sender_id)
         self._channel = channel
         self._sender_id = sender_id
 

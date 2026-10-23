@@ -38,7 +38,18 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from .const import DOMAIN, LOGGER
 from .device import EnOceanEntity
 from .enocean_library.protocol.constants import RORG
-from .enocean_library.utils import combine_hex
+from .identity import (
+    A514_EEP,
+    SENSOR_KEY_A514_SUPPLY_VOLTAGE,
+    SENSOR_KEY_CONTACT,
+    SENSOR_KEY_ENERGY,
+    SENSOR_KEY_HUMIDITY,
+    SENSOR_KEY_POWER,
+    SENSOR_KEY_SHUTTERCONTACT,
+    SENSOR_KEY_TEMPERATURE,
+    SENSOR_KEY_WINDOWHANDLE,
+    sensor_unique_id,
+)
 from .learn import register_known_id
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devices
 from .yaml_import import track_yaml_device
@@ -67,35 +78,35 @@ class EnOceanSensorEntityDescription(SensorEntityDescription):
 
 
 SENSOR_DESC_TEMPERATURE = EnOceanSensorEntityDescription(
-    key=SENSOR_TYPE_TEMPERATURE,
+    key=SENSOR_KEY_TEMPERATURE,
     name="Temperature",
     native_unit_of_measurement=UnitOfTemperature.CELSIUS,
     device_class=SensorDeviceClass.TEMPERATURE,
     state_class=SensorStateClass.MEASUREMENT,
 )
 SENSOR_DESC_HUMIDITY = EnOceanSensorEntityDescription(
-    key=SENSOR_TYPE_HUMIDITY,
+    key=SENSOR_KEY_HUMIDITY,
     name="Humidity",
     native_unit_of_measurement=PERCENTAGE,
     device_class=SensorDeviceClass.HUMIDITY,
     state_class=SensorStateClass.MEASUREMENT,
 )
 SENSOR_DESC_POWER = EnOceanSensorEntityDescription(
-    key=SENSOR_TYPE_POWER,
+    key=SENSOR_KEY_POWER,
     name="Power",
     native_unit_of_measurement=UnitOfPower.WATT,
     device_class=SensorDeviceClass.POWER,
     state_class=SensorStateClass.MEASUREMENT,
 )
 SENSOR_DESC_ENERGY = EnOceanSensorEntityDescription(
-    key="energy",
+    key=SENSOR_KEY_ENERGY,
     name="Energy",
     native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
     device_class=SensorDeviceClass.ENERGY,
     state_class=SensorStateClass.TOTAL_INCREASING,
 )
 SENSOR_DESC_SUPPLY_VOLTAGE = EnOceanSensorEntityDescription(
-    key="a5_14_01_supply_voltage",
+    key=SENSOR_KEY_A514_SUPPLY_VOLTAGE,
     name="Supply voltage",
     native_unit_of_measurement=UnitOfElectricPotential.VOLT,
     device_class=SensorDeviceClass.VOLTAGE,
@@ -104,18 +115,18 @@ SENSOR_DESC_SUPPLY_VOLTAGE = EnOceanSensorEntityDescription(
     entity_registry_enabled_default=False,
 )
 SENSOR_DESC_WINDOWHANDLE = EnOceanSensorEntityDescription(
-    key=SENSOR_TYPE_WINDOWHANDLE,
+    key=SENSOR_KEY_WINDOWHANDLE,
     name="WindowHandle",
     translation_key="window_handle",
 )
 SENSOR_DESC_CONTACT = EnOceanSensorEntityDescription(
-    key="d5_00_01_contact",
+    key=SENSOR_KEY_CONTACT,
     name="Contact",
     icon="mdi:door",
 )
 SENSOR_DESC_SHUTTERCONTACT: EnOceanSensorEntityDescription = (
     EnOceanSensorEntityDescription(
-        key=str(SENSOR_TYPE_SHUTTERCONTACT),
+        key=SENSOR_KEY_SHUTTERCONTACT,
         name=("Shutter" + "Contact"),
         icon=("mdi:" + "window-open-variant"),
     )
@@ -194,7 +205,7 @@ async def async_setup_entry(
     for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, [])):
         if (
             row["platform"] == "binary_sensor"
-            and (row.get("radio_metadata") or {}).get("eep") == "A5-14-01"
+            and (row.get("radio_metadata") or {}).get("eep") == A514_EEP
         ):
             entities.append(
                 EnOceanA514Voltage(
@@ -270,7 +281,7 @@ class EnOceanSensor(EnOceanEntity, RestoreSensor):
         super().__init__(dev_id, dev_name)
         self.entity_description = description
         self._attr_name = f"{description.name} {dev_name}"
-        self._attr_unique_id = f"{combine_hex(dev_id)}-{description.key}"
+        self._attr_unique_id = sensor_unique_id(dev_id, description.key)
 
     @override
     async def async_added_to_hass(self) -> None:

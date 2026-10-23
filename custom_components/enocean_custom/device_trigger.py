@@ -20,8 +20,9 @@ from homeassistant.helpers import selector
 from homeassistant.helpers.trigger import TriggerActionType, TriggerInfo
 from homeassistant.helpers.typing import ConfigType
 
-from .binary_sensor import A514_CONTACT_UNIQUE_ID_SUFFIX, EVENT_BUTTON_PRESSED
+from .binary_sensor import EVENT_BUTTON_PRESSED
 from .const import DOMAIN
+from .identity import A514_CONTACT_UNIQUE_ID_SUFFIX
 
 # Every trigger type maps to the exact subset of button_pressed event data it
 # must match. The delegated event trigger compares those pairs for equality, so

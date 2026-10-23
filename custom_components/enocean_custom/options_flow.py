@@ -72,6 +72,7 @@ from .enocean_library.protocol.packet import (
     UTETeachInPacket,
 )
 from .enocean_library.utils import combine_hex, to_hex_string
+from .identity import ui_device_entity_identities
 from .inbox import get_device_inbox
 from .learn import get_known_ids, get_learn_manager
 from .light import CONF_SENDER_ID
@@ -130,17 +131,15 @@ UTE_DISCOVERY_TIMEOUT = 30.0
 
 
 def _unique_id_for(device: dict[str, Any]) -> str:
-    """Return the unique_id the matching YAML platform would have produced."""
-    identifier = combine_hex(device["id"])
-    if device["platform"] == "binary_sensor":
-        return f"{identifier}-{device['device_class']}"
-    if device["platform"] == "switch":
-        return f"{identifier}-{device['channel']}"
-    if device["platform"] == "climate":
-        return f"{identifier}-0"
-    if device["platform"] == "sensor":
-        return f"{identifier}-{device['device_class']}"
-    return f"{identifier}"
+    """Return the unique_id of the entity on the row's own platform.
+
+    It is computed by the same shared formulas the platforms use, so it is the
+    real registry identity. Companion entities created on other platforms
+    (energy counter, A5-14-01 supply voltage) are listed by
+    ``ui_device_entity_identities``; collision checks and deletion use that
+    complete list, while this primary identity keys rows within the flow.
+    """
+    return ui_device_entity_identities(device)[0][1]
 
 
 def _parse_sender_id(value: Any) -> list[int] | None:
@@ -2152,16 +2151,25 @@ class EnOceanOptionsFlow(OptionsFlow):
     def _options_with_added_device(
         self, device: dict[str, Any]
     ) -> dict[str, Any] | None:
-        """Return options containing a device, or None on identity collision."""
-        unique_id = _unique_id_for(device)
+        """Return options containing a device, or None on identity collision.
+
+        Every entity the row would create is checked against the registry and
+        against every entity the stored rows create, so a companion entity
+        (energy counter, A5-14-01 supply voltage) can neither be duplicated nor
+        silently merged.
+        """
         registry = er.async_get(self.hass)
-        existing_devices = valid_ui_devices(
-            self.config_entry.options.get(CONF_UI_DEVICES, [])
-        )
-        if registry.async_get_entity_id(
-            device["platform"], DOMAIN, unique_id
-        ) is not None or any(
-            _unique_id_for(existing) == unique_id for existing in existing_devices
+        stored_identities = {
+            identity
+            for existing in valid_ui_devices(
+                self.config_entry.options.get(CONF_UI_DEVICES, [])
+            )
+            for identity in ui_device_entity_identities(existing)
+        }
+        if any(
+            (platform, unique_id) in stored_identities
+            or registry.async_get_entity_id(platform, DOMAIN, unique_id) is not None
+            for platform, unique_id in ui_device_entity_identities(device)
         ):
             return None
         updated_options = dict(self.config_entry.options)
@@ -2208,11 +2216,13 @@ class EnOceanOptionsFlow(OptionsFlow):
         if combine_hex(device["id"]) in get_known_ids(self.hass):
             return dict(self.config_entry.options), "yaml_managed"
 
-        unique_id = _unique_id_for(device)
+        # Remove every entity this row created, companions included, so no
+        # orphaned registry row survives the deletion.
         registry = er.async_get(self.hass)
-        entity_id = registry.async_get_entity_id(device["platform"], DOMAIN, unique_id)
-        if entity_id is not None:
-            registry.async_remove(entity_id)
+        for platform, unique_id in ui_device_entity_identities(device):
+            entity_id = registry.async_get_entity_id(platform, DOMAIN, unique_id)
+            if entity_id is not None:
+                registry.async_remove(entity_id)
 
         raw_devices.pop(index)
         updated_options = dict(self.config_entry.options)
@@ -2247,9 +2257,10 @@ class EnOceanOptionsFlow(OptionsFlow):
     async def async_step_delete_confirm(self, user_input=None):
         """Confirm, then remove a UI device from options and the registry.
 
-        Deletion only ever targets the registry row whose domain, platform and
-        unique_id match exactly; teach-in re-offers the freed EnOcean ID on
-        the next learn window because known ids are re-seeded from options.
+        Deletion only ever targets the registry rows whose domain, platform and
+        unique_id match one of the entities this row created; teach-in re-offers
+        the freed EnOcean ID on the next learn window because known ids are
+        re-seeded from options.
         """
         raw_devices = list(self.config_entry.options.get(CONF_UI_DEVICES, []))
         index = self._manage_index

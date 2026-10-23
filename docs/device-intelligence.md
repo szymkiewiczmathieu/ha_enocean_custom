@@ -239,8 +239,9 @@ configuration and `ui_devices` rows without `radio_metadata` stay valid.
 
 The v2.3 options flow inventories YAML configuration in memory only. It imports
 only `binary_sensor` and `switch`, because those platforms share their exact
-legacy unique-ID formulas with `_unique_id_for`. In particular, a binary sensor
-without `device_class` deliberately remains `<decimal-id>-None`. Sensor, light,
+legacy unique-ID formulas with the options flow through the `identity` module,
+which every platform uses to mint its `unique_id`. In particular, a binary
+sensor without `device_class` deliberately remains `<decimal-id>-None`. Sensor, light,
 and climate YAML entries are reported as non-importable and remain untouched.
 
 Imported rows carry no `radio_metadata`: migration is configuration transport,

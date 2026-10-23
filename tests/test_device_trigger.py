@@ -28,7 +28,6 @@ try:
     from homeassistant.helpers import selector
 
     from custom_components.enocean_custom.binary_sensor import (
-        A514_CONTACT_UNIQUE_ID_SUFFIX,
         EVENT_BUTTON_PRESSED,
         EnOceanBinarySensor,
     )
@@ -47,6 +46,9 @@ try:
     )
     from custom_components.enocean_custom.enocean_library.protocol.packet import (
         Packet,
+    )
+    from custom_components.enocean_custom.identity import (
+        A514_CONTACT_UNIQUE_ID_SUFFIX,
     )
 
     HA_AVAILABLE = True
