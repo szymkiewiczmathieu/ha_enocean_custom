@@ -55,41 +55,68 @@ the module switched its output, retained a configuration change, or belongs to
 the configured profile. The entity state remains unknown until matching D2
 status is received.
 
-### Directed UTE association
+### UTE association from the module's request
 
 The UBID1507C manual describes the local physical sequence: make three short
 `PRESS` presses to enter association mode; for output 2, make one further short
 press before operating the compatible transmitter. Verify the actual module
 revision and LED behavior in the manual.
 
-For Home Assistant association, select **Associate Ubiwizz by directed UTE
-telegram**, enter the module EURID from its label (a typed `AA:BB:CC:DD` ID or
-supported 30S/1P label), and separately choose relay output `0` or `1`. The
-output choice is **not** the UTE byte `02`. The first form sends no radio.
+For Home Assistant association, select **Associate a Ubiwizz module from its
+UTE request**, enter the module EURID from its label (a typed `AA:BB:CC:DD` ID
+or supported 30S/1P label), and choose relay output `0` or `1`. The output
+choice selects the stored row only; it is never written into a UTE telegram.
+Submitting the form arms a listener bounded to 60 seconds and sends no radio.
+Confirm the second form, then start the local PRESS sequence.
 
-After the local physical PRESS sequence is active, tick the final confirmation.
-The guided flow immediately queues one standard directed UTE telegram with the
-resolved dongle Base ID as sender and the entered module EURID as destination:
+The module transmits its UTE teach-in request (RORG `D4`, CMD0). Home
+Assistant answers only when every check passes:
+
+| Check         | Accepted                                                                              |
+| ------------- | ------------------------------------------------------------------------------------- |
+| Sender        | exactly the entered EURID                                                             |
+| Request       | teach-in (not delete), bidirectional, response expected                               |
+| Profile       | `D2-01-08` or `D2-01-12`, manufacturer `0x046`                                        |
+| DB5 (channel) | the selected output, `0xFF` (all channels), or `0x02` (the documented field capture)  |
+| Freshness     | parsed less than 500 ms before the check                                              |
+| Base ID       | resolved on the dongle                                                                |
+| Identity      | the `(EURID, output)` row does not exist yet, or is a manual placeholder to promote  |
+
+Any other telegram is ignored silently; the received DB5 value is logged at
+debug level. A matching request that is already too old aborts the flow with
+"deadline missed" and is deliberately not answered.
+
+The single response is a directed standard UTE telegram whose data bytes
+DB5..DB0 are copied from the request, sent from the resolved dongle Base ID to
+the module EURID:
 
 ```text
-D4 91 02 46 00 12 01 D2 [dongle Base ID] 00
+D4 91 [DB5 from request] 46 00 [12 or 08] 01 D2 [dongle Base ID] 00
 optional: 03 [module EURID] FF 00
 ```
 
-The ERP1 data after the D4 RORG starts exactly `91 02 46 00 12 01 D2`. The flow
-validates the four-byte EURID, output, profile fields, and resolved Base ID
-before it transmits; it rejects an already configured `(EURID, output)` before
-queueing radio. It does not listen for or acknowledge an incoming D4/A0 request,
-does not broadcast UTE, and does not guess an EURID from unrelated traffic.
+The listener closes before the response is queued, so one session answers at
+most one request. The switch row is saved only after the dongle reports the
+physical serial write of that exact packet and ESP3 `OK`, within 30 seconds;
+the stored EEP, manufacturer, and evidence come from the module's own request
+(`radio_declared`, `exact`). A window that expires without a matching request,
+an unavailable Base ID, a queue refusal, a missing write confirmation, or a
+missing or rejected ESP3 result each end the flow without saving anything.
+ESP3 `OK` proves only that the USB dongle transmitted the response; it cannot
+prove the module retained the association. Verify normal directed D2 feedback
+and safe `turn_on`/`turn_off` control afterwards.
 
-The module row is saved only after the ESP3 callback reports `OK`. That proves
-only that the USB dongle accepted the directed D4/91 telegram; it cannot prove
-the module retained the association. Verify normal directed D2 feedback and
-safe `turn_on`/`turn_off` control afterwards.
+This association action never broadcasts UTE and never sends a D2 relay
+command. Normal `turn_on` and `turn_off` control remains the separate directed
+D2 path, and ESP3 `OK` on that path is also only transport evidence.
 
-This association action never sends a D2 relay command. Normal `turn_on` and
-`turn_off` control remains the separate directed D2 path, and ESP3 `OK` on that
-path is also only transport evidence.
+### Passive radio test
+
+**Passively test a module radio signal** arms the same bounded listener for an
+entered EURID and reports whether one complete UTE or non-UTE telegram from
+that module reached the dongle. It never transmits, never creates a device, and
+never changes options. Use it to tell a module that is not heard at all from a
+module that speaks an unexpected protocol before retrying the association.
 
 ## Repeater boundary
 

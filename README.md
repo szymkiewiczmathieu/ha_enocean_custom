@@ -51,13 +51,21 @@ identity model are in [Device Intelligence](docs/device-intelligence.md).
 - **An EEP is not a product identity.** A sender ID identifies a radio and an
   EEP identifies a data profile. Model claims require exact Product-ID evidence;
   manual EEP values remain operator assertions.
-- **Directed UTE is explicit and gateway-initiated.** For UBID1507C, enter the
-  exact label EURID in the guided flow, complete the documented local association
-  sequence (three short `PRESS` presses for output 1, plus one more for output
-  2), then explicitly confirm. Home Assistant immediately sends one directed
-  standard `D4 91 02 46 00 12 01 D2 [dongle Base ID] 00` UTE telegram to that
-  EURID. It neither waits for nor acknowledges an incoming D4/A0 request, never
-  broadcasts UTE, and never sends a D2 relay command from this association flow.
+- **UTE association is request-driven and bounded.** For UBID1507C, enter the
+  exact label EURID and the output in the guided flow. Home Assistant arms a
+  60-second listener and sends nothing. Then run the documented local
+  association sequence (three short `PRESS` presses for output 1, plus one more
+  for output 2): the module transmits its UTE teach-in request (`D4`, CMD0).
+  Only a matching request (exact EURID, bidirectional with response expected,
+  `D2-01-08`/`D2-01-12`, manufacturer `0x046`, DB5 equal to the selected
+  output, `0xFF`, or the documented `0x02`), parsed less than 500 ms earlier,
+  is answered with exactly one directed standard
+  `D4 91 [DB5 from request] 46 00 [12 or 08] 01 D2 [dongle Base ID] 00` telegram
+  to that EURID. The switch row is saved only after the dongle confirms the
+  physical write and ESP3 `OK`, and its profile comes from the module's own
+  request. The flow never broadcasts UTE and never sends a D2 relay command.
+  A separate **passive radio test** listens for one telegram from an EURID and
+  sends nothing at all.
 - **ESP3 `OK` is transport evidence, not device evidence.** Switch and light
   state changes require matching inbound feedback where the profile supports it.
 - **Diagnostics are privacy-aware.** They expose lifecycle and aggregate radio
