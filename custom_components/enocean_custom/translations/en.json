@@ -336,6 +336,15 @@
           "closed": "Closed"
         }
       },
+      "radio_rssi": {
+        "name": "Signal strength"
+      },
+      "radio_last_seen": {
+        "name": "Last telegram"
+      },
+      "radio_repeater_count": {
+        "name": "Repeater hops"
+      },
       "gateway_received_telegrams": {
         "name": "Received telegrams"
       },

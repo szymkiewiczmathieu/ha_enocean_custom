@@ -116,6 +116,12 @@ own four-byte sender ID.
 - **Exactly one ESP3 command is in flight.** The worker waits for the dongle's
   response before writing the next packet; a missing response stops the
   transport instead of mis-attributing a later response.
+- **Radio health is observable.** The dongle appears as its own device
+  (firmware and chip version read with `CO_RD_VERSION`, received-telegram
+  counter, last telegram, connectivity, Base ID). Every radio device carries
+  three diagnostic sensors, disabled by default: signal strength (dBm, icon by
+  range), last telegram and repeater hops. Enable them from the device page to
+  build a coverage dashboard; they cost nothing while disabled.
 
 ## Actions
 

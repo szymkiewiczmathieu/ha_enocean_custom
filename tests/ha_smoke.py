@@ -931,7 +931,11 @@ async def _assert_ui_devices_create_entities_with_yaml_compatible_unique_ids() -
                 raise AssertionError("UI light unique_id diverged from YAML formula")
             sensor_id = (0x60 << 24) | (0x61 << 16) | (0x62 << 8) | 0x63
             climate_id = (0x70 << 24) | (0x71 << 16) | (0x72 << 8) | 0x73
-            if sensor_entities[0].unique_id != f"{sensor_id}-temperature":
+            # The sensor platform also creates the per-sender radio diagnostics,
+            # so the measurement entity is looked up by identity, not by index.
+            if f"{sensor_id}-temperature" not in {
+                entity.unique_id for entity in sensor_entities
+            }:
                 raise AssertionError("UI sensor unique_id diverged from YAML formula")
             if climate_entities[0].unique_id != f"{climate_id}-0":
                 raise AssertionError("UI climate unique_id diverged from YAML formula")

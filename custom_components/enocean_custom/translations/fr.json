@@ -336,6 +336,15 @@
           "closed": "Fermé"
         }
       },
+      "radio_rssi": {
+        "name": "Force du signal"
+      },
+      "radio_last_seen": {
+        "name": "Dernier télégramme"
+      },
+      "radio_repeater_count": {
+        "name": "Sauts de répéteur"
+      },
       "gateway_received_telegrams": {
         "name": "Télégrammes reçus"
       },

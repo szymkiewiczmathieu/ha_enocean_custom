@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, override
 
 import voluptuous as vol
@@ -23,6 +23,7 @@ from homeassistant.const import (
     CONF_ID,
     CONF_NAME,
     PERCENTAGE,
+    SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     STATE_CLOSED,
     STATE_OPEN,
     UnitOfElectricPotential,
@@ -38,7 +39,7 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .const import DOMAIN, LOGGER
 from .enocean_library.protocol.constants import RORG
-from .enocean_library.utils import to_hex_string
+from .enocean_library.utils import combine_hex, to_hex_string
 from .entity import EnOceanEntity, EnOceanGatewayEntity
 from .identity import (
     A514_EEP,
@@ -50,11 +51,16 @@ from .identity import (
     SENSOR_KEY_ENERGY,
     SENSOR_KEY_HUMIDITY,
     SENSOR_KEY_POWER,
+    SENSOR_KEY_RADIO_LAST_SEEN,
+    SENSOR_KEY_RADIO_REPEATER_COUNT,
+    SENSOR_KEY_RADIO_RSSI,
     SENSOR_KEY_SHUTTERCONTACT,
     SENSOR_KEY_TEMPERATURE,
     SENSOR_KEY_WINDOWHANDLE,
+    device_names_by_sender,
     sensor_unique_id,
 )
+from .inbox import PacketObservation, packet_observation
 from .learn import register_known_id
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devices
 from .yaml_import import track_yaml_device
@@ -223,9 +229,14 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Create measurement entities stored in the entry options."""
-    entities: list[SensorEntity] = list(_gateway_entities(entry))
-    for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, [])):
+    """Create measurement entities stored in the entry options.
+
+    Row entities come first; the device-level radio diagnostics and the
+    gateway's own sensors are appended after them.
+    """
+    entities: list[SensorEntity] = []
+    rows = valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
+    for row in rows:
         if (
             row["platform"] == "binary_sensor"
             and (row.get("radio_metadata") or {}).get("eep") == A514_EEP
@@ -254,6 +265,8 @@ async def async_setup_entry(
             entity.set_radio_metadata(row.get("radio_metadata"))
             for entity in _entities_from_config(config)
         )
+    entities.extend(_radio_diagnostic_entities(rows))
+    entities.extend(_gateway_entities(entry))
     async_add_entities(entities)
 
 
@@ -325,6 +338,113 @@ class EnOceanGatewayBaseId(EnOceanGatewayEntity, SensorEntity):
         if not isinstance(base_id, (list, tuple)) or len(base_id) != 4:
             return None
         return to_hex_string(list(base_id))
+
+
+def _radio_diagnostic_entities(rows: list[dict]) -> list[EnOceanRadioDiagnosticSensor]:
+    """Return one RSSI / last-seen / repeater set per configured sender.
+
+    The set belongs to the device, so a sender that owns several rows (two
+    relay channels, a rocker that is also a switch) gets exactly one set, named
+    after the device.
+    """
+    names = device_names_by_sender(rows)
+    entities: list[EnOceanRadioDiagnosticSensor] = []
+    seen: set[int] = set()
+    for row in rows:
+        sender = combine_hex(row["id"])
+        if sender in seen:
+            continue
+        seen.add(sender)
+        for sensor_class in (
+            EnOceanRssiSensor,
+            EnOceanLastSeenSensor,
+            EnOceanRepeaterCountSensor,
+        ):
+            entities.append(
+                sensor_class(row["id"], names[sender]).set_radio_metadata(
+                    row.get("radio_metadata")
+                )
+            )
+    return entities
+
+
+class EnOceanRadioDiagnosticSensor(EnOceanEntity, RestoreSensor):
+    """Radio facts about one sender, fed by every telegram it transmits.
+
+    Disabled by default (Quality Scale ``entity-disabled-by-default``): they
+    are a radio-coverage dashboard for people who want one, not noise for
+    everyone. Values are restored across restarts so a device that transmits
+    rarely does not look blank after a reboot.
+    """
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+    _attr_has_entity_name = True
+    _key = ""
+
+    def __init__(self, dev_id: list[int], dev_name: str) -> None:
+        """Bind the diagnostic to one sender identity."""
+        super().__init__(dev_id, dev_name)
+        self._attr_unique_id = sensor_unique_id(dev_id, self._key)
+        self._attr_translation_key = self._key
+
+    @override
+    async def async_added_to_hass(self) -> None:
+        """Restore the last known radio fact."""
+        await super().async_added_to_hass()
+        if self._attr_native_value is not None:
+            return
+        if (sensor_data := await self.async_get_last_sensor_data()) is not None:
+            self._attr_native_value = sensor_data.native_value
+
+    @override
+    def value_changed(self, packet) -> None:
+        """Update from the radio envelope of any telegram of this sender."""
+        observation = packet_observation(packet)
+        if observation is None:
+            return
+        self._apply(observation)
+        self.schedule_update_ha_state()
+
+    def _apply(self, observation: PacketObservation) -> None:
+        """Store the fact this sensor exposes."""
+
+
+class EnOceanRssiSensor(EnOceanRadioDiagnosticSensor):
+    """Signal strength of the last telegram, as reported by the dongle."""
+
+    _key = SENSOR_KEY_RADIO_RSSI
+    _attr_device_class = SensorDeviceClass.SIGNAL_STRENGTH
+    _attr_native_unit_of_measurement = SIGNAL_STRENGTH_DECIBELS_MILLIWATT
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    @override
+    def _apply(self, observation: PacketObservation) -> None:
+        if observation.rssi_dbm is not None:
+            self._attr_native_value = observation.rssi_dbm
+
+
+class EnOceanLastSeenSensor(EnOceanRadioDiagnosticSensor):
+    """UTC time of the last telegram received from this sender."""
+
+    _key = SENSOR_KEY_RADIO_LAST_SEEN
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    @override
+    def _apply(self, observation: PacketObservation) -> None:
+        self._attr_native_value = datetime.now(UTC)
+
+
+class EnOceanRepeaterCountSensor(EnOceanRadioDiagnosticSensor):
+    """Repeater hops of the last RPS/1BS/4BS telegram (ERP1 status bits 0..3)."""
+
+    _key = SENSOR_KEY_RADIO_REPEATER_COUNT
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    @override
+    def _apply(self, observation: PacketObservation) -> None:
+        if observation.repeater_count is not None:
+            self._attr_native_value = observation.repeater_count
 
 
 def _entities_from_config(config: ConfigType) -> list[EnOceanSensor]:

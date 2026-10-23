@@ -53,6 +53,19 @@ A514_EEP: Final = "A5-14-01"
 A514_CONTACT_UNIQUE_ID_SUFFIX: Final = "-a5-14-01-contact"
 
 
+# Per-sender radio diagnostics, added in 2.10.0: one set per device rather than
+# per row, disabled by default. They are not part of
+# ``ui_device_entity_identities`` (which stays frozen for parity with existing
+# installations); the options flow removes them with the last row of a sender.
+SENSOR_KEY_RADIO_RSSI: Final = "radio_rssi"
+SENSOR_KEY_RADIO_LAST_SEEN: Final = "radio_last_seen"
+SENSOR_KEY_RADIO_REPEATER_COUNT: Final = "radio_repeater_count"
+RADIO_DIAGNOSTIC_KEYS: Final = (
+    SENSOR_KEY_RADIO_RSSI,
+    SENSOR_KEY_RADIO_LAST_SEEN,
+    SENSOR_KEY_RADIO_REPEATER_COUNT,
+)
+
 # Gateway (dongle) entities, added in 2.10.0. They hang off the config entry,
 # not off a radio sender, so their identities are keyed by the entry id.
 GATEWAY_KEY_RECEIVED_TELEGRAMS: Final = "gateway_received_telegrams"
@@ -104,6 +117,26 @@ def light_unique_id(dev_id: list[int] | None, sender_id: list[int] | None) -> st
 def sensor_unique_id(dev_id: list[int], key: str) -> str:
     """Return the identity of one measurement entity (description key)."""
     return f"{combine_hex(dev_id)}-{key}"
+
+
+def sender_diagnostic_identities(dev_id: list[int]) -> tuple[tuple[str, str], ...]:
+    """Return every ``(platform, unique_id)`` of one sender's radio diagnostics."""
+    return tuple(
+        ("sensor", sensor_unique_id(dev_id, key)) for key in RADIO_DIAGNOSTIC_KEYS
+    )
+
+
+def device_names_by_sender(rows: Any) -> dict[int, str]:
+    """Return the device name of each sender: the name of its first valid row.
+
+    Several rows may share one sender (two relay channels, a rocker that is
+    also a switch). Entities that belong to the device rather than to a row
+    use this stable choice instead of whichever row happens to load last.
+    """
+    names: dict[int, str] = {}
+    for row in rows:
+        names.setdefault(combine_hex(row["id"]), row["name"])
+    return names
 
 
 def sensor_keys_for_device_class(device_class: object) -> tuple[str, ...]:

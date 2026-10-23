@@ -72,7 +72,7 @@ from .enocean_library.protocol.packet import (
 )
 from .enocean_library.utils import combine_hex, to_hex_string
 from .entity import build_radio_optional, get_gateway_base_id
-from .identity import ui_device_entity_identities
+from .identity import sender_diagnostic_identities, ui_device_entity_identities
 from .inbox import get_device_inbox
 from .learn import get_known_ids, get_learn_manager
 from .light import CONF_SENDER_ID
@@ -2225,6 +2225,13 @@ class EnOceanOptionsFlow(OptionsFlow):
                 registry.async_remove(entity_id)
 
         raw_devices.pop(index)
+        # The radio diagnostics belong to the device, not to the row: they go
+        # when the last row of that sender goes.
+        if not any(row["id"] == device["id"] for row in valid_ui_devices(raw_devices)):
+            for platform, unique_id in sender_diagnostic_identities(device["id"]):
+                entity_id = registry.async_get_entity_id(platform, DOMAIN, unique_id)
+                if entity_id is not None:
+                    registry.async_remove(entity_id)
         updated_options = dict(self.config_entry.options)
         updated_options[CONF_UI_DEVICES] = raw_devices
         return updated_options, None

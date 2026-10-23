@@ -37,6 +37,7 @@ try:  # The bare unit-test environment has no Home Assistant installed.
     from custom_components.enocean_custom.const import DOMAIN
     from custom_components.enocean_custom.identity import (
         SENSOR_KEYS_BY_DEVICE_CLASS,
+        sender_diagnostic_identities,
         sensor_keys_for_device_class,
         sensor_unique_id,
         ui_device_entity_identities,
@@ -212,8 +213,16 @@ class PlatformParityAndRegistryTests(unittest.IsolatedAsyncioTestCase):
         for name, row in _rows().items():
             with self.subTest(row=name):
                 created = await self._entities_created_by_platforms(row)
+                # A row creates exactly its frozen identities, plus the one
+                # device-level set of radio diagnostics of its sender (2.10.0).
                 self.assertEqual(
-                    sorted(created), sorted(ui_device_entity_identities(row))
+                    sorted(created),
+                    sorted(
+                        (
+                            *ui_device_entity_identities(row),
+                            *sender_diagnostic_identities(row["id"]),
+                        )
+                    ),
                 )
                 self.assertEqual(len(created), len(set(created)))
 

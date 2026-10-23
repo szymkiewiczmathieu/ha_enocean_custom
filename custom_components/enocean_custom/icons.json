@@ -24,6 +24,21 @@
           "closed": "mdi:door-closed"
         }
       },
+      "radio_rssi": {
+        "default": "mdi:signal-cellular-outline",
+        "range": {
+          "-120": "mdi:signal-cellular-outline",
+          "-90": "mdi:signal-cellular-1",
+          "-75": "mdi:signal-cellular-2",
+          "-60": "mdi:signal-cellular-3"
+        }
+      },
+      "radio_last_seen": {
+        "default": "mdi:clock-check-outline"
+      },
+      "radio_repeater_count": {
+        "default": "mdi:repeat"
+      },
       "gateway_received_telegrams": {
         "default": "mdi:radio-tower"
       },
