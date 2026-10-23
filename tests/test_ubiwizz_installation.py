@@ -155,20 +155,23 @@ class HoppeAndContactEepTests(TestCase):
         entity = self._sensor(
             EnOceanWindowHandle([1, 2, 3, 4], "handle", SENSOR_DESC_WINDOWHANDLE)
         )
+        # An undocumented nibble is exposed as None, which Home Assistant
+        # renders as "unknown" exactly as before the ENUM device class.
         for payload, expected in (
             (0xC1, "open"),
             (0xE7, "open"),
             (0xD0, "tilt"),
             (0xF3, "closed"),
-            (0xB0, "unknown"),
+            (0xB0, None),
         ):
             entity.value_changed(
                 SimpleNamespace(rorg=RORG.RPS, data=[RORG.RPS, payload])
             )
             self.assertEqual(entity.native_value, expected)
 
+        entity.value_changed(SimpleNamespace(rorg=RORG.RPS, data=[RORG.RPS, 0xF3]))
         entity.value_changed(SimpleNamespace(rorg=RORG.RPS, data=[RORG.RPS]))
-        self.assertEqual(entity.native_value, "unknown")
+        self.assertEqual(entity.native_value, "closed", "truncated RPS keeps state")
 
     def test_d5_00_01_maps_data_and_ignores_teach_in(self) -> None:
         entity = self._sensor(

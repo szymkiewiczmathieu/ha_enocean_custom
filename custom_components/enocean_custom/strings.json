@@ -309,6 +309,25 @@
       "ute_discovery_deadline_missed": "A matching UTE request arrived after the response deadline. It was deliberately not answered and no device was saved."
     }
   },
+  "entity": {
+    "sensor": {
+      "window_handle": {
+        "name": "Handle position",
+        "state": {
+          "open": "Open",
+          "tilt": "Tilted",
+          "closed": "Closed"
+        }
+      },
+      "d5_contact": {
+        "name": "Contact",
+        "state": {
+          "open": "Open",
+          "closed": "Closed"
+        }
+      }
+    }
+  },
   "services": {
     "climate_teach_in_actor": {
       "name": "Teach in climate actuator",

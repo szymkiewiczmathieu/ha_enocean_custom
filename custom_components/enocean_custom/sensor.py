@@ -23,7 +23,6 @@ from homeassistant.const import (
     PERCENTAGE,
     STATE_CLOSED,
     STATE_OPEN,
-    STATE_UNKNOWN,
     UnitOfElectricPotential,
     UnitOfEnergy,
     UnitOfPower,
@@ -117,21 +116,36 @@ SENSOR_DESC_SUPPLY_VOLTAGE = EnOceanSensorEntityDescription(
     entity_category=EntityCategory.DIAGNOSTIC,
     entity_registry_enabled_default=False,
 )
+# State values are frozen: automations in the field match on them. The ENUM
+# device class only adds the option list, per-state icons (icons.json) and
+# translated state labels (strings.json ``entity.sensor``); an unknown
+# position is exposed as ``None`` so Home Assistant renders ``unknown`` as
+# before without violating the option list.
+HANDLE_STATE_TILT = "tilt"
+WINDOW_HANDLE_OPTIONS = [STATE_OPEN, HANDLE_STATE_TILT, STATE_CLOSED]
+CONTACT_OPTIONS = [STATE_OPEN, STATE_CLOSED]
+
 SENSOR_DESC_WINDOWHANDLE = EnOceanSensorEntityDescription(
     key=SENSOR_KEY_WINDOWHANDLE,
     name="WindowHandle",
     translation_key="window_handle",
+    device_class=SensorDeviceClass.ENUM,
+    options=WINDOW_HANDLE_OPTIONS,
 )
 SENSOR_DESC_CONTACT = EnOceanSensorEntityDescription(
     key=SENSOR_KEY_CONTACT,
     name="Contact",
-    icon="mdi:door",
+    translation_key="d5_contact",
+    device_class=SensorDeviceClass.ENUM,
+    options=CONTACT_OPTIONS,
 )
 SENSOR_DESC_SHUTTERCONTACT: EnOceanSensorEntityDescription = (
     EnOceanSensorEntityDescription(
         key=SENSOR_KEY_SHUTTERCONTACT,
         name=("Shutter" + "Contact"),
-        icon=("mdi:" + "window-open-variant"),
+        translation_key="d5_contact",
+        device_class=SensorDeviceClass.ENUM,
+        options=CONTACT_OPTIONS,
     )
 )
 
@@ -293,7 +307,13 @@ class EnOceanSensor(EnOceanEntity, RestoreSensor):
         if self._attr_native_value is not None:
             return
         if (sensor_data := await self.async_get_last_sensor_data()) is not None:
-            self._attr_native_value = sensor_data.native_value
+            restored = sensor_data.native_value
+            # Releases before 2.10 persisted the literal "unknown" for handles
+            # and contacts; an ENUM sensor may only expose an option or None.
+            options = self.options
+            if options is not None and restored not in options:
+                restored = None
+            self._attr_native_value = restored
 
 
 def _decode_d2_measurement(packet) -> tuple[str, float] | None:
@@ -449,15 +469,15 @@ class EnOceanWindowHandle(EnOceanSensor):
 
     @override
     def value_changed(self, packet) -> None:
-        """Decode the documented destination position, or expose unknown."""
+        """Decode the documented destination position, or expose unknown (None)."""
         if packet.rorg != RORG.RPS or len(packet.data) < 2:
             return
         position = {
             0xC0: STATE_OPEN,
-            0xD0: "tilt",
+            0xD0: HANDLE_STATE_TILT,
             0xE0: STATE_OPEN,
             0xF0: STATE_CLOSED,
-        }.get(packet.data[1] & 0xF0, STATE_UNKNOWN)
+        }.get(packet.data[1] & 0xF0)
         self._attr_native_value = position
         self.schedule_update_ha_state()
 

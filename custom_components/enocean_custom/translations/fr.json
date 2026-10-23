@@ -309,6 +309,25 @@
       "ute_discovery_deadline_missed": "Une requête UTE correspondante est arrivée après le délai de réponse. Elle n’a volontairement pas reçu de réponse et aucun équipement n’a été enregistré."
     }
   },
+  "entity": {
+    "sensor": {
+      "window_handle": {
+        "name": "Position de la poignée",
+        "state": {
+          "open": "Ouverte",
+          "tilt": "Entrouverte",
+          "closed": "Fermée"
+        }
+      },
+      "d5_contact": {
+        "name": "Contact",
+        "state": {
+          "open": "Ouvert",
+          "closed": "Fermé"
+        }
+      }
+    }
+  },
   "services": {
     "climate_teach_in_actor": {
       "name": "Appairer l'actionneur climatique",

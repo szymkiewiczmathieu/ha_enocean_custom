@@ -2,7 +2,19 @@
   "entity": {
     "sensor": {
       "window_handle": {
-        "default": "mdi:window-open-variant"
+        "default": "mdi:window-closed-variant",
+        "state": {
+          "open": "mdi:window-open-variant",
+          "tilt": "mdi:window-open",
+          "closed": "mdi:window-closed-variant"
+        }
+      },
+      "d5_contact": {
+        "default": "mdi:door",
+        "state": {
+          "open": "mdi:door-open",
+          "closed": "mdi:door-closed"
+        }
       }
     }
   }
