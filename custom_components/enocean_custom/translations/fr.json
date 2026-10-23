@@ -309,7 +309,17 @@
       "ute_discovery_deadline_missed": "Une requête UTE correspondante est arrivée après le délai de réponse. Elle n’a volontairement pas reçu de réponse et aucun équipement n’a été enregistré."
     }
   },
+  "device": {
+    "gateway": {
+      "name": "Passerelle EnOcean"
+    }
+  },
   "entity": {
+    "binary_sensor": {
+      "gateway_connected": {
+        "name": "Dongle connecté"
+      }
+    },
     "sensor": {
       "window_handle": {
         "name": "Position de la poignée",
@@ -325,6 +335,15 @@
           "open": "Ouvert",
           "closed": "Fermé"
         }
+      },
+      "gateway_received_telegrams": {
+        "name": "Télégrammes reçus"
+      },
+      "gateway_last_telegram": {
+        "name": "Dernier télégramme"
+      },
+      "gateway_base_id": {
+        "name": "Base ID"
       }
     }
   },

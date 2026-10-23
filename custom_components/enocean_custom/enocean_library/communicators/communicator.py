@@ -35,6 +35,14 @@ class Communicator(threading.Thread):
         self._base_id_request_packet = None
         self._base_id_in_flight = False
         self._base_id_retry_count = 0
+        # Common commands queued by the integration (CO_RD_VERSION,
+        # CO_RD_REPEATER, CO_WR_REPEATER...). An ESP3 RESPONSE carries no
+        # command identifier, so the order of physical writes is the only
+        # correlation: a request moves from the FIFO to ``_common_in_flight``
+        # when its exact packet reaches the wire, and the next RESPONSE belongs
+        # to it. The serial worker keeps a single command in flight.
+        self._common_requests = deque()
+        self._common_in_flight = None
         self._pending_ute_packets = deque(maxlen=8)
         # Acknowledging a UTE teach-in is an unsolicited radio transmission:
         # it answers whichever device asks, whether or not an operator opened
@@ -83,13 +91,44 @@ class Communicator(threading.Thread):
         self._base_id_request_packet = None
         self._base_id_in_flight = False
 
+    def request_common_command(self, data, handler):
+        """Queue one COMMON_COMMAND and route its ESP3 response to ``handler``.
+
+        ``handler`` runs on the worker thread with the ResponsePacket, or with
+        ``None`` when the command was never answered: dropped before the wire,
+        timed out, or the worker stopped. Returns whether the command was
+        accepted into the transmit queue.
+        """
+        packet = Packet(PACKET.COMMON_COMMAND, data=list(data))
+        entry = (packet, handler)
+        self._common_requests.append(entry)
+        if self.send(packet):
+            return True
+        self._common_requests.remove(entry)
+        return False
+
+    def _deliver_common_response(self, handler, packet):
+        """Hand a response (or its absence) to integration code without dying."""
+        try:
+            handler(packet)
+        except Exception:
+            self.logger.exception("Common command handler failed")
+
     def _packet_written(self, packet):
         """Record when the exact queued Base-ID command reaches the wire."""
         if packet is self._base_id_request_packet:
             self._base_id_in_flight = True
+        for entry in tuple(self._common_requests):
+            if entry[0] is packet:
+                self._common_requests.remove(entry)
+                self._common_in_flight = entry
+                break
 
     def _response_received(self, packet):
         """Resolve Base-ID ownership from the response to its physical write."""
+        in_flight, self._common_in_flight = self._common_in_flight, None
+        if in_flight is not None:
+            self._deliver_common_response(in_flight[1], packet)
         if not self._base_id_in_flight:
             return
         if packet.response == RETURN_CODE.OK and len(packet.response_data) == 4:
@@ -122,11 +161,26 @@ class Communicator(threading.Thread):
         """Release a timed-out Base-ID latch before the transport degrades."""
         if packet is self._base_id_request_packet:
             self._reset_base_id_request()
+        in_flight = self._common_in_flight
+        if in_flight is not None and in_flight[0] is packet:
+            self._common_in_flight = None
+            self._deliver_common_response(in_flight[1], None)
+
+    def _fail_common_requests(self):
+        """Tell every waiting common-command handler that no response will come."""
+        in_flight, self._common_in_flight = self._common_in_flight, None
+        pending = list(self._common_requests)
+        self._common_requests.clear()
+        if in_flight is not None:
+            pending.insert(0, in_flight)
+        for _packet, handler in pending:
+            self._deliver_common_response(handler, None)
 
     def stop(self):
         self._stop_flag.set()
         self._reset_base_id_request()
         self._base_id_retry_count = 0
+        self._fail_common_requests()
         # A stopped worker owns no teach-in session any more.
         self._pending_ute_packets.clear()
 

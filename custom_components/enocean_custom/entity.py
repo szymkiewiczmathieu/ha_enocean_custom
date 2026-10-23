@@ -8,17 +8,19 @@ from typing import Any
 from homeassistant.core import callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.entity import Entity, EntityCategory
 
 from .const import (
     DOMAIN,
     LOGGER,
     SIGNAL_DONGLE_STATUS,
+    SIGNAL_GATEWAY_UPDATE,
     SIGNAL_RECEIVE_MESSAGE,
 )
 from .device_intelligence import resolve_product
 from .enocean_library.protocol.packet import Packet as ESP3Packet
 from .enocean_library.utils import combine_hex as enocean_id_as_int
+from .identity import gateway_device_identifier, gateway_unique_id
 from .runtime import get_gateway
 
 
@@ -92,6 +94,11 @@ class EnOceanEntity(Entity):
             info["manufacturer"] = product.manufacturer
             info["model"] = product.model
             info["model_id"] = product.model_id
+        # Every radio device is reached through the dongle of the config entry.
+        gateway = get_gateway(getattr(self, "hass", None))
+        entry_id = getattr(gateway, "entry_id", None)
+        if entry_id:
+            info["via_device"] = (DOMAIN, gateway_device_identifier(entry_id))
         return DeviceInfo(**info)
 
     @property
@@ -186,3 +193,70 @@ class EnOceanEntity(Entity):
         self.schedule_update_ha_state()
         LOGGER.warning("EnOcean command for %s was rejected", self.dev_name)
         return False
+
+
+class EnOceanGatewayEntity(Entity):
+    """Diagnostic entity describing the dongle itself, not a radio device.
+
+    Gateway entities stay available while the serial worker is down: that is
+    precisely when a connectivity sensor or a last-telegram timestamp is worth
+    reading. They refresh on the gateway/dongle signals and, for the telegram
+    counters, on every dispatched radio telegram.
+    """
+
+    _attr_should_poll = False
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    # Subclasses that count telegrams opt in; the others ignore radio traffic.
+    _tracks_telegrams = False
+
+    def __init__(self, gateway: Any, entry_id: str, key: str) -> None:
+        """Bind to the dongle of one config entry."""
+        self._gateway = gateway
+        self._entry_id = entry_id
+        self._attr_unique_id = gateway_unique_id(entry_id, key)
+        self._attr_translation_key = key
+
+    @property
+    def available(self) -> bool:
+        """Gateway facts remain readable while the dongle is down."""
+        return True
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Attach to the gateway device created by the config entry setup."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, gateway_device_identifier(self._entry_id))}
+        )
+
+    async def async_added_to_hass(self) -> None:
+        """Refresh on gateway facts, serial health and (optionally) telegrams."""
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass, SIGNAL_GATEWAY_UPDATE, self._gateway_updated
+            )
+        )
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass, SIGNAL_DONGLE_STATUS, self._dongle_status_changed
+            )
+        )
+        if self._tracks_telegrams:
+            self.async_on_remove(
+                async_dispatcher_connect(
+                    self.hass, SIGNAL_RECEIVE_MESSAGE, self._telegram_received
+                )
+            )
+
+    @callback
+    def _gateway_updated(self) -> None:
+        self.async_write_ha_state()
+
+    @callback
+    def _dongle_status_changed(self, _available: bool) -> None:
+        self.async_write_ha_state()
+
+    @callback
+    def _telegram_received(self, _packet: Any) -> None:
+        self.async_write_ha_state()

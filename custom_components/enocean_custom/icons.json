@@ -1,5 +1,13 @@
 {
   "entity": {
+    "binary_sensor": {
+      "gateway_connected": {
+        "default": "mdi:lan-connect",
+        "state": {
+          "off": "mdi:lan-disconnect"
+        }
+      }
+    },
     "sensor": {
       "window_handle": {
         "default": "mdi:window-closed-variant",
@@ -15,6 +23,15 @@
           "open": "mdi:door-open",
           "closed": "mdi:door-closed"
         }
+      },
+      "gateway_received_telegrams": {
+        "default": "mdi:radio-tower"
+      },
+      "gateway_last_telegram": {
+        "default": "mdi:clock-outline"
+      },
+      "gateway_base_id": {
+        "default": "mdi:identifier"
       }
     }
   }

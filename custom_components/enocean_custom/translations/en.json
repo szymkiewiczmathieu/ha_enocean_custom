@@ -309,7 +309,17 @@
       "ute_discovery_deadline_missed": "A matching UTE request arrived after the response deadline. It was deliberately not answered and no device was saved."
     }
   },
+  "device": {
+    "gateway": {
+      "name": "EnOcean gateway"
+    }
+  },
   "entity": {
+    "binary_sensor": {
+      "gateway_connected": {
+        "name": "Dongle connected"
+      }
+    },
     "sensor": {
       "window_handle": {
         "name": "Handle position",
@@ -325,6 +335,15 @@
           "open": "Open",
           "closed": "Closed"
         }
+      },
+      "gateway_received_telegrams": {
+        "name": "Received telegrams"
+      },
+      "gateway_last_telegram": {
+        "name": "Last telegram"
+      },
+      "gateway_base_id": {
+        "name": "Base ID"
       }
     }
   },

@@ -6,9 +6,11 @@ import serial
 import voluptuous as vol
 from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
 from homeassistant.const import CONF_DEVICE
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
@@ -16,10 +18,13 @@ from .const import (
     CONFIG_ENTRY_VERSION,
     DOMAIN,
     LOGGER,
+    MANUFACTURER,
+    SIGNAL_GATEWAY_UPDATE,
     UI_DEVICE_PLATFORMS,
 )
 from .dongle import EnOceanDongle
 from .enocean_library.utils import combine_hex
+from .identity import gateway_device_identifier
 from .inbox import DeviceInbox
 from .learn import async_register_learn_service, get_known_ids
 from .migration import explicit_rps_actuator_profiles
@@ -96,6 +101,7 @@ async def async_setup_entry(
             EnOceanDongle,
             hass,
             entry.data[CONF_DEVICE],
+            entry.entry_id,
         )
     except serial.SerialException:
         raise ConfigEntryNotReady(
@@ -111,6 +117,16 @@ async def async_setup_entry(
     inbox = DeviceInbox(_configured_ids)
     gateway.set_inbox(inbox)
     entry.runtime_data = gateway
+    # The gateway device must exist before the radio devices reference it
+    # through ``via_device``; its firmware facts arrive asynchronously.
+    async_register_gateway_device(hass, entry, gateway)
+    entry.async_on_unload(
+        async_dispatcher_connect(
+            hass,
+            SIGNAL_GATEWAY_UPDATE,
+            lambda: async_register_gateway_device(hass, entry, gateway),
+        )
+    )
     await gateway.async_setup()
 
     try:
@@ -127,6 +143,31 @@ async def async_setup_entry(
 
     entry.async_on_unload(entry.add_update_listener(_async_reload_on_options_update))
     return True
+
+
+@callback
+def async_register_gateway_device(
+    hass: HomeAssistant, entry: ConfigEntry, gateway: EnOceanDongle
+) -> dr.DeviceEntry:
+    """Create or refresh the dongle's device registry entry.
+
+    Called once at setup with whatever is known, then again on every
+    SIGNAL_GATEWAY_UPDATE so the firmware version, chip version and
+    application name reported by CO_RD_VERSION appear as soon as the dongle
+    answers. The model never pretends to know the hardware: it is the
+    application description the dongle itself reports, or a generic label.
+    """
+    info = gateway.gateway_info
+    return dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, gateway_device_identifier(entry.entry_id))},
+        manufacturer=MANUFACTURER,
+        translation_key="gateway",
+        model=info.app_description if info and info.app_description else "ESP3 gateway",
+        sw_version=info.app_version if info else None,
+        hw_version=info.chip_version if info else None,
+        serial_number=info.chip_id if info else None,
+    )
 
 
 async def _async_reload_on_options_update(

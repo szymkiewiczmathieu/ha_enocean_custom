@@ -31,6 +31,9 @@ SERVICE_SEND_TEACH_IN = "send_teach_in"
 
 SIGNAL_DONGLE_STATUS = f"{DOMAIN}.dongle_status"
 SIGNAL_RECEIVE_MESSAGE = f"{DOMAIN}.receive_message"
+# Fired on the event loop when the dongle learns something about itself:
+# firmware version, Base ID, repeater state.
+SIGNAL_GATEWAY_UPDATE = f"{DOMAIN}.gateway_update"
 
 LEARN_TIMEOUT_DEFAULT = 60
 LEARN_TIMEOUT_MIN = 15

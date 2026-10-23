@@ -21,8 +21,13 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .enocean_library.protocol.constants import RORG
-from .entity import EnOceanEntity
-from .identity import A514_EEP, a514_contact_unique_id, binary_sensor_unique_id
+from .entity import EnOceanEntity, EnOceanGatewayEntity
+from .identity import (
+    A514_EEP,
+    GATEWAY_KEY_CONNECTED,
+    a514_contact_unique_id,
+    binary_sensor_unique_id,
+)
 from .learn import register_known_id
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, valid_ui_devices
 from .yaml_import import track_yaml_device
@@ -75,7 +80,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Create rocker sensors stored in the entry options."""
-    configured = (
+    configured = [
         (
             EnOceanA514Contact(row["id"], row["name"])
             if (row.get("radio_metadata") or {}).get("eep") == A514_EEP
@@ -83,8 +88,27 @@ async def async_setup_entry(
         ).set_radio_metadata(row.get("radio_metadata"))
         for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
         if row["platform"] == "binary_sensor"
-    )
-    async_add_entities(list(configured))
+    ]
+    gateway = getattr(entry, "runtime_data", None)
+    entry_id = getattr(entry, "entry_id", None)
+    if gateway is not None and entry_id:
+        configured.append(EnOceanGatewayConnectivity(gateway, entry_id))
+    async_add_entities(configured)
+
+
+class EnOceanGatewayConnectivity(EnOceanGatewayEntity, BinarySensorEntity):
+    """Report whether the serial worker currently owns a live dongle."""
+
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+
+    def __init__(self, gateway, entry_id: str) -> None:
+        """Bind the connectivity sensor to the dongle."""
+        super().__init__(gateway, entry_id, GATEWAY_KEY_CONNECTED)
+
+    @property
+    def is_on(self) -> bool:
+        """Mirror the dongle availability without becoming unavailable itself."""
+        return bool(self._gateway.available)
 
 
 class EnOceanBinarySensor(EnOceanEntity, BinarySensorEntity):

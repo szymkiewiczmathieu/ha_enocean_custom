@@ -53,6 +53,24 @@ A514_EEP: Final = "A5-14-01"
 A514_CONTACT_UNIQUE_ID_SUFFIX: Final = "-a5-14-01-contact"
 
 
+# Gateway (dongle) entities, added in 2.10.0. They hang off the config entry,
+# not off a radio sender, so their identities are keyed by the entry id.
+GATEWAY_KEY_RECEIVED_TELEGRAMS: Final = "gateway_received_telegrams"
+GATEWAY_KEY_LAST_TELEGRAM: Final = "gateway_last_telegram"
+GATEWAY_KEY_BASE_ID: Final = "gateway_base_id"
+GATEWAY_KEY_CONNECTED: Final = "gateway_connected"
+
+
+def gateway_device_identifier(entry_id: str) -> str:
+    """Return the device registry identifier of the dongle of one config entry."""
+    return f"gateway:{entry_id}"
+
+
+def gateway_unique_id(entry_id: str, key: str) -> str:
+    """Return the identity of one dongle diagnostic entity."""
+    return f"gateway:{entry_id}:{key}"
+
+
 def switch_unique_id(dev_id: list[int], channel: int) -> str:
     """Return the channel-aware switch identity used since the core integration."""
     return f"{combine_hex(dev_id)}-{channel}"

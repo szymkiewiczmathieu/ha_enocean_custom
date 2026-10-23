@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import override
+from datetime import datetime
+from typing import Any, override
 
 import voluptuous as vol
 from homeassistant.components.sensor import (
@@ -12,6 +13,7 @@ from homeassistant.components.sensor import (
 from homeassistant.components.sensor import (
     RestoreSensor,
     SensorDeviceClass,
+    SensorEntity,
     SensorEntityDescription,
     SensorStateClass,
 )
@@ -36,9 +38,13 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .const import DOMAIN, LOGGER
 from .enocean_library.protocol.constants import RORG
-from .entity import EnOceanEntity
+from .enocean_library.utils import to_hex_string
+from .entity import EnOceanEntity, EnOceanGatewayEntity
 from .identity import (
     A514_EEP,
+    GATEWAY_KEY_BASE_ID,
+    GATEWAY_KEY_LAST_TELEGRAM,
+    GATEWAY_KEY_RECEIVED_TELEGRAMS,
     SENSOR_KEY_A514_SUPPLY_VOLTAGE,
     SENSOR_KEY_CONTACT,
     SENSOR_KEY_ENERGY,
@@ -218,7 +224,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Create measurement entities stored in the entry options."""
-    entities: list[EnOceanSensor] = []
+    entities: list[SensorEntity] = list(_gateway_entities(entry))
     for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, [])):
         if (
             row["platform"] == "binary_sensor"
@@ -249,6 +255,76 @@ async def async_setup_entry(
             for entity in _entities_from_config(config)
         )
     async_add_entities(entities)
+
+
+def _gateway_entities(entry: Any) -> list[SensorEntity]:
+    """Return the dongle's own diagnostic sensors for a real config entry."""
+    gateway = getattr(entry, "runtime_data", None)
+    entry_id = getattr(entry, "entry_id", None)
+    if gateway is None or not entry_id:
+        return []
+    return [
+        EnOceanGatewayTelegramCounter(gateway, entry_id),
+        EnOceanGatewayLastTelegram(gateway, entry_id),
+        EnOceanGatewayBaseId(gateway, entry_id),
+    ]
+
+
+class EnOceanGatewayTelegramCounter(EnOceanGatewayEntity, SensorEntity):
+    """Count the valid radio telegrams the serial worker dispatched."""
+
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _tracks_telegrams = True
+
+    def __init__(self, gateway: Any, entry_id: str) -> None:
+        """Bind the counter to the dongle."""
+        super().__init__(gateway, entry_id, GATEWAY_KEY_RECEIVED_TELEGRAMS)
+
+    @property
+    def native_value(self) -> int:
+        """Return the worker's lifetime telegram count (resets on reload)."""
+        return int(self._gateway.received_radio_packets)
+
+
+class EnOceanGatewayLastTelegram(EnOceanGatewayEntity, SensorEntity):
+    """Expose when the dongle last delivered a valid radio telegram."""
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _tracks_telegrams = True
+
+    def __init__(self, gateway: Any, entry_id: str) -> None:
+        """Bind the timestamp to the dongle."""
+        super().__init__(gateway, entry_id, GATEWAY_KEY_LAST_TELEGRAM)
+
+    @property
+    def native_value(self) -> datetime | None:
+        """Return the UTC time of the last dispatched telegram."""
+        return self._gateway.last_packet_at
+
+
+class EnOceanGatewayBaseId(EnOceanGatewayEntity, SensorEntity):
+    """Expose the dongle's resolved Base ID, the sender of every command.
+
+    Disabled by default: it is an identifier, useful when pairing a receiver
+    (A5-38-08 dimmers, climate actuators) that must learn the sender address.
+    """
+
+    _attr_entity_registry_enabled_default = False
+    # The Base ID resolves asynchronously and may be re-requested later; any
+    # telegram or gateway update is an occasion to refresh the value.
+    _tracks_telegrams = True
+
+    def __init__(self, gateway: Any, entry_id: str) -> None:
+        """Bind the identifier to the dongle."""
+        super().__init__(gateway, entry_id, GATEWAY_KEY_BASE_ID)
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the Base ID as AA:BB:CC:DD once the dongle reported it."""
+        base_id = self._gateway.base_id
+        if not isinstance(base_id, (list, tuple)) or len(base_id) != 4:
+            return None
+        return to_hex_string(list(base_id))
 
 
 def _entities_from_config(config: ConfigType) -> list[EnOceanSensor]:

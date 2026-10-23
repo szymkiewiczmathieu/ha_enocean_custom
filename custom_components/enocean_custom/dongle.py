@@ -6,6 +6,7 @@ import glob
 import logging
 from collections import deque
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from os.path import samefile
 from threading import Lock
@@ -14,12 +15,13 @@ from typing import Any
 
 import serial
 from homeassistant.helpers import issue_registry as ir
-from homeassistant.helpers.dispatcher import dispatcher_send
+from homeassistant.helpers.dispatcher import async_dispatcher_send, dispatcher_send
 
 from .const import (
     DOMAIN,
     ISSUE_SERIAL_STOPPED,
     SIGNAL_DONGLE_STATUS,
+    SIGNAL_GATEWAY_UPDATE,
     SIGNAL_RECEIVE_MESSAGE,
 )
 from .enocean_library.communicators import SerialCommunicator
@@ -28,6 +30,74 @@ from .enocean_library.protocol.packet import RadioPacket, ResponsePacket
 from .inbox import DeviceInbox, packet_observation
 
 _LOGGER = logging.getLogger(__name__)
+
+# ESP3 common commands addressed to the dongle itself. They travel on the
+# serial link only: none of them transmits anything on the radio.
+CO_RD_VERSION = 0x03
+CO_WR_REPEATER = 0x09
+CO_RD_REPEATER = 0x0A
+
+
+@dataclass(frozen=True, slots=True)
+class GatewayInfo:
+    """What the dongle reports about itself (ESP3 CO_RD_VERSION, 2.5.5).
+
+    Versions are rendered as the four dotted bytes of the response
+    (main.beta.alpha.build). ``chip_id`` is the module's own radio identifier
+    and is treated like every other EnOcean identifier: shown in the device
+    registry, never exported in diagnostics.
+    """
+
+    app_version: str
+    api_version: str
+    chip_id: str
+    chip_version: str
+    app_description: str
+
+
+@dataclass(frozen=True, slots=True)
+class RepeaterState:
+    """The dongle's own repeater setting (ESP3 CO_RD_REPEATER, 2.5.12)."""
+
+    enabled: bool
+    level: int
+    # 0 = off, 1 = on, 2 = selective (filtered), per ESP3 V1.58.
+    raw_enable: int
+
+
+def parse_version_response(packet: Any) -> GatewayInfo | None:
+    """Decode a CO_RD_VERSION response; None for a refusal or an odd length."""
+    if packet is None or getattr(packet, "response", None) != RETURN_CODE.OK:
+        return None
+    data = list(getattr(packet, "response_data", []) or [])
+    if len(data) != 32 or any(
+        isinstance(byte, bool) or not isinstance(byte, int) or not 0 <= byte <= 0xFF
+        for byte in data
+    ):
+        return None
+    description = bytes(data[16:32]).split(b"\x00", 1)[0]
+    return GatewayInfo(
+        app_version=".".join(str(byte) for byte in data[0:4]),
+        api_version=".".join(str(byte) for byte in data[4:8]),
+        chip_id="".join(f"{byte:02X}" for byte in data[8:12]),
+        chip_version=".".join(str(byte) for byte in data[12:16]),
+        app_description=description.decode("ascii", errors="replace").strip(),
+    )
+
+
+def parse_repeater_response(packet: Any) -> RepeaterState | None:
+    """Decode a CO_RD_REPEATER response; None for a refusal or an odd length."""
+    if packet is None or getattr(packet, "response", None) != RETURN_CODE.OK:
+        return None
+    data = list(getattr(packet, "response_data", []) or [])
+    if len(data) != 2 or any(
+        isinstance(byte, bool) or not isinstance(byte, int) for byte in data
+    ):
+        return None
+    enable, level = data
+    if enable not in (0, 1, 2) or level not in (0, 1, 2):
+        return None
+    return RepeaterState(enabled=enable != 0, level=level, raw_enable=enable)
 
 
 class EnOceanDongle:
@@ -41,11 +111,16 @@ class EnOceanDongle:
     BASE_ID_RETRY_LIMIT = 3
     BASE_ID_RETRY_BACKOFF_SECONDS = (5.0, 30.0, 120.0)
 
-    def __init__(self, hass, serial_path: str) -> None:
+    def __init__(self, hass, serial_path: str, entry_id: str | None = None) -> None:
         """Initialize the EnOcean dongle and open its serial descriptor."""
         self.serial_path = serial_path
         self.identifier = "configured EnOcean dongle"
         self.hass = hass
+        # The owning config entry; gateway entities and ``via_device`` links
+        # are keyed on it. None only in tests that build a bare dongle.
+        self.entry_id = entry_id
+        self._gateway_info: GatewayInfo | None = None
+        self._repeater: RepeaterState | None = None
         self._available = False
         self._stopping = False
         self._base_id_retry_count = 0
@@ -92,6 +167,65 @@ class EnOceanDongle:
         """Return the already-resolved radio sender ID without blocking HA."""
         return self._communicator.current_base_id
 
+    @property
+    def gateway_info(self) -> GatewayInfo | None:
+        """Return the firmware/chip facts reported by CO_RD_VERSION, if any."""
+        return self._gateway_info
+
+    @property
+    def repeater(self) -> RepeaterState | None:
+        """Return the dongle's own repeater setting as last read back."""
+        return self._repeater
+
+    @property
+    def received_radio_packets(self) -> int:
+        """Return how many valid radio telegrams the worker has dispatched."""
+        return self._received_packets
+
+    @property
+    def last_packet_at(self) -> datetime | None:
+        """Return when the last valid radio telegram was dispatched."""
+        return self._last_packet_at
+
+    def request_version(self) -> bool:
+        """Queue CO_RD_VERSION; the answer updates ``gateway_info`` (no radio)."""
+        return self._communicator.request_common_command(
+            [CO_RD_VERSION], self._version_response
+        )
+
+    def request_repeater(self) -> bool:
+        """Queue CO_RD_REPEATER; the answer updates ``repeater`` (no radio)."""
+        return self._communicator.request_common_command(
+            [CO_RD_REPEATER], self._repeater_response
+        )
+
+    def _version_response(self, packet: Any) -> None:
+        """Store the version facts (worker thread) and notify the event loop."""
+        info = parse_version_response(packet)
+        if info is None:
+            _LOGGER.debug("The dongle did not report a usable CO_RD_VERSION answer")
+            return
+        self._gateway_info = info
+        self._notify_gateway_update()
+
+    def _repeater_response(self, packet: Any) -> None:
+        """Store the repeater read-back (worker thread) and notify the loop."""
+        state = parse_repeater_response(packet)
+        if state is None:
+            _LOGGER.debug("The dongle did not report a usable CO_RD_REPEATER answer")
+            return
+        self._repeater = state
+        self._notify_gateway_update()
+
+    def _notify_gateway_update(self) -> None:
+        """Publish a gateway fact change on Home Assistant's event loop."""
+        try:
+            self.hass.loop.call_soon_threadsafe(
+                async_dispatcher_send, self.hass, SIGNAL_GATEWAY_UPDATE
+            )
+        except RuntimeError:
+            _LOGGER.debug("Home Assistant loop closed before gateway update")
+
     def retry_base_id(self) -> bool:
         """Re-request the Base ID for a command that needs it, within bounds.
 
@@ -132,6 +266,9 @@ class EnOceanDongle:
         self._available = True
         self._communicator.start()
         self._communicator.request_base_id()
+        # Both are dongle-local ESP3 reads: nothing is transmitted on the radio.
+        self.request_version()
+        self.request_repeater()
         ir.async_delete_issue(self.hass, DOMAIN, ISSUE_SERIAL_STOPPED)
         dispatcher_send(self.hass, SIGNAL_DONGLE_STATUS, self.available)
 
@@ -317,6 +454,9 @@ class EnOceanDongle:
         thread_name = self._communicator.name.replace(self.serial_path, "[REDACTED]")
         with self._response_lock:
             pending_responses = len(self._pending_response_callbacks)
+        # Read defensively: lifecycle tests build the dongle without __init__.
+        info = getattr(self, "_gateway_info", None)
+        repeater = getattr(self, "_repeater", None)
         return {
             "serial_device": self.identifier,
             "available": self.available,
@@ -325,6 +465,22 @@ class EnOceanDongle:
             "stopping": self._stopping,
             "base_id_resolved": self.base_id is not None,
             "base_id_retries": self._base_id_retry_count,
+            # The chip ID is an EnOcean identifier and stays out of exports.
+            "gateway_info": (
+                {
+                    "app_version": info.app_version,
+                    "api_version": info.api_version,
+                    "chip_version": info.chip_version,
+                    "app_description": info.app_description,
+                }
+                if info is not None
+                else None
+            ),
+            "repeater": (
+                {"enabled": repeater.enabled, "level": repeater.level}
+                if repeater is not None
+                else None
+            ),
             "started_at": self._started_at.isoformat() if self._started_at else None,
             "last_packet_at": (
                 self._last_packet_at.isoformat() if self._last_packet_at else None
