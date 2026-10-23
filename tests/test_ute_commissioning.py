@@ -45,6 +45,7 @@ try:
         CONF_UI_DEVICES,
         UI_DEVICE_SCHEMA,
     )
+    from custom_components.enocean_custom.ubiwizz import UBID1507C
 
     HA_AVAILABLE = True
 except ModuleNotFoundError:  # pragma: no cover
@@ -311,6 +312,41 @@ class UteRequestFlowTests(unittest.IsolatedAsyncioTestCase):
         await self.arm(flow, channel=1)
         self.module_sends(ute_request(channels=0xFF))
         self.assertEqual(dongle.sent[0].data[2], 0xFF)
+
+    async def test_documented_channel_count_request_is_answered_for_each_output(
+        self,
+    ):
+        """The field capture carries DB5 = 0x02 (channel count), not an output."""
+        self.assertEqual(UBID1507C.ute_number_of_channels, 2)
+        for channel in UBID1507C.output_channels:
+            with self.subTest(channel=channel):
+                flow, dongle = self.new_flow()
+                await self.arm(flow, channel=channel)
+                self.module_sends(ute_request(channels=0x02))
+                self.assertEqual(len(dongle.sent), 1)
+                # The response echoes the request's DB5 and keeps the exact EEP.
+                self.assertEqual(
+                    dongle.sent[0].data,
+                    [RORG.UTE, 0x91, 0x02, 0x46, 0, 0x12, 1, 0xD2, *BASE_ID, 0],
+                )
+                result = await self.finish(flow)
+                self.assertEqual(result["type"], FlowResultType.CREATE_ENTRY)
+                row = result["data"][CONF_UI_DEVICES][-1]
+                self.assertEqual(row["channel"], channel, "DB5 never picks the row")
+                self.assertEqual(row["radio_metadata"]["eep"], "D2-01-12")
+                self.hass.config_entries.async_update_entry(
+                    flow.config_entry, options={CONF_UI_DEVICES: []}
+                )
+
+    async def test_undocumented_channel_values_are_rejected(self):
+        for channels in (0x03, 0x10, 0xFE):
+            with self.subTest(channels=channels):
+                flow, dongle = self.new_flow()
+                await self.arm(flow)
+                self.module_sends(ute_request(channels=channels))
+                self.assertEqual(dongle.sent, [])
+                self.assertIsNone(flow._ute_discovery_outcome)
+                flow.async_remove()
 
     async def test_wrong_sender_flags_manufacturer_and_individual_channel_are_silent(
         self,

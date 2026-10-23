@@ -20,6 +20,8 @@ from custom_components.enocean_custom.ubiwizz import (
     UBID1507C,
     UBIWIZZ_UBID1507C_MANUAL_URL,
     UBIWIZZ_UBID1507C_PRODUCT_URL,
+    UTE_ALL_CHANNELS,
+    accepted_ute_request_channels,
 )
 
 
@@ -35,6 +37,19 @@ class UbiwizzInstallationProfileTests(TestCase):
         self.assertEqual(UBID1507C.ute_manufacturer_id, 0x046)
         self.assertEqual(UBID1507C.manual_url, UBIWIZZ_UBID1507C_MANUAL_URL)
         self.assertEqual(UBID1507C.product_url, UBIWIZZ_UBID1507C_PRODUCT_URL)
+
+    def test_ute_request_db5_accepts_output_all_channels_and_documented_count(
+        self,
+    ) -> None:
+        self.assertEqual(UTE_ALL_CHANNELS, 0xFF)
+        self.assertEqual(
+            accepted_ute_request_channels(UBID1507C, 0), frozenset({0, 0x02, 0xFF})
+        )
+        self.assertEqual(
+            accepted_ute_request_channels(UBID1507C, 1), frozenset({1, 0x02, 0xFF})
+        )
+        for rejected in (0x03, 0x10, 0xFE):
+            self.assertNotIn(rejected, accepted_ute_request_channels(UBID1507C, 0))
 
     def test_explicit_profile_accepts_two_channels_and_rejects_other_values(
         self,

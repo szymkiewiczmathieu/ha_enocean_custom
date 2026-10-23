@@ -56,6 +56,24 @@ UBIWIZZ_ACTUATOR_PROFILES: Final[Mapping[str, UbiwizzActuatorProfile]] = (
     MappingProxyType({UBID1507C.profile_id: UBID1507C})
 )
 
+# EEP 2.6.7, UTE DB5: "0x00..0xFE number of individual channel to be taught
+# in, 0xFF teach-in of all channels supported by the device".
+UTE_ALL_CHANNELS: Final = 0xFF
+
+
+def accepted_ute_request_channels(
+    profile: UbiwizzActuatorProfile, channel: int
+) -> frozenset[int]:
+    """Return the UTE CMD0 DB5 values that may address one selected output.
+
+    The specification values are the selected output itself and ``0xFF`` (all
+    channels). The field capture documented for this profile showed the module
+    requesting with DB5 ``0x02``, its number of outputs, so that documented
+    value is accepted as well. Every other DB5 value is rejected; the stored
+    row always uses the output the operator selected, never DB5.
+    """
+    return frozenset({channel, UTE_ALL_CHANNELS, profile.ute_number_of_channels})
+
 
 def ubiwizz_actuator_profile(value: object) -> UbiwizzActuatorProfile | None:
     """Return an explicitly named profile, never infer one from radio traffic."""

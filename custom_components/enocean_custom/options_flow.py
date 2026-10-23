@@ -41,6 +41,7 @@ from .climate import (
 from .const import (
     DOMAIN,
     LEARN_TIMEOUT_DEFAULT,
+    LOGGER,
     SERVICE_SEND_TEACH_IN,
     SIGNAL_RECEIVE_MESSAGE,
     UI_DEVICE_PLATFORMS,
@@ -89,7 +90,7 @@ from .sensor import (
     SENSOR_TYPES,
 )
 from .switch import CONF_ACTUATOR_PROFILE, CONF_CHANNEL, CONF_SWITCH_TYPE, SWITCH_TYPES
-from .ubiwizz import UBID1507C
+from .ubiwizz import UBID1507C, accepted_ute_request_channels
 from .ubiwizz_repeater import (
     UBIWIZZ_REPEATER_CANDIDATE_EEPS,
     UBIWIZZ_REPEATER_LEVELS,
@@ -668,6 +669,7 @@ class EnOceanOptionsFlow(OptionsFlow):
     def _ute_request_received(self, packet: Any) -> None:
         """Answer exactly one valid, fresh UTE CMD0 during this explicit session."""
         target_id = self._ute_discovery_target_id
+        channel = self._ute_discovery_channel
         generation = self._ute_discovery_generation
         token = self._ute_discovery_response_token
         if (
@@ -675,6 +677,7 @@ class EnOceanOptionsFlow(OptionsFlow):
             or self._ute_discovery_outcome is not None
             or not isinstance(packet, UTETeachInPacket)
             or target_id is None
+            or channel is None
             or list(packet.sender) != target_id
             or packet.request_type != UTETeachInPacket.TEACH_IN
             or packet.delete
@@ -682,12 +685,21 @@ class EnOceanOptionsFlow(OptionsFlow):
             or not packet.response_expected
             or packet.rorg_of_eep != RORG.VLD
             or packet.rorg_func != 0x01
-            or packet.rorg_manufacturer != 0x046
-            # DB5 is the requested individual channel (or FF for all), not
-            # the actuator's count of outputs.  The flow's selected output
-            # must match a targeted query; an all-channel query is valid too.
-            or packet.channel not in (self._ute_discovery_channel, 0xFF)
+            or packet.rorg_manufacturer != UBID1507C.ute_manufacturer_id
         ):
+            return
+        # DB5 is the channel the module asks to teach in: the selected output,
+        # 0xFF for all channels, or the profile's documented channel count.
+        # It never overrides the output chosen by the operator.
+        accepted_channels = accepted_ute_request_channels(UBID1507C, channel)
+        db5 = packet.channel
+        LOGGER.debug(
+            "UTE request from the target module carries DB5=%s; output %s accepts %s",
+            f"0x{db5:02X}" if isinstance(db5, int) else db5,
+            channel,
+            ", ".join(f"0x{value:02X}" for value in sorted(accepted_channels)),
+        )
+        if db5 not in accepted_channels:
             return
         received = getattr(packet, "received", None)
         if not isinstance(received, datetime) or datetime.now(
@@ -734,11 +746,11 @@ class EnOceanOptionsFlow(OptionsFlow):
         channel = self._ute_discovery_channel
         if (
             radio is None
+            or channel not in UBID1507C.output_channels
             or list(radio.sender_id) != target_id
             or radio.eep not in ("D2-01-08", "D2-01-12")
-            or radio.manufacturer_id != 0x046
-            or radio.channel not in (channel, 0xFF)
-            or channel not in UBID1507C.output_channels
+            or radio.manufacturer_id != UBID1507C.ute_manufacturer_id
+            or radio.channel not in accepted_ute_request_channels(UBID1507C, channel)
         ):
             return None
         metadata = safe_metadata(radio=radio)
