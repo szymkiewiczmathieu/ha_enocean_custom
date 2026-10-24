@@ -56,6 +56,7 @@ from .inbox import DeviceInbox
 from .learn import async_register_learn_service, get_known_ids
 from .migration import async_adopt_legacy_rows, explicit_rps_actuator_profiles
 from .schema import CONF_UI_DEVICES, valid_ui_devices
+from .user_profiles import async_load_user_profiles
 from .yaml_import import purge_yaml_inventory
 
 CONFIG_SCHEMA = vol.Schema(
@@ -172,6 +173,9 @@ async def async_setup_entry(
     entry.async_on_unload(
         async_dispatcher_connect(hass, SIGNAL_GATEWAY_UPDATE, _async_gateway_updated)
     )
+    # Operator-defined generic profiles (<config>/enocean_custom/profiles.json)
+    # must be published before any row that declares one is validated.
+    await async_load_user_profiles(hass)
     # Rows a 2.10.x release wrote during a downgrade, or hand-edited into
     # ``.storage``, get their subentry before any platform reads the entry.
     # Idempotent: right after the minor-3 migration there is nothing to do.

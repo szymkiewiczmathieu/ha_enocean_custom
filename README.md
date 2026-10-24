@@ -107,6 +107,13 @@ The integration supports binary sensors, switches, lights, sensors, and climate
 entities. Platform-specific schemas, migration boundaries, and the local
 identity model are in [Device Intelligence](docs/device-intelligence.md).
 
+**Profiles the bundled catalog lacks can be described in
+`<config>/enocean_custom/profiles.json`** (plain JSON, strict schema, nothing
+executed): they join the generic decoder's picker without a release. A profile
+a built-in decoder already covers is refused rather than overridden, and an
+invalid file disables every user profile and raises a Repair issue. Format and
+rules: [User profile definitions](docs/device-intelligence.md#user-profile-definitions-configenocean_customprofilesjson).
+
 **Adding a light or climate actor suggests a sender ID instead of asking you
 to invent one.** A5-38-08 dimmer teach-in and the SRC-D08 climate panel each
 need their own virtual transmitter identity, distinct from every other one

@@ -344,8 +344,8 @@ def _profile(rorg: int, func: int, type_: int, node: Any) -> EepProfile | None:
 
 
 @lru_cache(maxsize=1)
-def generic_profiles() -> Mapping[str, EepProfile]:
-    """Return every generic profile, keyed by canonical ``XX-XX-XX``."""
+def built_in_profiles() -> Mapping[str, EepProfile]:
+    """Return every profile the vendored ``EEP.xml`` describes, by ``XX-XX-XX``."""
     telegrams = Packet.eep.telegrams
     profiles: dict[str, EepProfile] = {}
     for rorg in GENERIC_RORGS:
@@ -355,6 +355,32 @@ def generic_profiles() -> Mapping[str, EepProfile]:
                 if profile is not None:
                     profiles[profile.eep] = profile
     return MappingProxyType(profiles)
+
+
+# Operator-defined profiles (``user_profiles.py``), published at entry set-up.
+# They only ever add EEPs the vendored catalog lacks: ``set_user_profiles``
+# drops any key a built-in profile already owns, so a built-in can never be
+# shadowed, whatever the file says.
+_USER_PROFILES: dict[str, EepProfile] = {}
+
+
+def set_user_profiles(profiles: Mapping[str, EepProfile]) -> None:
+    """Replace the operator-defined profiles (built-in keys are ignored)."""
+    built_in = built_in_profiles()
+    _USER_PROFILES.clear()
+    _USER_PROFILES.update(
+        {eep: profile for eep, profile in profiles.items() if eep not in built_in}
+    )
+
+
+def user_profiles() -> Mapping[str, EepProfile]:
+    """Return the operator-defined profiles currently published."""
+    return MappingProxyType(dict(_USER_PROFILES))
+
+
+def generic_profiles() -> Mapping[str, EepProfile]:
+    """Return every generic profile, built-in first, then the operator's."""
+    return MappingProxyType({**built_in_profiles(), **_USER_PROFILES})
 
 
 def generic_profile(eep: Any) -> EepProfile | None:

@@ -717,6 +717,14 @@
     "silent_device": {
       "title": "{name} est devenu silencieux",
       "description": "Aucun télégramme de {name} n'a été reçu depuis {minutes} minutes : ses entités sont indisponibles. Vérifiez sa pile ou sa récupération d'énergie, sa fixation et sa portée radio (le capteur de diagnostic « force du signal » aide). Cette réparation se ferme d'elle-même à la réception du prochain télégramme. Ajustez ou désactivez le délai dans Configurer → Disponibilité et équipements silencieux."
+    },
+    "user_profiles_invalid": {
+      "title": "Les définitions de profils EEP utilisateur sont invalides",
+      "description": "Le fichier {path} n'a pas pu être chargé ; aucune de ses définitions de profil n'est active et les lignes qui en déclarent une ne créent aucune entité : {reason}. Corrigez le fichier (JSON simple, voir docs/device-intelligence.md, « User profile definitions ») puis rechargez l'intégration. Les profils intégrés ne sont pas affectés."
+    },
+    "user_profiles_skipped": {
+      "title": "Certaines définitions de profils EEP utilisateur ont été ignorées",
+      "description": "Le fichier {path} a été chargé, mais ces profils ont été refusés et restent inactifs : {eeps}. Un profil déjà décrit par l'EEP.xml embarqué, ou appartenant à une famille disposant d'un décodeur dédié (D2-01, D2-14-30, A5-12-01, A5-14-01, A5-20, A5-38-08, F6, D5), n'est jamais écrasé ; une disposition que le décodeur ne peut pas honorer est refusée avec la raison indiquée. Corrigez le fichier puis rechargez l'intégration."
     }
   }
 }

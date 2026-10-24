@@ -717,6 +717,14 @@
     "silent_device": {
       "title": "{name} has gone silent",
       "description": "No telegram has been received from {name} for {minutes} minutes, so its entities are unavailable. Check its battery or energy harvesting, its mounting and its radio range (the signal strength diagnostic sensor helps). This issue clears itself when the next telegram arrives. Adjust or disable the timeout under Configure → Availability and silent devices."
+    },
+    "user_profiles_invalid": {
+      "title": "User EEP profile definitions are invalid",
+      "description": "The file {path} could not be loaded, so none of its profile definitions is active and rows that declare one of them create no entity: {reason}. Fix the file (plain JSON, see docs/device-intelligence.md, \"User profile definitions\") and reload the integration. Built-in profiles are unaffected."
+    },
+    "user_profiles_skipped": {
+      "title": "Some user EEP profile definitions were skipped",
+      "description": "The file {path} was loaded, but these profiles were refused and left inactive: {eeps}. A profile the vendored EEP.xml already describes, or one of the families with a dedicated decoder (D2-01, D2-14-30, A5-12-01, A5-14-01, A5-20, A5-38-08, F6, D5), is never overridden; a layout the decoder cannot honour is refused with the reason shown. Fix the file and reload the integration."
     }
   }
 }

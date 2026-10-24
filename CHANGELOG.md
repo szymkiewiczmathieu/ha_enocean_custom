@@ -88,9 +88,17 @@ German and Dutch translations (A8).
 - Entry diagnostics report the subentry counts; device diagnostics report
   whether the device is in its subentry.
 
-### Not in this release
+### User profile definitions (A6)
 
-- A6 (import of user profile definitions) is deferred; see the release notes.
+- `<config>/enocean_custom/profiles.json` may add generic profiles the
+  vendored `EEP.xml` lacks: plain JSON, strict schema (unknown keys and
+  unbounded numbers refused, 4BS and VLD only), nothing executed. A profile
+  a built-in decoder already covers is refused, never overridden; an invalid
+  file disables every user profile and raises a Repair issue quoting the
+  error; refused profiles of a valid file raise a second Repair issue while
+  the rest loads. Accepted profiles show up in the generic-decoder picker and
+  decode through the existing generic path with the existing identity
+  formulas. Documented in `docs/device-intelligence.md`.
 
 ## 2.10.2 - 2026-10-24
 

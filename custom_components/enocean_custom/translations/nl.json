@@ -717,6 +717,14 @@
     "silent_device": {
       "title": "{name} is stil geworden",
       "description": "Er is al {minutes} minuten geen telegram van {name} ontvangen, dus zijn entiteiten zijn niet beschikbaar. Controleer de batterij of energieoogst, de montage en het radiobereik (de diagnosesensor signaalsterkte helpt). Deze melding verdwijnt vanzelf wanneer het volgende telegram aankomt. Pas de time-out aan of schakel hem uit onder Configureren → Beschikbaarheid en stille apparaten."
+    },
+    "user_profiles_invalid": {
+      "title": "Gebruikersgedefinieerde EEP-profieldefinities zijn ongeldig",
+      "description": "Het bestand {path} kon niet worden geladen, dus geen van zijn profieldefinities is actief en rijen die er een declareren maken geen entiteit aan: {reason}. Corrigeer het bestand (platte JSON, zie docs/device-intelligence.md, \"User profile definitions\") en herlaad de integratie. Ingebouwde profielen worden niet beïnvloed."
+    },
+    "user_profiles_skipped": {
+      "title": "Sommige gebruikersgedefinieerde EEP-profieldefinities zijn overgeslagen",
+      "description": "Het bestand {path} is geladen, maar deze profielen zijn geweigerd en blijven inactief: {eeps}. Een profiel dat de meegeleverde EEP.xml al beschrijft, of een van de families met een eigen decoder (D2-01, D2-14-30, A5-12-01, A5-14-01, A5-20, A5-38-08, F6, D5), wordt nooit overschreven; een indeling die de decoder niet kan honoreren wordt geweigerd met de getoonde reden. Corrigeer het bestand en herlaad de integratie."
     }
   }
 }

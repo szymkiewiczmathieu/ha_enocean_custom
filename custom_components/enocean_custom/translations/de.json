@@ -717,6 +717,14 @@
     "silent_device": {
       "title": "{name} ist verstummt",
       "description": "Von {name} wurde seit {minutes} Minuten kein Telegramm empfangen, daher sind seine Entitäten nicht verfügbar. Prüfen Sie Batterie oder Energiegewinnung, Montage und Funkreichweite (der Diagnosesensor Signalstärke hilft). Dieses Problem erledigt sich von selbst, wenn das nächste Telegramm eintrifft. Passen Sie den Timeout unter Konfigurieren → Verfügbarkeit und stumme Geräte an oder deaktivieren Sie ihn."
+    },
+    "user_profiles_invalid": {
+      "title": "Benutzerdefinierte EEP-Profildefinitionen sind ungültig",
+      "description": "Die Datei {path} konnte nicht geladen werden, daher ist keine ihrer Profildefinitionen aktiv und Zeilen, die eine davon deklarieren, erzeugen keine Entität: {reason}. Korrigieren Sie die Datei (reines JSON, siehe docs/device-intelligence.md, „User profile definitions“) und laden Sie die Integration neu. Eingebaute Profile sind nicht betroffen."
+    },
+    "user_profiles_skipped": {
+      "title": "Einige benutzerdefinierte EEP-Profildefinitionen wurden übersprungen",
+      "description": "Die Datei {path} wurde geladen, aber diese Profile wurden abgelehnt und bleiben inaktiv: {eeps}. Ein Profil, das die mitgelieferte EEP.xml bereits beschreibt, oder eine der Familien mit eigenem Decoder (D2-01, D2-14-30, A5-12-01, A5-14-01, A5-20, A5-38-08, F6, D5) wird nie überschrieben; ein Layout, das der Decoder nicht umsetzen kann, wird mit dem angezeigten Grund abgelehnt. Korrigieren Sie die Datei und laden Sie die Integration neu."
     }
   }
 }

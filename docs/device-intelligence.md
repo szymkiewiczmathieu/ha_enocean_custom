@@ -151,6 +151,57 @@ UBID1507C profile row) are not D2 actuators from this integration's point of
 view and are never queried. Hardware validation of the CMD 0x3/0x4 exchange on
 the NodOn ASP-2-1-00 and on a UTE-associated UBID1507C is still pending.
 
+### User profile definitions (`<config>/enocean_custom/profiles.json`)
+
+Since 2.11.0 the operator can add generic profiles the vendored `EEP.xml`
+lacks, without a release. The file is plain JSON, read once at every set-up
+of the entry (edit it, then reload the integration):
+
+```json
+{
+  "version": 1,
+  "profiles": [
+    {
+      "eep": "A5-02-7A",
+      "description": "Vendor temperature sensor, 10-bit, -40..62.5 °C",
+      "fields": [
+        {"shortcut": "TMP", "description": "Temperature", "kind": "value",
+         "offset": 14, "size": 10, "unit": "C",
+         "range": {"min": 1023, "max": 0}, "scale": {"min": -40, "max": 62.5}},
+        {"shortcut": "PIR", "kind": "enum", "offset": 24, "size": 1}
+      ]
+    }
+  ]
+}
+```
+
+Rules, enforced by `user_profiles.py` and covered by `tests/test_user_profiles.py`:
+
+- **Data only.** The file goes through `json.loads` and a strict voluptuous
+  schema (unknown keys refused, every number bounded, at most 64 profiles of
+  32 fields, 256 KiB). Nothing in it is executed. `offset`/`size` follow the
+  EEP convention (MSB-first bit offsets within the data bytes); a `value`
+  field needs `range` and `scale` exactly like the `<value>` elements of
+  `EEP.xml`; an `enum` field becomes a binary sensor only for the mapped
+  shortcuts (`PIR`, `PIRS`, `CO`, `RAN`), other enums are ignored. Only 4BS
+  (`A5`) and VLD (`D2`) profiles can be defined; an optional `command`
+  (`offset`, `size`, `value`) restricts decoding to one command value.
+- **Built-in profiles are never overridden.** A profile the vendored
+  `EEP.xml` already describes, or one of the families with a dedicated
+  decoder (`D2-01-*`, `D2-14-30`, `A5-12-01`, `A5-14-01`, `A5-20-*`,
+  `A5-38-08`, `F6-*`, `D5-*`), is refused and listed in the Repair issue
+  "Some user EEP profile definitions were skipped"; the other profiles of the
+  file still load.
+- **Invalid means disabled.** A file that fails the schema disables every
+  user profile and raises the Repair issue "User EEP profile definitions are
+  invalid" with the validation error. Rows that declare a user profile create
+  no entity while the file is invalid or absent, and come back unchanged
+  (same `unique_id`s) once it is fixed: identities are the generic
+  `<sender>-eep_<slug>` formulas, exactly as for XML profiles.
+- An accepted profile appears in the *EEP profile for the generic decoder*
+  picker of the device forms and decodes through the same code path as the
+  XML profiles. It is still an operator assertion, never hardware proof.
+
 ### NodOn catalogue boundary
 
 This bounded inventory records manufacturer documentation, not radio identity,
