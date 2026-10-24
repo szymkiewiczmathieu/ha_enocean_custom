@@ -1,5 +1,97 @@
 # Changelog
 
+## 2.11.0 - 2026-10-24
+
+Lot 2 of the roadmap: config subentries (A1), D2-01 state queries (M11),
+German and Dutch translations (A8).
+
+### One config subentry per radio device (A1)
+
+- Every EnOcean radio device (one four-byte sender) is now a Home Assistant
+  **config subentry** of type `device`: its unique ID is the sender, its title
+  the device name, its data the configuration rows of that sender. The
+  integration page lists the devices with *Reconfigure*, *Rename* and
+  *Delete*, plus an **Add device** button (radio-silent: EnOcean ID or
+  Alliance commissioning label, platform, details). Adding, reconfiguring,
+  renaming or deleting a device creates or removes that device's entities in
+  place; **the entry is no longer reloaded** for device changes (it still is
+  for the availability and D2-01 settings). The dongle's own gateway device
+  and entities stay on the main entry. This meets Home Assistant's "a device
+  belongs to exactly one config entry or subentry" rule, enforced since
+  2026.10.
+- **Migration to config entry minor version 3**, automatic and idempotent on
+  the first start: the `ui_devices` rows are grouped by sender, one subentry
+  is created per sender, and each sender's existing registry device and
+  entities are re-attached to it in place. No `unique_id`, `entity_id` or
+  device id changes; custom names, areas, labels and disabled states are
+  untouched; nothing is deleted. The entities are moved before their device
+  on purpose: both HA 2026.7 and 2026.10 delete the entities of a device
+  that changes subentry while they still point at the old one. The device
+  move uses `new_config_subentry_id` on 2026.10 and the add/remove pair on
+  2026.7. Verified by replaying the migration on a copy of a real 43-row,
+  41-device, 231-entity installation through the real registries of both
+  releases (`tests/test_subentry_migration.py`,
+  `tests/fixtures/live_2102_anonymized.json`), with 231/231 identity parity
+  (`tests/test_live_parity.py`).
+- **`ui_devices` stays as a complete mirror** of the subentry rows. Every
+  guided options flow (learn, QR, UTE association, D2 pairing, declare
+  profile, manage, YAML import) keeps reading and writing that list, so their
+  behaviour and regression tests are unchanged; one re-entrancy-safe update
+  listener keeps the mirror and the subentries equal in both directions. The
+  mirror is also what makes a **downgrade to 2.10.x non-destructive**: that
+  release reads `ui_devices` and finds every device. The recommended rollback
+  is still restoring the Home Assistant backup taken before the upgrade; see
+  the README section "Device subentries, migration and rollback".
+- The device-details form and its validation move to `device_form.py`,
+  shared by the options flow and the new subentry flow. New strings under
+  `config_subentries.device`.
+
+### D2-01 actuators: state query and refresh button (M11)
+
+- **Configure → D2-01 actuators**: a new entry option, off by default. When
+  enabled, every D2-01 actuator channel (`switch` rows with
+  `switch_type: default`) is sent one Actuator Status Query (CMD 0x3, EEP
+  2.6.7 p. 135) once after each start-up, in a single serialized pass: one
+  ESP3 command in flight, the actuator's CMD 0x4 answer awaited within the
+  specification's 300 ms window counted from the physical write, at least
+  250 ms between two transmissions, never retried. Nothing is transmitted
+  unless the option is on.
+- A **"Refresh state (channel N)" button** per D2-01 actuator channel (new
+  `button` platform) transmits the same query on demand. A refused queue or
+  an unresolved Base ID raises the existing translated errors.
+- Measurement queries (CMD 0x6, p. 137) are added to a pass only for a
+  declared D2-01 TYPE whose capability matrix (pp. 131-132, transcribed in
+  `d2_01.py`, nothing inferred) marks "Measurement report on query", and only
+  when a power/energy sensor row exists on the same sender to receive the
+  CMD 0x7 answer. D2-01-0A (NodOn ASP-2-1-00) has no metering; D2-01-0B
+  (ASP-2-1-01) gets energy and power.
+- **Not implemented, on purpose:** CMD 0x2 Actuator Set Local and CMD 0x5
+  Actuator Set Measurement. CMD 0x2 rewrites every local setting at once with
+  no "keep" value and the family defines no read-back for most of them
+  ("Response Timing: None", pp. 133-134), so a write could neither be limited
+  to one setting nor verified. The one local setting an actuator reports in
+  CMD 0x4, local control, is exposed read-only as the new
+  `d2_local_control_enabled` attribute.
+- Ubiwizz UBID1507C rows emulating a rocker (`switch_type: RPS`) are never
+  queried; a UBID1507C associated through its UTE request is a plain
+  D2-01-12 actuator and is queried like any other. No Ubiwizz repeater
+  command, as before.
+
+### Documentation and translations (A8)
+
+- Complete German (`de.json`) and Dutch (`nl.json`) translations; a new
+  test requires every language to carry exactly the keys and placeholders of
+  `strings.json`.
+- README: device subentries, migration and rollback; D2-01 state query,
+  measurement and the CMD 0x2 boundary; new troubleshooting rows. Known
+  limitations updated (device changes no longer reload the entry).
+- Entry diagnostics report the subentry counts; device diagnostics report
+  whether the device is in its subentry.
+
+### Not in this release
+
+- A6 (import of user profile definitions) is deferred; see the release notes.
+
 ## 2.10.2 - 2026-10-24
 
 Fixes found on a live HA 2026.10.2 + USB 300 (firmware GATEWAYCTRL 2.15.0.0)

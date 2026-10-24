@@ -8,7 +8,7 @@ and compatible). It provides configuration-entry and YAML setup, guided device
 learning, diagnostics, native rocker triggers, automation blueprints and
 bounded actuator control without cloud services or telemetry.
 
-**Current release:** [v2.10.2](CHANGELOG.md) · Apache-2.0 · available in the HACS default store
+**Current release:** [v2.11.0](CHANGELOG.md) · Apache-2.0 · available in the HACS default store
 
 ## Contents
 
@@ -22,6 +22,7 @@ bounded actuator control without cloud services or telemetry.
 - [Supported devices](#supported-devices)
 - [Known limitations](#known-limitations)
 - [Ubiwizz UBID1507C](#ubiwizz-ubid1507c)
+- [Device subentries, migration and rollback](#device-subentries-migration-and-rollback)
 - [Removing devices or the integration](#removing-devices-or-the-integration)
 - [Troubleshooting](#troubleshooting)
 - [Diagnostics and support](#diagnostics-and-support)
@@ -57,10 +58,22 @@ release: 2026.7.3 (declared in `hacs.json`); the test matrix also validates
 
 ## Configure devices
 
-Use **Configure** on the integration to learn a device, add a QR/ID, pair an
-actuator, declare the profile of an existing device, manage UI-backed devices,
-or import eligible YAML `binary_sensor` and `switch` rows. YAML remains
-supported and can coexist with UI-managed devices.
+Since 2.11.0 every radio device is its own **config subentry** under the
+integration (Settings → Devices & services → EnOcean Custom): the integration
+page lists the devices, each with *Reconfigure*, *Rename* and *Delete*, and an
+**Add device** button for a radio-silent add from an EnOcean ID or an EnOcean
+Alliance commissioning label. Adding, reconfiguring or deleting a device
+creates or removes that device's entities in place; the other devices are not
+reloaded any more. See [Device subentries, migration and
+rollback](#device-subentries-migration-and-rollback).
+
+Use **Configure** on the integration for everything that involves radio or a
+guided procedure: learn a device from its next telegram, add a QR/ID, pair an
+actuator, associate a Ubiwizz module from its UTE request, declare the profile
+of an existing device, manage UI-backed devices, or import eligible YAML
+`binary_sensor` and `switch` rows. Those flows write the same device rows and
+end up in the same subentries. YAML remains supported and can coexist with
+UI-managed devices.
 
 **Declare the profile of an existing device** records an EEP on a row whose
 profile is unknown or was only asserted by hand. The existing entity keeps its
@@ -146,6 +159,23 @@ own four-byte sender ID.
 - **Actuators** (switches, lights) change state only on their own feedback
   telegram (D2-01 status, A5-12 power report), never on the command alone.
   ESP3 `OK` is recorded in the `last_command_esp3_accepted` attribute.
+- **D2-01 actuators can be asked for their state.** After a start-up a D2-01
+  relay stays `unknown` until it sends a telegram. Two ways to ask it, both
+  radio-silent unless you act: the **Refresh state (channel N)** button on
+  each D2-01 actuator sends one Actuator Status Query (CMD 0x3) on demand;
+  **Configure → D2-01 actuators** optionally (off by default) sends that same
+  query to every D2-01 actuator channel once after each start-up or reload.
+  Queries are serialized (one ESP3 command in flight), at least 250 ms apart,
+  never repeated, and the actuator's answer is awaited within the 300 ms
+  window the EEP specification gives it (EEP 2.6.7, D2-01 CMD 0x3, p. 135).
+  Profiles whose TYPE reports measurements on query (EEP 2.6.7 D2-01
+  capability table, pp. 131-132: for instance D2-01-0B, not D2-01-0A nor
+  D2-01-12) also get an energy and/or power Measurement Query (CMD 0x6) when
+  a power/energy sensor row exists on the same sender to receive the answer.
+  Rows emulating a rocker (Ubiwizz UBID1507C `RPS` rows) are never queried.
+  The only local setting an actuator reports back, local control, is shown
+  read-only as `d2_local_control_enabled`; see Known limitations for why the
+  local-settings write (CMD 0x2) is not offered.
 - **Availability** mirrors the serial worker: when the dongle stops, every
   entity becomes unavailable and a Repair issue is raised; when the integration
   reloads, availability returns.
@@ -157,10 +187,10 @@ own four-byte sender ID.
   smoke detectors and handles additionally raise a Repair issue that clears
   itself on the next telegram. Rockers, relays and climate controllers never
   time out. The grace period restarts at every reload.
-- **Devices can be deleted from their device page.** Deleting a radio device
-  removes its UI rows and entities; the gateway device and YAML-configured
-  senders refuse deletion. Devices whose rows were all removed are cleaned up
-  at the next start.
+- **Devices can be deleted from their device page or from the integration
+  page.** Deleting a radio device removes its subentry, its rows and its
+  entities immediately; the gateway device and YAML-configured senders refuse
+  deletion.
 - **Exactly one ESP3 command is in flight.** The worker waits for the dongle's
   response before writing the next packet; a missing response stops the
   transport instead of mis-attributing a later response.
@@ -299,8 +329,17 @@ true`, see [docs/device-intelligence.md](docs/device-intelligence.md#experimenta
   round-trip latency has never been measured against a real dongle or valve.
 - **ESP3 `OK` only proves the dongle transmitted.** It never proves that a
   relay switched or that a device retained a pairing.
-- **Adding or removing a UI device reloads the whole entry.** Entities are
-  unavailable for about a second while the serial worker restarts.
+- **Changing the availability or D2-01 settings still reloads the whole
+  entry** (entities are unavailable for about a second while the serial worker
+  restarts). Adding, reconfiguring or removing a device no longer does.
+- **D2-01 local settings (CMD 0x2) and measurement settings (CMD 0x5) are not
+  written.** CMD 0x2 rewrites every local setting at once (taught-in devices
+  enable, over-current behaviour, local control, dim timers, day/night mode,
+  power-failure detection, default state) with no "keep" value, and the D2-01
+  family defines no read-back for most of them ("Response Timing: None",
+  EEP 2.6.7 pp. 133-134), so a change could neither be limited to one setting
+  nor verified. Only the local-control flag the actuator reports in its own
+  status (CMD 0x4) is exposed, read-only.
 - **Secure (encrypted) telegrams, Smart Ack and Remote Management are not
   supported.** Secure telegrams are parsed as opaque frames and ignored.
 - **The 868 MHz band allows about 1 % transmit duty cycle.** Avoid automations
@@ -347,11 +386,55 @@ enabled repeater makes the USB 300 retransmit every telegram it hears, which
 extends coverage from a central location but adds radio traffic; leave it off
 unless a far device needs it.
 
+## Device subentries, migration and rollback
+
+**What changed in 2.11.0.** Each radio device (one four-byte EnOcean sender)
+is a Home Assistant *config subentry* of the EnOcean Custom entry: its unique
+ID is the sender, its title the device name, its data the configuration rows
+of that sender. Home Assistant's rule "a device belongs to exactly one config
+entry or subentry" (enforced since 2026.10) is therefore met by construction,
+and adding, reconfiguring or deleting one device touches only that device's
+entities. The dongle itself (the *EnOcean gateway* device and its diagnostic
+entities) stays on the main entry.
+
+**Migration.** On the first start with 2.11.0 the config entry moves to minor
+version 3: the existing `ui_devices` rows are grouped by sender, one subentry
+is created per sender, and each sender's existing registry device and
+entities are re-attached to that subentry in place. Nothing is created,
+renamed or deleted: every `unique_id`, `entity_id` and device id, every custom
+name, area, label and disabled state is exactly as before, so automations,
+dashboards and history are untouched. The migration is replayed by the test
+suite on a copy of a real 43-row / 41-device / 231-entity installation
+against both supported Home Assistant releases. The log line
+`Migrated EnOcean entry to minor version 3: N radio device(s) now live in
+their own config subentry` confirms it ran.
+
+**The `ui_devices` option stays as a mirror.** The rows every subentry holds
+are also kept in the entry's `ui_devices` option, exactly where 2.10.x stores
+them. The guided flows under *Configure* keep reading and writing that list,
+and the integration keeps the two in step (a device added from the
+integration page shows up in *Manage UI devices*, a device removed under
+*Configure* loses its subentry, and so on).
+
+**Rollback.** The recommended way back is to restore the Home Assistant
+backup taken before the upgrade; Home Assistant has no "un-migrate".
+Downgrading in place to 2.10.x is nevertheless non-destructive: 2.10.x only
+reads `ui_devices`, which still holds every row, so every device keeps
+working with its existing entities (the registry re-attaches them to the
+main entry at the next start; Home Assistant 2026.10 logs one deprecation
+line per device while doing so). The subentries then sit unused in
+`.storage/core.config_entries` until you upgrade again, at which point they
+are the source of truth: devices you added under 2.10.x in the meantime are
+adopted into new subentries, while devices you deleted under 2.10.x come back
+because their subentry still exists. Delete them again from the device page.
+
 ## Removing devices or the integration
 
-- **One UI-managed device:** **Configure → Manage UI devices**, pick the device,
-  confirm. The row is removed from the entry options and every entity registry
-  row it created is deleted; the sender ID becomes teachable again immediately.
+- **One UI-managed device:** from its device page (⋮ → *Delete*), from the
+  integration page (its subentry → *Delete*), or **Configure → Manage UI
+  devices** to remove a single row of a multi-channel device. The device's
+  subentry and every entity registry row it created are deleted; the sender
+  ID becomes teachable again immediately.
 - **A YAML device:** delete its block from `configuration.yaml` and restart
   Home Assistant. A UI deletion is refused while the same ID is still in YAML.
 - **The whole integration:** **Settings → Devices & services → EnOcean Custom →
@@ -371,6 +454,10 @@ unless a far device needs it.
 | **Error "The dongle refused to queue the command"** | The serial worker is stopped or its transmit queue is full. Check the Repair issue and the logs. |
 | **A rocker/contact entity never changes** | Confirm the four-byte ID with a learn session or the passive radio test; the row must use the sender ID printed in the telegram, not the dongle's Base ID. |
 | **A switch stays `unknown` after a command** | Normal until the actuator answers with its status telegram. If it never does, the module is not paired with the dongle's Base ID: run the guided pairing or UTE association. |
+| **A D2-01 switch stays `unknown` after a restart** | Press its **Refresh state** button, or enable **Configure → D2-01 actuators** to ask every D2-01 actuator once after each start-up. If the button leaves it `unknown`, the actuator did not answer within 300 ms: check pairing, range (signal strength sensor) and that the row's channel matches the actuator's output. |
+| **"Add device" says the ID is already configured** | That sender already has a subentry (one per EnOcean ID). Open that device to reconfigure it, or use **Configure → Add a device** to add another channel/row to the same sender. |
+| **A device deleted under 2.10.x came back after upgrading again** | Its subentry still existed; subentries win over the `ui_devices` mirror on upgrade. Delete the device from its page once more. |
+| **After the upgrade a device shows no entities** | Check the log for `Migrated EnOcean entry to minor version 3`; download the integration diagnostics and look at `subentries.legacy_rows` (should be 0) and the device diagnostics `in_subentry` (should be true). Reload the integration once; if a row stays legacy, its sender has a malformed row in `.storage` that was never a working entity. |
 | **Handle shows `unknown`** | Only the documented F6-10-00 nibbles map to `open`/`tilt`/`closed`; any other value is deliberately `unknown`. |
 | **Repair issue "… has gone silent"** or a sensor/contact is unavailable while the dongle works | Silence detection is enabled for that category and the timeout elapsed. Check the device's battery/energy harvesting and range (signal strength sensor), or raise/disable the timeout under **Configure → Availability and silent devices**. |
 | **Need details for a bug report** | Enable debug logging for `custom_components.enocean_custom` and download the diagnostics (identifiers are redacted). |

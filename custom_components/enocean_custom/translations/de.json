@@ -1,0 +1,722 @@
+{
+  "title": "EnOcean Custom Integration",
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "detect": {
+        "title": "EnOcean-USB-Dongle wählen",
+        "description": "Wählen Sie Ihren EnOcean-USB-Dongle.",
+        "data": {
+          "device": "Pfad des USB-Dongles"
+        },
+        "data_description": {
+          "device": "Pfad zu Ihrem EnOcean-USB-Dongle oder eine socket://host:port- / rfc2217://host:port-URL für einen über das Netzwerk geteilten Dongle (ser2net, ESPHome stream_server, esp-ha-usb-gateway)."
+        }
+      },
+      "manual": {
+        "title": "Pfad eines EnOcean-USB-Dongles angeben",
+        "description": "Geben Sie den Pfad zu Ihrem EnOcean-USB-Dongle ein.",
+        "data": {
+          "device": "Pfad des USB-Dongles"
+        },
+        "data_description": {
+          "device": "Pfad zu Ihrem EnOcean-USB-Dongle oder eine socket://host:port- / rfc2217://host:port-URL für einen über das Netzwerk geteilten Dongle (ser2net, ESPHome stream_server, esp-ha-usb-gateway). Eine Netzwerkverbindung verbindet sich nach einem unerwarteten Abbruch eine begrenzte Anzahl von Malen selbst neu; ein lokaler Pfad nicht."
+        }
+      },
+      "reconfigure": {
+        "title": "EnOcean-Dongle neu konfigurieren",
+        "description": "Ändern Sie das serielle Gerät. Home Assistant lädt die Integration erst neu, nachdem der neue Pfad geprüft wurde.",
+        "data": {
+          "device": "Pfad des USB-Dongles"
+        },
+        "data_description": {
+          "device": "Pfad zu Ihrem EnOcean-USB-Dongle oder eine socket://host:port- / rfc2217://host:port-URL für einen über das Netzwerk geteilten Dongle."
+        }
+      },
+      "usb_confirm": {
+        "description": "{manufacturer}-USB-Dongle an {device} erkannt. Möchten Sie dieses Gerät einrichten?"
+      }
+    },
+    "error": {
+      "invalid_dongle_path": "Unter diesem Pfad wurde kein gültiger Dongle gefunden"
+    },
+    "abort": {
+      "invalid_dongle_path": "Ungültiger Dongle-Pfad",
+      "single_instance_allowed": "[%key:common::config_flow::abort::single_instance_allowed%]"
+    }
+  },
+  "selector": {
+    "devices": {
+      "options": {
+        "manual": "Eigener Pfad"
+      }
+    },
+    "actuator_type": {
+      "options": {
+        "relay_d2": "Ubiwizz-Relais — in Betrieb nehmen, dann gerichtete D2-Steuerung verwenden",
+        "dimmer_4bs": "4BS-Dimmer (z. B. Eltako)"
+      }
+    },
+    "pairing_failure_action": {
+      "options": {
+        "retry": "Erneut versuchen",
+        "keep": "Behalten/speichern ohne nachgewiesene Inbetriebnahme",
+        "delete": "Inbetriebnahme abbrechen"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "menu_options": {
+          "learn": "Gerät hinzufügen",
+          "qr_code": "Per QR-Code hinzufügen",
+          "pair_actuator": "Aktor koppeln (geführt; kein automatisches UTE)",
+          "commission_existing": "Vorhandenes D2-Relais in Betrieb nehmen (assistiert; kein automatisches UTE)",
+          "ute_discover": "Ubiwizz-Modul über seine UTE-Anfrage zuordnen",
+          "radio_probe": "Funksignal eines Moduls passiv testen (kein Funkbefehl)",
+          "ubiwizz_repeater": "Ubiwizz-Repeater-Diagnose (kein Funkbefehl)",
+          "declare_profile": "Profil eines vorhandenen Geräts deklarieren",
+          "manage": "UI-Geräte verwalten",
+          "settings": "Verfügbarkeit und stumme Geräte",
+          "actuators": "D2-01-Aktoren: Statusabfrage beim Start",
+          "import_yaml": "YAML-Geräte importieren"
+        }
+      },
+      "declare_profile": {
+        "title": "Profil deklarieren",
+        "description": "Wählen Sie ein Gerät, dessen Profil noch unbekannt ist oder nur manuell behauptet wurde. Ein deklariertes Profil ist eine Aussage des Bedieners, nie ein Hardwarenachweis. Beispiel: Ein als einfacher Rauch-Binärsensor hinzugefügter Rauchmelder wird zu einem F6-05-02-Melder mit Alarm- und Batterie-schwach-Entitäten und behält dabei seine vorhandene Entität.",
+        "data": {
+          "device": "Gerät"
+        }
+      },
+      "declare_profile_eep": {
+        "title": "Profil für {name}",
+        "description": "Gerät {name} ({platform}, {captured_id}). Wählen Sie ein Produkt aus dem Katalog, um sein EEP automatisch einzutragen, oder wählen Sie Benutzerdefiniert und geben Sie das EEP genau so ein, wie der Hersteller es druckt, zum Beispiel F6-05-02 für einen Rauchmelder oder F6-10-00 für einen Fenstergriff. Eine Katalogauswahl wird genau wie ein eingegebenes EEP erfasst: eine Aussage des Bedieners, nie ein Hardwarenachweis. Die vorhandene Entität behält ihre Identität; Begleitentitäten werden beim Neuladen der Integration hinzugefügt.",
+        "data": {
+          "catalog_product": "Produkt (optional)",
+          "manual_eep": "EEP-Profil"
+        },
+        "data_description": {
+          "catalog_product": "Es werden nur Produkte mit einem nutzbaren Decoder für den Typ dieses Geräts aufgeführt. Lassen Sie Benutzerdefiniert stehen, um das EEP selbst einzugeben."
+        }
+      },
+      "settings": {
+        "title": "Verfügbarkeit und stumme Geräte",
+        "description": "Optional. Wenn aktiviert, wird ein Gerät, das für die eingestellte Zeit nicht gesendet hat, nicht verfügbar; Rauchmelder, Kontakte und Griffe lösen zusätzlich ein Reparatur-Problem aus. Taster, Relais und Klimaregler laufen nie ab. Setzen Sie eine Kategorie auf 0 Minuten, damit sie nie abläuft. Rauchmelder und Griffe stehen standardmäßig auf 0, weil viele Modelle nur bei Ereignissen senden: Aktivieren Sie sie nur mit einem Intervall, das Sie gemessen haben.",
+        "data": {
+          "enabled": "Stummerkennung aktivieren",
+          "sensor_minutes": "Sensoren (A5-Messungen, D2-Leistungsmeldungen)",
+          "contact_minutes": "Fenster- und Türkontakte",
+          "smoke_minutes": "Rauchmelder",
+          "handle_minutes": "Fenstergriffe"
+        }
+      },
+      "actuators": {
+        "title": "D2-01-Aktoren",
+        "description": "Optional, standardmäßig aus. Wenn aktiviert, wird jeder der {count} konfigurierten D2-01-Aktorkanäle (Relais, die mit gerichteten D2-Befehlen gesteuert werden; Ubiwizz-Zeilen, die einen Taster emulieren, sind nicht betroffen) nach jedem Start oder Neuladen einmal mit einer Actuator Status Query (CMD 0x3) nach seinem Status gefragt, damit Schalter „unbekannt“ verlassen, ohne auf das nächste Telegramm zu warten. Abfragen werden nacheinander gesendet, mindestens 250 ms auseinander, und nie wiederholt; der Aktor muss innerhalb des 300-ms-Fensters der EEP-Spezifikation antworten. Die Schaltfläche „Status aktualisieren“ jedes Aktors sendet dieselbe Abfrage auf Anforderung, unabhängig von dieser Einstellung.",
+        "data": {
+          "d2_01_query_on_start": "Jeden D2-01-Aktor nach dem Start einmal abfragen"
+        },
+        "data_description": {
+          "d2_01_query_on_start": "Sendet nach jedem Start oder Neuladen eine Funkabfrage pro Aktorkanal. Lassen Sie es aus, wenn diese Integration nie von sich aus senden soll."
+        }
+      },
+      "pair_actuator": {
+        "title": "Aktor identifizieren",
+        "description": "Scannen oder fügen Sie das Inbetriebnahme-QR-Etikett der EnOcean Alliance ein, oder geben Sie die Aktor-ID exakt als AA:BB:CC:DD ein.",
+        "data": {
+          "qr_code": "Inbetriebnahmecode oder Aktor-ID"
+        }
+      },
+      "pair_actuator_type": {
+        "title": "Aktortyp wählen",
+        "description": "Aktor-ID: {captured_id}\n\nEEP-Profil: {radio_eep}\nHersteller: {radio_manufacturer}\nHerstellerregister: {radio_manufacturer_name}\nHersteller-ID: {radio_manufacturer_id}\nModell: {radio_model}\nNachweis: {radio_evidence}\nUnterstützung: {radio_support}\nKonflikt: {radio_conflict}\nZuletzt gesehen (UTC): {radio_last_seen}\nRSSI: {radio_rssi} dBm\nRepeater-Zähler: {radio_repeater}",
+        "data": {
+          "name": "Name",
+          "actuator_type": "Aktortyp"
+        }
+      },
+      "pair_actuator_details": {
+        "title": "Aktor konfigurieren",
+        "description": "Aktor: {name} ({captured_id})",
+        "data": {
+          "channel": "Kanal",
+          "sender_id": "Sender-ID"
+        }
+      },
+      "pair_actuator_instructions": {
+        "title": "Modul in den Kopplungsmodus bringen",
+        "description": "Anleitung zur lokalen UBID1507C-Zuordnung: Softwarekanal {software_channel} ist Ausgang {hardware_channel}. Das offizielle Handbuch sagt: PRESS dreimal kurz drücken; für Ausgang 2 ein zusätzliches kurzes PRESS zur Auswahl, dann den kompatiblen Sender betätigen. Dies ist ein physischer manueller Vorgang, keine erzeugte Funksequenz. Fahren Sie fort, um das {timeout}-Sekunden-Fenster für die gerichtete D2-Inbetriebnahme zu starten."
+      },
+      "pair_relay_success": {
+        "title": "Gerichtete D2-Steuerung bestätigt",
+        "description": "Ein gerichteter D2-EIN-Befehl wurde eingereiht, mit ESP3 OK angenommen und von einer passenden EIN-Rückmeldung genau dieses Aktors und Kanals gefolgt. Die dauerhafte Inbetriebnahme eines werksseitig zurückgesetzten Aktors bleibt unbewiesen, bis die Hardware-Freigabeprüfung bestanden ist."
+      },
+      "pair_dimmer_success": {
+        "title": "Einlernen gesendet",
+        "description": "Das Einlernen wurde {attempts}-mal gesendet. Für A5-38-08 gibt es keine Funkbestätigung; prüfen Sie physisch, ob der Dimmer reagiert."
+      },
+      "pair_actuator_failure": {
+        "title": "Zeitüberschreitung beim Koppeln",
+        "description": "Die Inbetriebnahme wurde nicht nachgewiesen. Erneut versuchen ändert nichts. Bei einem neuen Gerät kann Behalten den Standardschalter speichern, ohne eine Inbetriebnahme zu behaupten; Abbrechen verwirft ihn. Bei einem vorhandenen Gerät lassen Behalten und Abbrechen seine Zeile unverändert und löschen sie nie.",
+        "data": {
+          "failure_action": "Nächste Aktion"
+        }
+      },
+      "qr_code": {
+        "title": "Per QR-Code hinzufügen",
+        "description": "Nur Konfiguration: Dieser funkstille Weg nimmt keinen fabrikneuen Aktor in Betrieb. Bereits in Betrieb genommene Module können ihn nutzen. Verwenden Sie für ein neues Ubiwizz die geführte Kopplung. Vorhandene UI-Standardrelais auf Kanal 0 oder 1 nutzen den separaten assistierten Inbetriebnahmeweg: Er bindet eine exakte physische QR/ID vor jedem Funk und verlangt eine manuelle Bestätigung des Relaisprofils, wenn ein exakter Funknachweis fehlt.",
+        "data": {
+          "qr_code": "Inbetriebnahmecode oder EnOcean-ID"
+        }
+      },
+      "device_form": {
+        "title": "Erfasstes Gerät benennen",
+        "description": "Erfasste EnOcean-ID: {captured_id}\n\nEEP-Profil: {radio_eep}\nHersteller: {radio_manufacturer}\nHerstellerregister: {radio_manufacturer_name}\nHersteller-ID: {radio_manufacturer_id}\nModell: {radio_model}\nNachweis: {radio_evidence}\nUnterstützung: {radio_support}\nKonflikt: {radio_conflict}\nZuletzt gesehen (UTC): {radio_last_seen}\nRSSI: {radio_rssi} dBm\nRepeater-Zähler: {radio_repeater}",
+        "data": {
+          "platform": "Typ",
+          "name": "Name",
+          "manual_eep": "Manuelles EEP-Profil (optional)"
+        },
+        "data_description": {
+          "manual_eep": "Leer lassen, um das Profil unbekannt zu belassen. Format XX-XX-XX, z. B. A5-12-01. Ein eingegebenes Profil wird als Aussage des Bedieners erfasst, nie als Nachweis."
+        }
+      },
+      "device_details": {
+        "title": "Gerätedetails",
+        "description": "Erfasste EnOcean-ID: {captured_id}, Name: {name}. Das Hinzufügen per QR konfiguriert nur und sendet keinen Inbetriebnahme-Funk.",
+        "data": {
+          "device_class": "Geräteklasse",
+          "eep": "EEP-Profil für den generischen Decoder (Geräteklasse eep)",
+          "channel": "Kanal",
+          "switch_type": "Schaltertyp",
+          "sender_id": "Sender-ID",
+          "id_switch": "Sender-ID des Schalters",
+          "device_type": "Gerätetyp",
+          "sensor_entity_id": "Temperatursensor-Entität",
+          "temperature_frost_protection": "Frostschutztemperatur",
+          "sensor_target_temperature_range": "Solltemperaturbereich des Sensors",
+          "sensor_target_temperature_update_tolerance": "Aktualisierungstoleranz der Sensor-Solltemperatur",
+          "target_temperature_base_value": "Basis-Solltemperatur",
+          "target_temperature_reduction_night": "Nächtliche Absenkung der Solltemperatur",
+          "command_frequency": "Befehlshäufigkeit",
+          "pi_control_Kp": "PI-Proportionalverstärkung (Kp)",
+          "pi_control_Tn": "PI-Nachstellzeit (Tn)",
+          "max_temp": "Maximaltemperatur",
+          "min_temp": "Minimaltemperatur",
+          "range_from": "Rohwertbereich Anfang",
+          "range_to": "Rohwertbereich Ende"
+        }
+      },
+      "import_yaml": {
+        "title": "YAML-Geräte importieren",
+        "description": "Bereit zum Import: {binary_sensors} Binärsensoren und {switches} Schalter. {non_importable} Geräte verwenden nicht unterstützte YAML-Plattformen und bleiben in YAML; {invalid} ungültige oder unvollständige Zeilen werden ignoriert.\n\nEntfernen Sie YAML nicht vor dem Import. Entfernen Sie nach dem Import die importierten YAML-Blöcke, starten Sie Home Assistant neu und prüfen Sie die Entitäten. Entitäts-IDs und Automationen bleiben erhalten.",
+        "data": {
+          "confirm": "Ich habe verstanden und möchte importieren"
+        }
+      },
+      "import_yaml_success": {
+        "title": "YAML-Geräte importiert",
+        "description": "Importiert: {imported}. Als Duplikate übersprungen: {skipped}.\n\nEntfernen Sie nun die importierten YAML-Blöcke, starten Sie Home Assistant neu und prüfen Sie Entitäten und Automationen."
+      },
+      "manage": {
+        "title": "UI-Geräte verwalten",
+        "data": {
+          "device": "Zu entfernendes Gerät"
+        }
+      },
+      "commission_existing": {
+        "title": "Vorhandenes D2-Relais in Betrieb nehmen (assistiert)",
+        "description": "Wählen Sie ein UI-verwaltetes Standardrelais auf Kanal 0 oder 1. Die Auswahl ist kein Identitätsnachweis und sendet keinen Funk. Zeilen mit widersprüchlichen Funk-/Produktnachweisen sind ausgeschlossen. Der nächste Schritt bindet eine physische QR/ID an genau diese ausgewählte Zeile; ihre Entitäts- und Registry-Identität bleibt erhalten.",
+        "data": {
+          "device": "Zu identifizierendes vorhandenes Relais"
+        }
+      },
+      "commission_existing_identity": {
+        "title": "Physische Aktoridentität binden",
+        "description": "Ausgewähltes UI-Relais: {selected_id}, Kanal {channel}. Scannen oder fügen Sie das exakte physische Inbetriebnahme-QR-Etikett der EnOcean Alliance ein, oder geben Sie genau diese ID als AA:BB:CC:DD ein. Ein anderer Sender oder widersprüchliche Produkt-/Funknachweise werden abgelehnt. Dieser Schritt sendet keinen Funk.",
+        "data": {
+          "qr_code": "Inbetriebnahmecode oder exakte Aktor-ID"
+        }
+      },
+      "commission_existing_confirm": {
+        "title": "Relaisprofil bestätigen",
+        "description": "An das ausgewählte Relais {selected_id}, Kanal {channel}, ist kein exakter funkdeklarierter D2-01-12-Nachweis gebunden. Bestätigen Sie erst nach Prüfung des physischen Moduls: Es ist ein Relais, das eine D2-01-12-Inbetriebnahme erfordert. Dies ist eine Aussage des Bedieners, kein Funknachweis. Sie wird erst nach eingereihtem gerichtetem D2-EIN, ESP3 OK und späterer passender D2-Rückmeldung gespeichert.",
+        "data": {
+          "confirm_relay_d2": "Ich bestätige, dass dieses physische Relais eine D2-01-12-Inbetriebnahme erfordert"
+        }
+      },
+      "ute_discover": {
+        "title": "Ubiwizz-Modul über seine UTE-Anfrage zuordnen",
+        "description": "Geben Sie die exakte EURID des Moduls ein und wählen Sie Ausgang 1 oder 2. Home Assistant aktiviert dann einen zeitlich begrenzten Empfänger, bevor Sie die lokale PRESS-Sequenz starten; er antwortet nur auf eine passende UTE-Anfrage dieses Moduls. Das EEP wird dem empfangenen Telegramm entnommen, nicht geraten.",
+        "data": {
+          "name": "Name",
+          "qr_code": "Modul-EURID oder Inbetriebnahme-Etikett",
+          "channel": "Zu konfigurierender Ausgang"
+        }
+      },
+      "ute_discover_confirm": {
+        "title": "Lokale Zuordnung jetzt starten",
+        "description": "Der Empfänger ist scharf. Starten Sie jetzt die dokumentierte lokale PRESS-Sequenz und bestätigen Sie sofort. Home Assistant sendet kein UTE-Telegramm, bis es die passende bidirektionale Anfrage genau dieses Moduls empfängt.",
+        "data": {
+          "ute_ready": "Der UTE-Empfänger ist scharf; ich starte jetzt die lokale PRESS-Sequenz"
+        }
+      },
+      "radio_probe": {
+        "title": "Passiver Funktest eines Moduls",
+        "description": "Geben Sie die exakte EURID ein. Dieser Test lauscht auf ein vollständiges Telegramm dieses Moduls, sendet aber nie Funk, erstellt kein Gerät und ändert keine Konfiguration.",
+        "data": {
+          "qr_code": "Modul-EURID oder Inbetriebnahme-Etikett"
+        }
+      },
+      "radio_probe_confirm": {
+        "title": "Passiven Test starten",
+        "description": "Der Empfänger ist scharf. Führen Sie die dokumentierte lokale Aktion des Moduls einmal aus und bestätigen Sie dann sofort. Dieser Test sendet keinen Funkbefehl und kann die Kopplung nicht ändern.",
+        "data": {
+          "ute_ready": "Der passive Empfängertest ist scharf; ich führe jetzt die lokale Aktion aus"
+        }
+      },
+      "ubiwizz_repeater": {
+        "title": "Ubiwizz-Repeater-Diagnose",
+        "description": "Nur Diagnosegrenze. Wählen Sie das in der Moduldokumentation genannte Profil und die Stufe, die Sie bewerten möchten. Dies identifiziert kein Ubiwizz-Modell, beobachtet nicht seinen Repeater-Zustand, ändert nicht seine Konfiguration und sendet keinen Funk.",
+        "data": {
+          "ubiwizz_repeater_eep": "Dokumentiertes D2-Profil",
+          "ubiwizz_repeater_level": "Gewünschte Repeater-Stufe"
+        }
+      },
+      "ubiwizz_repeater_blocked": {
+        "title": "Ubiwizz-Repeater-Funkbefehl nicht verfügbar",
+        "description": "Gewünschtes Profil: {eep}; gewünschte Stufe: {level}. Die vorliegenden Ubiwizz-Quellen dokumentieren weder eine Fern-Repeater-Voreinstellung noch ein unterstütztes Zurücklesen, daher bleibt der aktuelle Zustand unbekannt. Es wurde kein Funkbefehl kodiert oder gesendet, kein PRESS-Vorgang vorgeschrieben und keine Option oder Entität geändert. Sammeln Sie ein exaktes Modell/eine Revision, das Herstellerverfahren, eine Sende-/Antwortaufzeichnung und ein dauerhaftes Zurücklesen, bevor ein Befehl hinzugefügt wird."
+      },
+      "delete_confirm": {
+        "title": "Gerät entfernen?",
+        "description": "{name} ({platform}, {captured_id}) entfernen? Dadurch wird auch sein Entitätsregistry-Eintrag gelöscht.",
+        "data": {
+          "confirm": "Entfernen bestätigen"
+        }
+      }
+    },
+    "progress": {
+      "waiting_for_device": "Drücken Sie jetzt die Taste am Gerät. Es wird bis zu 60 Sekunden auf einen unbekannten EnOcean-Sender gewartet.",
+      "pairing_actuator": "Kopplung läuft bis zu {timeout} Sekunden. Befehle werden wiederholt gesendet; halten Sie das Modul im Kopplungsmodus.",
+      "waiting_for_ute_request": "Es wird bis zu {timeout} Sekunden auf die exakte UTE-Anfrage des Moduls gewartet. Home Assistant antwortet nur auf eine passende Anfrage innerhalb der Protokollfrist.",
+      "waiting_for_radio_probe": "Es wird bis zu {timeout} Sekunden auf ein vollständiges Telegramm des ausgewählten Moduls gewartet. Diese Diagnose sendet keinen Funkbefehl."
+    },
+    "error": {
+      "unique_id_exists": "Ein Gerät mit dieser Identität existiert bereits. Das Einlernen führt nie ein vorhandenes Gerät zusammen oder überschreibt es.",
+      "invalid_channel_rps": "RPS-Schalter unterstützen nur Kanal 0 oder 1.",
+      "invalid_channel": "Der Kanal muss eine exakte ganze Zahl zwischen 0 und 31 sein.",
+      "invalid_sender_id": "Die Sender-ID muss aus 4 Hex-Bytes bestehen, z. B. 05:9F:89:34.",
+      "sender_id_collision": "Diese Sender-ID wird bereits von einer anderen Leuchte, einem Klimaaktor oder einem RPS-emulierten Schalter verwendet. Jeder braucht eine eigene virtuelle Identität; der oben vorgeschlagene Wert ist frei.",
+      "invalid_qr_code": "Der Wert ist weder ein unterstützter Inbetriebnahme-QR-Inhalt der EnOcean Alliance noch eine ID im Format AA:BB:CC:DD.",
+      "invalid_ute_target": "Geben Sie die exakte Vier-Byte-EURID des Moduls als AA:BB:CC:DD oder ein unterstütztes Inbetriebnahme-Etikett ein.",
+      "ute_not_ready": "Bestätigen Sie, dass der Empfänger scharf ist, bevor Sie die lokale PRESS-Sequenz starten.",
+      "invalid_exact_integer": "Der Wert muss eine exakte ganze Zahl innerhalb der angezeigten Grenzen sein.",
+      "invalid_number": "Der Wert muss eine endliche Zahl innerhalb der angezeigten Grenzen sein.",
+      "invalid_temperature_range": "Die Minimaltemperatur muss unter der Maximaltemperatur liegen.",
+      "invalid_raw_range": "Anfang und Ende des Rohwertbereichs müssen sich unterscheiden.",
+      "invalid_command_frequency": "Die Befehlshäufigkeit muss eine gültige positive Dauer von mindestens einer Sekunde sein.",
+      "invalid_device_details": "Die Gerätedetails sind ungültig.",
+      "invalid_eep": "Das manuelle EEP muss das exakte Hexadezimalformat XX-XX-XX haben, z. B. A5-12-01.",
+      "profile_changes_identity": "Dieses Profil würde die vorhandene Entität in eine andere Entitätsklasse verwandeln. Entfernen Sie das Gerät und fügen Sie es stattdessen mit dem Profil neu hinzu.",
+      "eep_unsupported": "Die Geräteklasse eep braucht ein Profil, das der generische Decoder abdeckt: Wählen Sie eines aus der Liste oder lassen Sie es durch ein 4BS-Einlernen deklarieren.",
+      "commissioning_identity_mismatch": "Die gescannte oder eingegebene ID stimmt nicht exakt mit dem ausgewählten UI-Relais überein. Es wurde kein Funk gesendet.",
+      "commissioning_identity_conflict": "Die gescannte Identität widerspricht vorhandenen Funk- oder Produktnachweisen. Es wurde kein Funk gesendet.",
+      "invalid_ubiwizz_repeater": "Wählen Sie genau D2-01-01 oder D2-01-12 und Repeater-Stufe 1 oder 2."
+    },
+    "abort": {
+      "learn_timeout": "Vor der Zeitüberschreitung wurde kein unbekannter EnOcean-Sender gehört.",
+      "no_ui_devices": "Keine UI-verwalteten Geräte zum Entfernen.",
+      "no_undeclared_devices": "Jedes UI-Gerät deklariert bereits ein Profil.",
+      "no_commissionable_devices": "Kein UI-verwaltetes Standardrelais auf Kanal 0 oder 1 ohne widersprüchliche Funk-/Produktnachweise steht für die assistierte Inbetriebnahme zur Identifizierung bereit.",
+      "commissioning_device_disappeared": "Der ausgewählte Schalter wurde während der Inbetriebnahme entfernt; er wurde nicht neu erstellt.",
+      "commissioning_relay_unconfirmed": "Die erforderliche physische Bestätigung des D2-01-12-Relais wurde nicht gegeben. Es wurde kein Funk gesendet und die Optionen blieben unverändert.",
+      "commissioning_asp_not_supported": "Die Inbetriebnahme des NodOn ASP-2-1-00 ist in dieser Integration nicht implementiert. Es wurde kein Funk gesendet und die Optionen blieben unverändert.",
+      "delete_cancelled": "Entfernen abgebrochen.",
+      "learn_in_progress": "Ein Einlernfenster ist bereits aktiv.",
+      "device_form_missing": "Die Geräteformular-Sitzung ist abgelaufen; beginnen Sie erneut.",
+      "yaml_managed": "Diese EnOcean-ID ist auch in YAML konfiguriert. Entfernen Sie die YAML-Konfiguration, bevor Sie ihr UI-Gerät löschen.",
+      "no_yaml_devices_to_import": "Es bleiben keine YAML-Geräte zum Importieren.",
+      "yaml_import_cancelled": "YAML-Import abgebrochen. Es wurden keine Geräte geändert.",
+      "ubiwizz_repeater_request_missing": "Die Repeater-Diagnosesitzung ist abgelaufen; beginnen Sie erneut.",
+      "radio_probe_not_ready": "Der passive Funktest wurde nicht initialisiert.",
+      "radio_probe_no_target_packet": "Vor Ablauf des Tests erreichte kein vollständiges Funktelegramm dieses Moduls Home Assistant. Es wurde kein Funk gesendet und die Konfiguration blieb unverändert.",
+      "radio_probe_target_ute": "Ein vollständiges UTE-Telegramm dieses Moduls hat Home Assistant erreicht. Es wurde keine Antwort gesendet und die Konfiguration blieb unverändert.",
+      "radio_probe_target_other": "Ein vollständiges Nicht-UTE-Telegramm dieses Moduls hat Home Assistant erreicht. Es wurde keine Antwort gesendet und die Konfiguration blieb unverändert.",
+      "ute_discovery_not_ready": "Der Empfänger muss vor der lokalen PRESS-Sequenz scharf geschaltet werden.",
+      "ute_discovery_write_unconfirmed": "Die UTE-Antwort wurde eingereiht, aber ihr physisches serielles Schreiben auf den USB300 wurde nicht bestätigt. Es wurde kein Gerät gespeichert.",
+      "ute_discovery_timeout": "Die UTE-Antwort wurde an den Dongle geschrieben, aber innerhalb der begrenzten Wartezeit kam kein ESP3-Transportergebnis. Es wurde kein Gerät gespeichert.",
+      "ute_discovery_queue_rejected": "Die UTE-Antwort wurde nicht in die Dongle-Warteschlange aufgenommen. Es wurde kein Gerät gespeichert.",
+      "ute_discovery_base_id_unavailable": "Die Base-ID des Dongles ist nicht verfügbar, daher wurde die passende Anfrage nicht beantwortet und kein Gerät gespeichert.",
+      "ute_discovery_transport_rejected": "Die passende UTE-Anfrage wurde empfangen und eine Antwort geschrieben, aber ESP3 hat ihr Transportergebnis abgelehnt. Es wurde kein Gerät gespeichert.",
+      "ute_discovery_collision": "Diese Ausgangsidentität und dieser Kanal existieren bereits. Es wurde kein Gerät gespeichert.",
+      "ute_discovery_failed": "Die UTE-Zuordnung konnte nicht sicher abgeschlossen werden. Es wurde kein Gerät gespeichert.",
+      "ute_discovery_no_request": "Vor Ablauf des Empfangsfensters wurde keine passende UTE-Anfrage empfangen. Es wurde weder eine Funkantwort gesendet noch ein Gerät gespeichert.",
+      "ute_discovery_deadline_missed": "Eine passende UTE-Anfrage kam nach der Antwortfrist an. Sie wurde absichtlich nicht beantwortet und kein Gerät gespeichert."
+    }
+  },
+  "config_subentries": {
+    "device": {
+      "entry_type": "Gerät",
+      "initiate_flow": {
+        "user": "Gerät hinzufügen",
+        "reconfigure": "Gerät neu konfigurieren"
+      },
+      "step": {
+        "user": {
+          "title": "EnOcean-Gerät hinzufügen",
+          "description": "Nur Konfiguration, kein Funk: Geben Sie die EnOcean-ID des Geräts als AA:BB:CC:DD ein oder fügen Sie sein Inbetriebnahme-Etikett der EnOcean Alliance ein, wählen Sie, wie Home Assistant es darstellen soll, und benennen Sie es. Das Gerät wird zu einem eigenen Eintrag unter dieser Integration; seine Entitäten werden sofort erstellt, ohne die anderen Geräte neu zu laden. Einlernfenster, Ubiwizz-UTE-Zuordnung und geführte D2-Kopplung bleiben unter Konfigurieren.",
+          "data": {
+            "name": "Name",
+            "qr_code": "EnOcean-ID oder Inbetriebnahme-Etikett",
+            "platform": "Typ",
+            "manual_eep": "Manuelles EEP-Profil (optional)"
+          },
+          "data_description": {
+            "qr_code": "Vier Hex-Bytes (05:8F:22:33) oder ein ANSI-MH10.8.2-Etikett mit 30S- und 1P-Containern. Eine 48-Bit-EURID wird abgelehnt statt gekürzt.",
+            "manual_eep": "Format XX-XX-XX, z. B. F6-10-00. Wird ignoriert, wenn das Etikett bereits ein Profil deklariert. Ein eingegebenes Profil wird als Aussage des Bedieners erfasst, nie als Nachweis."
+          }
+        },
+        "details": {
+          "title": "Gerätedetails",
+          "description": "EnOcean-ID: {captured_id}, Name: {name}, Typ: {platform}.\n\nEEP-Profil: {radio_eep}\nHersteller: {radio_manufacturer}\nHerstellerregister: {radio_manufacturer_name}\nHersteller-ID: {radio_manufacturer_id}\nModell: {radio_model}\nNachweis: {radio_evidence}\nUnterstützung: {radio_support}\nKonflikt: {radio_conflict}",
+          "data": {
+            "device_class": "Geräteklasse",
+            "eep": "EEP-Profil für den generischen Decoder (Geräteklasse eep)",
+            "channel": "Kanal",
+            "switch_type": "Schaltertyp",
+            "sender_id": "Sender-ID",
+            "id_switch": "Sender-ID des Schalters",
+            "device_type": "Gerätetyp",
+            "sensor_entity_id": "Temperatursensor-Entität",
+            "temperature_frost_protection": "Frostschutztemperatur",
+            "sensor_target_temperature_range": "Solltemperaturbereich des Sensors",
+            "sensor_target_temperature_update_tolerance": "Aktualisierungstoleranz der Sensor-Solltemperatur",
+            "target_temperature_base_value": "Basis-Solltemperatur",
+            "target_temperature_reduction_night": "Nächtliche Absenkung der Solltemperatur",
+            "command_frequency": "Befehlshäufigkeit",
+            "pi_control_Kp": "PI-Proportionalverstärkung (Kp)",
+            "pi_control_Tn": "PI-Nachstellzeit (Tn)",
+            "max_temp": "Maximaltemperatur",
+            "min_temp": "Minimaltemperatur",
+            "range_from": "Rohwertbereich Anfang",
+            "range_to": "Rohwertbereich Ende"
+          }
+        },
+        "reconfigure": {
+          "title": "{name} neu konfigurieren",
+          "description": "Gerät {name} ({captured_id}, {rows} Zeile(n)). Umbenennen ändert den von Home Assistant angezeigten Gerätenamen; Entitäts-IDs und Unique-IDs ändern sich nie. Wenn das Profil einer Zeile noch unbekannt ist oder nur manuell behauptet wurde, wählen Sie ein Produkt oder geben Sie sein EEP ein, um es zu deklarieren: Die vorhandene Entität behält ihre Identität und Begleitentitäten werden hinzugefügt. Ein Profil, das die Entität in eine andere Klasse verwandeln würde, wird abgelehnt.",
+          "data": {
+            "name": "Gerätename",
+            "row": "Zeile, deren Profil deklariert werden soll",
+            "catalog_product": "Produkt (optional)",
+            "manual_eep": "EEP-Profil (optional)"
+          },
+          "data_description": {
+            "catalog_product": "Es werden nur Produkte mit einem nutzbaren Decoder für den Typ dieser Zeile aufgeführt. Lassen Sie Benutzerdefiniert stehen, um das EEP selbst einzugeben, oder lassen Sie das EEP leer, um nur umzubenennen."
+          }
+        }
+      },
+      "error": {
+        "invalid_qr_code": "Der Wert ist weder ein unterstützter Inbetriebnahme-QR-Inhalt der EnOcean Alliance noch eine ID im Format AA:BB:CC:DD.",
+        "name_required": "Geben Sie einen Namen für das Gerät ein.",
+        "invalid_device_details": "Die Gerätedetails sind ungültig.",
+        "invalid_eep": "Das manuelle EEP muss das exakte Hexadezimalformat XX-XX-XX haben, z. B. A5-12-01.",
+        "invalid_channel": "Der Kanal muss eine exakte ganze Zahl zwischen 0 und 31 sein.",
+        "invalid_channel_rps": "RPS-Schalter unterstützen nur Kanal 0 oder 1.",
+        "invalid_sender_id": "Die Sender-ID muss aus 4 Hex-Bytes bestehen, z. B. 05:9F:89:34.",
+        "sender_id_collision": "Diese Sender-ID wird bereits von einer anderen Leuchte, einem Klimaaktor oder einem RPS-emulierten Schalter verwendet. Jeder braucht eine eigene virtuelle Identität; der oben vorgeschlagene Wert ist frei.",
+        "invalid_exact_integer": "Der Wert muss eine exakte ganze Zahl innerhalb der angezeigten Grenzen sein.",
+        "invalid_number": "Der Wert muss eine endliche Zahl innerhalb der angezeigten Grenzen sein.",
+        "invalid_temperature_range": "Die Minimaltemperatur muss unter der Maximaltemperatur liegen.",
+        "invalid_raw_range": "Anfang und Ende des Rohwertbereichs müssen sich unterscheiden.",
+        "invalid_command_frequency": "Die Befehlshäufigkeit muss eine gültige positive Dauer von mindestens einer Sekunde sein.",
+        "eep_unsupported": "Die Geräteklasse eep braucht ein Profil, das der generische Decoder abdeckt: Wählen Sie eines aus der Liste oder lassen Sie es durch ein 4BS-Einlernen deklarieren.",
+        "unique_id_exists": "Ein Gerät mit dieser Identität existiert bereits. Das Einlernen führt nie ein vorhandenes Gerät zusammen oder überschreibt es.",
+        "profile_changes_identity": "Dieses Profil würde die vorhandene Entität in eine andere Entitätsklasse verwandeln. Entfernen Sie das Gerät und fügen Sie es stattdessen mit dem Profil neu hinzu."
+      },
+      "abort": {
+        "already_configured": "Diese EnOcean-ID ist bereits als Gerät konfiguriert. Öffnen Sie dieses Gerät, um es neu zu konfigurieren, oder fügen Sie ihm unter Konfigurieren einen weiteren Kanal hinzu.",
+        "device_form_missing": "Die Geräteformular-Sitzung ist abgelaufen; beginnen Sie erneut."
+      }
+    }
+  },
+  "device": {
+    "gateway": {
+      "name": "EnOcean-Gateway"
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "gateway_connected": {
+        "name": "Dongle verbunden"
+      },
+      "smoke_battery_low": {
+        "name": "Batterie schwach"
+      },
+      "d2_14_30_sensor_fault": {
+        "name": "Sensorfehler"
+      },
+      "d2_14_30_maintenance_due": {
+        "name": "Wartung fällig"
+      },
+      "eep_occupancy": {
+        "name": "Belegung"
+      },
+      "eep_contact": {
+        "name": "Kontakt"
+      },
+      "eep_rain": {
+        "name": "Regen"
+      }
+    },
+    "button": {
+      "d2_01_refresh": {
+        "name": "Status aktualisieren (Kanal {channel})"
+      }
+    },
+    "event": {
+      "rocker_event": {
+        "name": "Taster",
+        "state": {
+          "channel_0_pressed": "Kanal 0 gedrückt",
+          "channel_0_released": "Kanal 0 losgelassen",
+          "channel_0_long_pressed": "Kanal 0 lang gedrückt",
+          "channel_1_pressed": "Kanal 1 gedrückt",
+          "channel_1_released": "Kanal 1 losgelassen",
+          "channel_1_long_pressed": "Kanal 1 lang gedrückt",
+          "both_pressed": "Beide Kanäle gedrückt",
+          "both_released": "Beide Kanäle losgelassen",
+          "both_long_pressed": "Beide Kanäle lang gedrückt"
+        }
+      }
+    },
+    "select": {
+      "gateway_repeater": {
+        "name": "Repeater",
+        "state": {
+          "off": "Aus",
+          "level_1": "Stufe 1 (ein Sprung)",
+          "level_2": "Stufe 2 (zwei Sprünge)"
+        }
+      }
+    },
+    "sensor": {
+      "temperature": {
+        "name": "Temperatur"
+      },
+      "humidity": {
+        "name": "Luftfeuchtigkeit"
+      },
+      "power": {
+        "name": "Leistung"
+      },
+      "energy": {
+        "name": "Energie"
+      },
+      "supply_voltage": {
+        "name": "Versorgungsspannung"
+      },
+      "window_handle": {
+        "name": "Griffstellung",
+        "state": {
+          "open": "Offen",
+          "tilt": "Gekippt",
+          "closed": "Geschlossen"
+        }
+      },
+      "d5_contact": {
+        "name": "Kontakt",
+        "state": {
+          "open": "Offen",
+          "closed": "Geschlossen"
+        }
+      },
+      "radio_rssi": {
+        "name": "Signalstärke"
+      },
+      "radio_last_seen": {
+        "name": "Letztes Telegramm"
+      },
+      "radio_repeater_count": {
+        "name": "Repeater-Sprünge"
+      },
+      "signal_energy": {
+        "name": "Signal-Energiestatus"
+      },
+      "gateway_received_telegrams": {
+        "name": "Empfangene Telegramme"
+      },
+      "gateway_last_telegram": {
+        "name": "Letztes Telegramm"
+      },
+      "gateway_base_id": {
+        "name": "Base-ID"
+      },
+      "eep_temperature": {
+        "name": "Temperatur"
+      },
+      "eep_actual_setpoint": {
+        "name": "Aktueller Sollwert"
+      },
+      "eep_humidity": {
+        "name": "Luftfeuchtigkeit"
+      },
+      "eep_illuminance": {
+        "name": "Beleuchtungsstärke"
+      },
+      "eep_illuminance_range_1": {
+        "name": "Beleuchtungsstärke (Bereich 1)"
+      },
+      "eep_illuminance_range_2": {
+        "name": "Beleuchtungsstärke (Bereich 2)"
+      },
+      "eep_dawn": {
+        "name": "Dämmerungslicht"
+      },
+      "eep_supply_voltage": {
+        "name": "Versorgungsspannung"
+      },
+      "eep_wind_speed": {
+        "name": "Windgeschwindigkeit"
+      },
+      "eep_setpoint": {
+        "name": "Sollwert"
+      },
+      "eep_controller_output": {
+        "name": "Reglerausgang"
+      },
+      "eep_blind_position": {
+        "name": "Jalousieposition"
+      },
+      "eep_blind_angle": {
+        "name": "Jalousiewinkel"
+      },
+      "eep_acceleration_x": {
+        "name": "Beschleunigung X"
+      },
+      "eep_acceleration_y": {
+        "name": "Beschleunigung Y"
+      },
+      "eep_acceleration_z": {
+        "name": "Beschleunigung Z"
+      },
+      "eep_co2": {
+        "name": "CO2"
+      },
+      "eep_voc": {
+        "name": "VOC"
+      },
+      "d2_14_30_temperature": {
+        "name": "Temperatur"
+      },
+      "d2_14_30_humidity": {
+        "name": "Luftfeuchtigkeit"
+      },
+      "d2_14_30_energy_storage": {
+        "name": "Energiespeicher",
+        "state": {
+          "high": "Hoch",
+          "medium": "Mittel",
+          "low": "Niedrig",
+          "critical": "Kritisch"
+        }
+      },
+      "d2_14_30_comfort": {
+        "name": "Hygrothermischer Komfort",
+        "state": {
+          "good": "Gut",
+          "medium": "Mittel",
+          "bad": "Schlecht",
+          "error": "Fehler"
+        }
+      },
+      "d2_14_30_air_quality": {
+        "name": "Raumluftanalyse",
+        "state": {
+          "optimal": "Optimal",
+          "dry": "Trockene Luft",
+          "humidity_high": "Luftfeuchtigkeit zu hoch",
+          "temperature_humidity_high": "Temperatur und Luftfeuchtigkeit zu hoch",
+          "error": "Fehler"
+        }
+      },
+      "d2_14_30_maintenance_weeks": {
+        "name": "Wochen seit Wartung"
+      },
+      "d2_14_30_remaining_life": {
+        "name": "Verbleibende Lebensdauer"
+      }
+    }
+  },
+  "services": {
+    "climate_teach_in_actor": {
+      "name": "Klimaaktor einlernen",
+      "description": "Sendet das Einlerntelegramm des konfigurierten Klimaprofils an den ausgewählten Aktor."
+    },
+    "climate_teach_in_actor_switch": {
+      "name": "Klima-Tastereingang einlernen",
+      "description": "Sendet das Legacy-RPS-Einlerntelegramm an den ausgewählten SRC-D08-Aktor."
+    },
+    "learn": {
+      "name": "EnOcean-Einlernen starten",
+      "description": "Lauscht auf den nächsten unbekannten EnOcean-Sender und löst enocean_custom_device_learned aus, sobald einer erfasst wurde."
+    },
+    "send_teach_in": {
+      "name": "Dimmer-Einlernen senden",
+      "description": "Sendet ein A5-38-08-4BS-Einlerntelegramm mit der Sender-ID der ausgewählten Licht-Entität."
+    },
+    "reload": {
+      "name": "EnOcean-YAML-Plattformen neu laden",
+      "description": "Lädt die per YAML konfigurierten EnOcean-Plattformen aus der aktuellen Konfiguration neu."
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "button_pressed": "Taste gedrückt",
+      "button_released": "Taste losgelassen",
+      "button_pressed_channel_0": "Taste Kanal 1 gedrückt",
+      "button_pressed_channel_1": "Taste Kanal 2 gedrückt"
+    }
+  },
+  "exceptions": {
+    "base_id_unavailable": {
+      "message": "Der Dongle hat seine Base-ID nicht gemeldet, daher wurde der Befehl für {name} nicht gesendet. Sie wird automatisch erneut angefordert; versuchen Sie es in einigen Sekunden erneut oder laden Sie die Integration neu."
+    },
+    "command_rejected": {
+      "message": "Der Dongle hat das Einreihen des Befehls für {name} verweigert: Der serielle Worker ist gestoppt oder seine Sendewarteschlange ist voll. Prüfen Sie die USB-Verbindung und die Reparaturen-Seite."
+    },
+    "light_sender_missing": {
+      "message": "{name} hat keine Sender-ID zum Senden. Konfigurieren Sie zuerst eine (Base-ID des Dongles plus Offset)."
+    },
+    "teach_in_rejected": {
+      "message": "Das Einlerntelegramm für {name} wurde vom Dongle abgelehnt."
+    },
+    "rocker_teach_in_not_supported": {
+      "message": "{name} verwendet das Profil {profile}, das kein Taster-Einlerntelegramm (RPS) hat. Verwenden Sie stattdessen die Aktor-Einlernaktion."
+    },
+    "learn_in_progress": {
+      "message": "Ein EnOcean-Einlernfenster ist bereits aktiv; versuchen Sie es erneut, sobald es endet."
+    },
+    "gateway_not_loaded": {
+      "message": "Der EnOcean-Dongle ist nicht geladen, daher kann kein Einlernfenster geöffnet werden. Richten Sie die Integration zuerst ein oder laden Sie sie neu."
+    },
+    "repeater_write_rejected": {
+      "message": "Der Dongle hat die Repeater-Einstellung abgelehnt; sie ist unverändert. Prüfen Sie, ob der Dongle verbunden ist und seine Firmware CO_WR_REPEATER unterstützt."
+    },
+    "repeater_readback_timeout": {
+      "message": "Der Dongle hat die Repeater-Einstellung angenommen, sie aber nicht innerhalb von {seconds} Sekunden bestätigt. Laden Sie die Integration neu, um die aktuelle Einstellung erneut zu lesen."
+    }
+  },
+  "issues": {
+    "serial_communicator_stopped": {
+      "title": "Der serielle EnOcean-Worker wurde gestoppt",
+      "description": "Der serielle Worker für {device} läuft nicht mehr: {reason}. EnOcean-Entitäten sind nicht verfügbar und ausgehende Befehle werden abgelehnt, damit kein zweiter Prozess um den Port konkurriert. Prüfen Sie die USB-Verbindung und die Protokolle, laden Sie dann die Integration neu oder starten Sie Home Assistant einmal neu."
+    },
+    "silent_device": {
+      "title": "{name} ist verstummt",
+      "description": "Von {name} wurde seit {minutes} Minuten kein Telegramm empfangen, daher sind seine Entitäten nicht verfügbar. Prüfen Sie Batterie oder Energiegewinnung, Montage und Funkreichweite (der Diagnosesensor Signalstärke hilft). Dieses Problem erledigt sich von selbst, wenn das nächste Telegramm eintrifft. Passen Sie den Timeout unter Konfigurieren → Verfügbarkeit und stumme Geräte an oder deaktivieren Sie ihn."
+    }
+  }
+}

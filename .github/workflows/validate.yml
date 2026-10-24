@@ -45,10 +45,10 @@ jobs:
           python -m compileall -q custom_components tests scripts
           for file in custom_components/enocean_custom/manifest.json \
                       custom_components/enocean_custom/strings.json \
-                      custom_components/enocean_custom/translations/en.json \
-                      custom_components/enocean_custom/translations/fr.json \
+                      custom_components/enocean_custom/translations/*.json \
                       custom_components/enocean_custom/icons.json \
                       custom_components/enocean_custom/data/*.json \
+                      tests/fixtures/*.json \
                       hacs.json; do
             python -m json.tool "$file" >/dev/null
           done

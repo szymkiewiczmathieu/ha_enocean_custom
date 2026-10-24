@@ -1,0 +1,722 @@
+{
+  "title": "EnOcean Custom-integratie",
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "detect": {
+        "title": "Kies een EnOcean-USB-dongle",
+        "description": "Selecteer uw EnOcean-USB-dongle.",
+        "data": {
+          "device": "Pad van de USB-dongle"
+        },
+        "data_description": {
+          "device": "Pad naar uw EnOcean-USB-dongle, of een socket://host:poort- / rfc2217://host:poort-URL voor een dongle die via het netwerk wordt gedeeld (ser2net, ESPHome stream_server, esp-ha-usb-gateway)."
+        }
+      },
+      "manual": {
+        "title": "Geef het pad van een EnOcean-USB-dongle op",
+        "description": "Voer het pad naar uw EnOcean-USB-dongle in.",
+        "data": {
+          "device": "Pad van de USB-dongle"
+        },
+        "data_description": {
+          "device": "Pad naar uw EnOcean-USB-dongle, of een socket://host:poort- / rfc2217://host:poort-URL voor een dongle die via het netwerk wordt gedeeld (ser2net, ESPHome stream_server, esp-ha-usb-gateway). Een netwerkverbinding maakt na een onverwachte onderbreking een begrensd aantal keren zelf opnieuw verbinding; een lokaal pad niet."
+        }
+      },
+      "reconfigure": {
+        "title": "EnOcean-dongle opnieuw configureren",
+        "description": "Wijzig het seriële apparaat. Home Assistant herlaadt de integratie pas nadat het nieuwe pad is gevalideerd.",
+        "data": {
+          "device": "Pad van de USB-dongle"
+        },
+        "data_description": {
+          "device": "Pad naar uw EnOcean-USB-dongle, of een socket://host:poort- / rfc2217://host:poort-URL voor een dongle die via het netwerk wordt gedeeld."
+        }
+      },
+      "usb_confirm": {
+        "description": "{manufacturer}-USB-dongle gedetecteerd op {device}. Wilt u dit apparaat instellen?"
+      }
+    },
+    "error": {
+      "invalid_dongle_path": "Geen geldige dongle gevonden op dit pad"
+    },
+    "abort": {
+      "invalid_dongle_path": "Ongeldig donglepad",
+      "single_instance_allowed": "[%key:common::config_flow::abort::single_instance_allowed%]"
+    }
+  },
+  "selector": {
+    "devices": {
+      "options": {
+        "manual": "Aangepast pad"
+      }
+    },
+    "actuator_type": {
+      "options": {
+        "relay_d2": "Ubiwizz-relais — in bedrijf stellen, daarna gerichte D2-besturing gebruiken",
+        "dimmer_4bs": "4BS-dimmer (bijv. Eltako)"
+      }
+    },
+    "pairing_failure_action": {
+      "options": {
+        "retry": "Opnieuw proberen",
+        "keep": "Behouden/opslaan zonder bewezen inbedrijfstelling",
+        "delete": "Inbedrijfstelling annuleren"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "menu_options": {
+          "learn": "Een apparaat toevoegen",
+          "qr_code": "Toevoegen via QR-code",
+          "pair_actuator": "Een actor koppelen (begeleid; geen automatische UTE)",
+          "commission_existing": "Een bestaand D2-relais in bedrijf stellen (geassisteerd; geen automatische UTE)",
+          "ute_discover": "Een Ubiwizz-module koppelen via haar UTE-verzoek",
+          "radio_probe": "Het radiosignaal van een module passief testen (geen radiocommando)",
+          "ubiwizz_repeater": "Ubiwizz-repeaterdiagnose (geen radiocommando)",
+          "declare_profile": "Het profiel van een bestaand apparaat declareren",
+          "manage": "UI-apparaten beheren",
+          "settings": "Beschikbaarheid en stille apparaten",
+          "actuators": "D2-01-actoren: statusopvraag bij het opstarten",
+          "import_yaml": "YAML-apparaten importeren"
+        }
+      },
+      "declare_profile": {
+        "title": "Een profiel declareren",
+        "description": "Kies een apparaat waarvan het profiel nog onbekend is of alleen handmatig is opgegeven. Een gedeclareerd profiel is een bewering van de operator, nooit hardwarebewijs. Voorbeeld: een rookmelder die als gewone rook-binaire sensor is toegevoegd, wordt een F6-05-02-melder met alarm- en batterij-laag-entiteiten en behoudt zijn bestaande entiteit.",
+        "data": {
+          "device": "Apparaat"
+        }
+      },
+      "declare_profile_eep": {
+        "title": "Profiel voor {name}",
+        "description": "Apparaat {name} ({platform}, {captured_id}). Kies een product uit de catalogus om zijn EEP automatisch in te vullen, of kies Aangepast en voer het EEP precies in zoals de fabrikant het afdrukt, bijvoorbeeld F6-05-02 voor een rookmelder of F6-10-00 voor een raamgreep. Een cataloguskeuze wordt precies zo vastgelegd als een getypt EEP: een bewering van de operator, nooit hardwarebewijs. De bestaande entiteit behoudt haar identiteit; begeleidende entiteiten worden toegevoegd wanneer de integratie herlaadt.",
+        "data": {
+          "catalog_product": "Product (optioneel)",
+          "manual_eep": "EEP-profiel"
+        },
+        "data_description": {
+          "catalog_product": "Alleen producten met een bruikbare decoder voor het type van dit apparaat worden getoond. Laat op Aangepast staan om het EEP zelf in te typen."
+        }
+      },
+      "settings": {
+        "title": "Beschikbaarheid en stille apparaten",
+        "description": "Optioneel. Wanneer ingeschakeld, wordt een apparaat dat gedurende de ingestelde tijd niet heeft gezonden niet-beschikbaar; rookmelders, contacten en grepen geven ook een herstelmelding. Drukknoppen, relais en klimaatregelaars verlopen nooit. Zet een categorie op 0 minuten om haar nooit te laten verlopen. Rookmelders en grepen staan standaard op 0 omdat veel modellen alleen bij gebeurtenissen zenden: schakel ze alleen in met een interval dat u hebt gemeten.",
+        "data": {
+          "enabled": "Stiltedetectie inschakelen",
+          "sensor_minutes": "Sensoren (A5-metingen, D2-vermogensrapporten)",
+          "contact_minutes": "Raam- en deurcontacten",
+          "smoke_minutes": "Rookmelders",
+          "handle_minutes": "Raamgrepen"
+        }
+      },
+      "actuators": {
+        "title": "D2-01-actoren",
+        "description": "Optioneel, standaard uit. Wanneer ingeschakeld, wordt elk van de {count} geconfigureerde D2-01-actorkanalen (relais aangestuurd met gerichte D2-commando's; Ubiwizz-rijen die een drukknop emuleren vallen hier niet onder) na elke start of herlaad één keer om zijn status gevraagd met een Actuator Status Query (CMD 0x3), zodat schakelaars \"onbekend\" verlaten zonder op het volgende telegram te wachten. Opvragen worden één voor één verzonden, minstens 250 ms uit elkaar, en nooit herhaald; de actor moet binnen het 300 ms-venster van de EEP-specificatie antwoorden. De knop \"Status vernieuwen\" van elke actor verzendt dezelfde opvraag op verzoek, ongeacht deze instelling.",
+        "data": {
+          "d2_01_query_on_start": "Elke D2-01-actor één keer opvragen na het opstarten"
+        },
+        "data_description": {
+          "d2_01_query_on_start": "Verzendt na elke start of herlaad één radio-opvraag per actorkanaal. Laat uit als u liever hebt dat deze integratie nooit op eigen initiatief zendt."
+        }
+      },
+      "pair_actuator": {
+        "title": "De actor identificeren",
+        "description": "Scan of plak het inbedrijfstellings-QR-label van de EnOcean Alliance, of voer de actor-ID exact in als AA:BB:CC:DD.",
+        "data": {
+          "qr_code": "Inbedrijfstellingscode of actor-ID"
+        }
+      },
+      "pair_actuator_type": {
+        "title": "Kies het actortype",
+        "description": "Actor-ID: {captured_id}\n\nEEP-profiel: {radio_eep}\nFabrikant: {radio_manufacturer}\nFabrikantenregister: {radio_manufacturer_name}\nFabrikant-ID: {radio_manufacturer_id}\nModel: {radio_model}\nBewijs: {radio_evidence}\nOndersteuning: {radio_support}\nConflict: {radio_conflict}\nLaatst gezien (UTC): {radio_last_seen}\nRSSI: {radio_rssi} dBm\nAantal repeaters: {radio_repeater}",
+        "data": {
+          "name": "Naam",
+          "actuator_type": "Actortype"
+        }
+      },
+      "pair_actuator_details": {
+        "title": "De actor configureren",
+        "description": "Actor: {name} ({captured_id})",
+        "data": {
+          "channel": "Kanaal",
+          "sender_id": "Zender-ID"
+        }
+      },
+      "pair_actuator_instructions": {
+        "title": "Zet de module in de koppelmodus",
+        "description": "Richtlijn voor lokale UBID1507C-koppeling: softwarekanaal {software_channel} is uitgang {hardware_channel}. De officiële handleiding zegt: druk PRESS driemaal kort in; maak voor uitgang 2 één extra korte PRESS om deze te selecteren, bedien daarna de compatibele zender. Dit is een fysieke handmatige procedure, geen gegenereerde radioreeks. Ga verder om het {timeout} seconden durende venster voor gerichte D2-inbedrijfstelling te starten."
+      },
+      "pair_relay_success": {
+        "title": "Gerichte D2-besturing bevestigd",
+        "description": "Een gericht D2-AAN-commando werd in de wachtrij gezet, geaccepteerd met ESP3 OK en gevolgd door een overeenkomende AAN-terugmelding van precies deze actor en dit kanaal. Blijvende inbedrijfstelling van een fabrieksmatig gereset actor blijft onbewezen tot de hardware-vrijgavetoets slaagt."
+      },
+      "pair_dimmer_success": {
+        "title": "Inleren verzonden",
+        "description": "Het inleren is {attempts} keer verzonden. Voor A5-38-08 is geen radiobevestiging beschikbaar; controleer fysiek of de dimmer reageert."
+      },
+      "pair_actuator_failure": {
+        "title": "Koppeling verlopen",
+        "description": "De inbedrijfstelling is niet bewezen. Opnieuw proberen verandert niets. Bij een nieuw apparaat kan Behouden de standaardschakelaar opslaan zonder inbedrijfstelling te claimen; Annuleren verwerpt hem. Bij een bestaand apparaat laten Behouden en Annuleren zijn rij ongewijzigd en verwijderen ze haar nooit.",
+        "data": {
+          "failure_action": "Volgende actie"
+        }
+      },
+      "qr_code": {
+        "title": "Toevoegen via QR-code",
+        "description": "Alleen configuratie: dit radiostille pad stelt geen fabrieksnieuwe actor in bedrijf. Al in bedrijf gestelde modules kunnen het gebruiken. Gebruik voor een nieuwe Ubiwizz de begeleide koppeling. Bestaande UI-standaardrelais op kanaal 0 of 1 gebruiken het aparte geassisteerde inbedrijfstellingspad: dat bindt een exacte fysieke QR/ID vóór enige radio en vereist een handmatige bevestiging van het relaisprofiel wanneer exact radiobewijs ontbreekt.",
+        "data": {
+          "qr_code": "Inbedrijfstellingscode of EnOcean-ID"
+        }
+      },
+      "device_form": {
+        "title": "Geef het vastgelegde apparaat een naam",
+        "description": "Vastgelegde EnOcean-ID: {captured_id}\n\nEEP-profiel: {radio_eep}\nFabrikant: {radio_manufacturer}\nFabrikantenregister: {radio_manufacturer_name}\nFabrikant-ID: {radio_manufacturer_id}\nModel: {radio_model}\nBewijs: {radio_evidence}\nOndersteuning: {radio_support}\nConflict: {radio_conflict}\nLaatst gezien (UTC): {radio_last_seen}\nRSSI: {radio_rssi} dBm\nAantal repeaters: {radio_repeater}",
+        "data": {
+          "platform": "Type",
+          "name": "Naam",
+          "manual_eep": "Handmatig EEP-profiel (optioneel)"
+        },
+        "data_description": {
+          "manual_eep": "Laat leeg om het profiel onbekend te houden. Formaat XX-XX-XX, bijv. A5-12-01. Een getypt profiel wordt vastgelegd als een bewering van de operator, nooit als bewijs."
+        }
+      },
+      "device_details": {
+        "title": "Apparaatgegevens",
+        "description": "Vastgelegde EnOcean-ID: {captured_id}, naam: {name}. Toevoegen via QR configureert alleen en verzendt geen inbedrijfstellingsradio.",
+        "data": {
+          "device_class": "Apparaatklasse",
+          "eep": "EEP-profiel voor de generieke decoder (apparaatklasse eep)",
+          "channel": "Kanaal",
+          "switch_type": "Schakelaartype",
+          "sender_id": "Zender-ID",
+          "id_switch": "Zender-ID van de schakelaar",
+          "device_type": "Apparaattype",
+          "sensor_entity_id": "Temperatuursensor-entiteit",
+          "temperature_frost_protection": "Vorstbeveiligingstemperatuur",
+          "sensor_target_temperature_range": "Bereik van de doeltemperatuur van de sensor",
+          "sensor_target_temperature_update_tolerance": "Bijwerktolerantie van de doeltemperatuur van de sensor",
+          "target_temperature_base_value": "Basis-doeltemperatuur",
+          "target_temperature_reduction_night": "Nachtelijke verlaging van de doeltemperatuur",
+          "command_frequency": "Commandofrequentie",
+          "pi_control_Kp": "PI-proportionele versterking (Kp)",
+          "pi_control_Tn": "PI-integratietijd (Tn)",
+          "max_temp": "Maximumtemperatuur",
+          "min_temp": "Minimumtemperatuur",
+          "range_from": "Begin van het ruwe bereik",
+          "range_to": "Einde van het ruwe bereik"
+        }
+      },
+      "import_yaml": {
+        "title": "YAML-apparaten importeren",
+        "description": "Klaar om te importeren: {binary_sensors} binaire sensoren en {switches} schakelaars. {non_importable} apparaten gebruiken niet-ondersteunde YAML-platforms en blijven in YAML; {invalid} ongeldige of onvolledige rijen worden genegeerd.\n\nVerwijder YAML niet vóór het importeren. Verwijder na het importeren de geïmporteerde YAML-blokken, herstart Home Assistant en controleer de entiteiten. Entiteits-ID's en automatiseringen blijven behouden.",
+        "data": {
+          "confirm": "Ik begrijp het en wil importeren"
+        }
+      },
+      "import_yaml_success": {
+        "title": "YAML-apparaten geïmporteerd",
+        "description": "Geïmporteerd: {imported}. Overgeslagen als duplicaat: {skipped}.\n\nVerwijder nu de geïmporteerde YAML-blokken, herstart Home Assistant en controleer de entiteiten en automatiseringen."
+      },
+      "manage": {
+        "title": "UI-apparaten beheren",
+        "data": {
+          "device": "Te verwijderen apparaat"
+        }
+      },
+      "commission_existing": {
+        "title": "Een bestaand D2-relais in bedrijf stellen (geassisteerd)",
+        "description": "Kies één UI-beheerd standaardrelais op kanaal 0 of 1. Selectie is geen identiteitsbewijs en verzendt geen radio. Rijen met tegenstrijdig radio-/productbewijs zijn uitgesloten. De volgende stap bindt een fysieke QR/ID aan precies deze geselecteerde rij; haar entiteits- en registeridentiteit blijven behouden.",
+        "data": {
+          "device": "Te identificeren bestaand relais"
+        }
+      },
+      "commission_existing_identity": {
+        "title": "De fysieke actoridentiteit binden",
+        "description": "Geselecteerd UI-relais: {selected_id}, kanaal {channel}. Scan of plak het exacte fysieke inbedrijfstellings-QR-label van de EnOcean Alliance, of voer precies deze ID in als AA:BB:CC:DD. Een andere zender of tegenstrijdig product-/radiobewijs wordt geweigerd. Deze stap verzendt geen radio.",
+        "data": {
+          "qr_code": "Inbedrijfstellingscode of exacte actor-ID"
+        }
+      },
+      "commission_existing_confirm": {
+        "title": "Het relaisprofiel bevestigen",
+        "description": "Aan het geselecteerde relais {selected_id}, kanaal {channel}, is geen exact via radio gedeclareerd D2-01-12-bewijs gebonden. Bevestig pas na controle van de fysieke module: het is een relais dat D2-01-12-inbedrijfstelling vereist. Dit is een bewering van de operator, geen radiobewijs. Ze wordt pas opgeslagen na een in de wachtrij gezet gericht D2-AAN, ESP3 OK en een latere overeenkomende D2-terugmelding.",
+        "data": {
+          "confirm_relay_d2": "Ik bevestig dat dit fysieke relais D2-01-12-inbedrijfstelling vereist"
+        }
+      },
+      "ute_discover": {
+        "title": "Een Ubiwizz-module koppelen via haar UTE-verzoek",
+        "description": "Voer de exacte EURID van de module in en selecteer uitgang 1 of 2. Home Assistant activeert daarna een tijdelijk begrensde ontvanger voordat u de lokale PRESS-reeks start; hij antwoordt alleen op een overeenkomend UTE-verzoek van die module. Het EEP wordt uit het ontvangen telegram gehaald, niet geraden.",
+        "data": {
+          "name": "Naam",
+          "qr_code": "Module-EURID of inbedrijfstellingslabel",
+          "channel": "Te configureren uitgang"
+        }
+      },
+      "ute_discover_confirm": {
+        "title": "Lokale koppeling nu starten",
+        "description": "De ontvanger is actief. Start nu de gedocumenteerde lokale PRESS-reeks en bevestig onmiddellijk. Home Assistant verzendt geen UTE-telegram totdat het het overeenkomende bidirectionele verzoek van precies deze module ontvangt.",
+        "data": {
+          "ute_ready": "De UTE-ontvanger is actief; ik start nu de lokale PRESS-reeks"
+        }
+      },
+      "radio_probe": {
+        "title": "Passieve radiotest van een module",
+        "description": "Voer de exacte EURID in. Deze test luistert naar één volledig telegram van die module, maar verzendt nooit radio, maakt geen apparaat aan en wijzigt geen configuratie.",
+        "data": {
+          "qr_code": "Module-EURID of inbedrijfstellingslabel"
+        }
+      },
+      "radio_probe_confirm": {
+        "title": "De passieve test starten",
+        "description": "De ontvanger is actief. Voer de gedocumenteerde lokale actie van de module één keer uit en bevestig daarna onmiddellijk. Deze test verzendt geen radiocommando en kan de koppeling niet wijzigen.",
+        "data": {
+          "ute_ready": "De passieve ontvangertest is actief; ik voer nu de lokale actie uit"
+        }
+      },
+      "ubiwizz_repeater": {
+        "title": "Ubiwizz-repeaterdiagnose",
+        "description": "Alleen een diagnosegrens. Kies het profiel dat in de moduledocumentatie staat en het niveau dat u wilt beoordelen. Dit identificeert geen Ubiwizz-model, observeert zijn repeaterstatus niet, wijzigt zijn configuratie niet en verzendt geen radio.",
+        "data": {
+          "ubiwizz_repeater_eep": "Gedocumenteerd D2-profiel",
+          "ubiwizz_repeater_level": "Gevraagd repeaterniveau"
+        }
+      },
+      "ubiwizz_repeater_blocked": {
+        "title": "Ubiwizz-repeater-radiocommando niet beschikbaar",
+        "description": "Gevraagd profiel: {eep}; gevraagd niveau: {level}. De aangeleverde Ubiwizz-bronnen documenteren geen externe repeaterstandaard en geen ondersteund teruglezen, dus de huidige status blijft onbekend. Er is geen radiocommando gecodeerd of verzonden, geen PRESS-procedure voorgeschreven en geen optie of entiteit gewijzigd. Verzamel een exact model/revisie, de leveranciersprocedure, een zend-/antwoordopname en een blijvend teruglezen voordat een commando wordt toegevoegd."
+      },
+      "delete_confirm": {
+        "title": "Apparaat verwijderen?",
+        "description": "{name} ({platform}, {captured_id}) verwijderen? Dit verwijdert ook zijn entiteitsregisteritem.",
+        "data": {
+          "confirm": "Verwijdering bevestigen"
+        }
+      }
+    },
+    "progress": {
+      "waiting_for_device": "Druk nu op de knop van het apparaat. Er wordt tot 60 seconden gewacht op een onbekende EnOcean-zender.",
+      "pairing_actuator": "Koppeling bezig, tot {timeout} seconden. Commando's worden herhaaldelijk verzonden; houd de module in de koppelmodus.",
+      "waiting_for_ute_request": "Er wordt tot {timeout} seconden gewacht op het exacte UTE-verzoek van de module. Home Assistant antwoordt alleen op een overeenkomend verzoek binnen de protocoltermijn.",
+      "waiting_for_radio_probe": "Er wordt tot {timeout} seconden gewacht op één volledig telegram van de geselecteerde module. Deze diagnose verzendt geen radiocommando."
+    },
+    "error": {
+      "unique_id_exists": "Er bestaat al een apparaat met deze identiteit. Inleren voegt nooit een bestaand apparaat samen en overschrijft het nooit.",
+      "invalid_channel_rps": "RPS-schakelaars ondersteunen alleen kanaal 0 of 1.",
+      "invalid_channel": "Het kanaal moet een exact geheel getal tussen 0 en 31 zijn.",
+      "invalid_sender_id": "De zender-ID moet uit 4 hex-bytes bestaan, bijv. 05:9F:89:34.",
+      "sender_id_collision": "Deze zender-ID wordt al gebruikt door een andere lamp, klimaatactor of RPS-geëmuleerde schakelaar. Elk heeft een eigen virtuele identiteit nodig; de hierboven voorgestelde waarde is vrij.",
+      "invalid_qr_code": "De waarde is noch een ondersteunde EnOcean Alliance-inbedrijfstellings-QR-inhoud, noch een ID in het formaat AA:BB:CC:DD.",
+      "invalid_ute_target": "Voer de exacte vier-byte EURID van de module in als AA:BB:CC:DD of een ondersteund inbedrijfstellingslabel.",
+      "ute_not_ready": "Bevestig dat de ontvanger actief is voordat u de lokale PRESS-reeks start.",
+      "invalid_exact_integer": "De waarde moet een exact geheel getal binnen de getoonde grenzen zijn.",
+      "invalid_number": "De waarde moet een eindig getal binnen de getoonde grenzen zijn.",
+      "invalid_temperature_range": "De minimumtemperatuur moet lager zijn dan de maximumtemperatuur.",
+      "invalid_raw_range": "Het begin en einde van het ruwe bereik moeten verschillen.",
+      "invalid_command_frequency": "De commandofrequentie moet een geldige positieve duur van minstens één seconde zijn.",
+      "invalid_device_details": "De apparaatgegevens zijn ongeldig.",
+      "invalid_eep": "Het handmatige EEP moet het exacte hexadecimale formaat XX-XX-XX hebben, bijv. A5-12-01.",
+      "profile_changes_identity": "Dit profiel zou de bestaande entiteit in een andere entiteitsklasse veranderen. Verwijder het apparaat en voeg het in plaats daarvan opnieuw toe met het profiel.",
+      "eep_unsupported": "De apparaatklasse eep heeft een profiel nodig dat de generieke decoder dekt: kies er een uit de lijst of laat een 4BS-inleren het declareren.",
+      "commissioning_identity_mismatch": "De gescande of ingevoerde ID komt niet exact overeen met het geselecteerde UI-relais. Er is geen radio verzonden.",
+      "commissioning_identity_conflict": "De gescande identiteit is in tegenspraak met bestaand radio- of productbewijs. Er is geen radio verzonden.",
+      "invalid_ubiwizz_repeater": "Kies precies D2-01-01 of D2-01-12 en repeaterniveau 1 of 2."
+    },
+    "abort": {
+      "learn_timeout": "Er is vóór de time-out geen onbekende EnOcean-zender gehoord.",
+      "no_ui_devices": "Geen UI-beheerde apparaten om te verwijderen.",
+      "no_undeclared_devices": "Elk UI-apparaat declareert al een profiel.",
+      "no_commissionable_devices": "Er is geen UI-beheerd standaardrelais op kanaal 0 of 1 zonder tegenstrijdig radio-/productbewijs beschikbaar om te identificeren voor geassisteerde inbedrijfstelling.",
+      "commissioning_device_disappeared": "De geselecteerde schakelaar is tijdens de inbedrijfstelling verwijderd; hij is niet opnieuw aangemaakt.",
+      "commissioning_relay_unconfirmed": "De vereiste fysieke bevestiging van het D2-01-12-relais is niet gegeven. Er is geen radio verzonden en de opties zijn ongewijzigd gebleven.",
+      "commissioning_asp_not_supported": "Inbedrijfstelling van de NodOn ASP-2-1-00 is in deze integratie niet geïmplementeerd. Er is geen radio verzonden en de opties zijn ongewijzigd gebleven.",
+      "delete_cancelled": "Verwijdering geannuleerd.",
+      "learn_in_progress": "Er is al een inleervenster bezig.",
+      "device_form_missing": "De sessie van het apparaatformulier is verlopen; begin opnieuw.",
+      "yaml_managed": "Deze EnOcean-ID is ook in YAML geconfigureerd. Verwijder de YAML-configuratie voordat u het UI-apparaat verwijdert.",
+      "no_yaml_devices_to_import": "Er zijn geen YAML-apparaten meer om te importeren.",
+      "yaml_import_cancelled": "YAML-import geannuleerd. Er zijn geen apparaten gewijzigd.",
+      "ubiwizz_repeater_request_missing": "De sessie van de repeaterdiagnose is verlopen; begin opnieuw.",
+      "radio_probe_not_ready": "De passieve radiotest is niet geïnitialiseerd.",
+      "radio_probe_no_target_packet": "Er heeft vóór het verlopen van de test geen volledig radiotelegram van deze module Home Assistant bereikt. Er is geen radio verzonden en de configuratie is ongewijzigd.",
+      "radio_probe_target_ute": "Een volledig UTE-telegram van deze module heeft Home Assistant bereikt. Er is geen antwoord verzonden en de configuratie is ongewijzigd.",
+      "radio_probe_target_other": "Een volledig niet-UTE-telegram van deze module heeft Home Assistant bereikt. Er is geen antwoord verzonden en de configuratie is ongewijzigd.",
+      "ute_discovery_not_ready": "De ontvanger moet actief zijn vóór de lokale PRESS-reeks.",
+      "ute_discovery_write_unconfirmed": "Het UTE-antwoord is in de wachtrij gezet, maar het fysieke seriële schrijven naar de USB300 is niet bevestigd. Er is geen apparaat opgeslagen.",
+      "ute_discovery_timeout": "Het UTE-antwoord is naar de dongle geschreven, maar er kwam binnen de begrensde wachttijd geen ESP3-transportresultaat. Er is geen apparaat opgeslagen.",
+      "ute_discovery_queue_rejected": "Het UTE-antwoord is niet in de wachtrij van de dongle opgenomen. Er is geen apparaat opgeslagen.",
+      "ute_discovery_base_id_unavailable": "De Base-ID van de dongle is niet beschikbaar, dus het overeenkomende verzoek is niet beantwoord en er is geen apparaat opgeslagen.",
+      "ute_discovery_transport_rejected": "Het overeenkomende UTE-verzoek is ontvangen en een antwoord is geschreven, maar ESP3 heeft het transportresultaat geweigerd. Er is geen apparaat opgeslagen.",
+      "ute_discovery_collision": "Deze uitgangsidentiteit en dit kanaal bestaan al. Er is geen apparaat opgeslagen.",
+      "ute_discovery_failed": "De UTE-koppeling kon niet veilig worden voltooid. Er is geen apparaat opgeslagen.",
+      "ute_discovery_no_request": "Er is vóór het verlopen van het luistervenster geen overeenkomend UTE-verzoek ontvangen. Er is geen radioantwoord verzonden en geen apparaat opgeslagen.",
+      "ute_discovery_deadline_missed": "Een overeenkomend UTE-verzoek kwam na de antwoordtermijn aan. Het is bewust niet beantwoord en er is geen apparaat opgeslagen."
+    }
+  },
+  "config_subentries": {
+    "device": {
+      "entry_type": "Apparaat",
+      "initiate_flow": {
+        "user": "Apparaat toevoegen",
+        "reconfigure": "Apparaat opnieuw configureren"
+      },
+      "step": {
+        "user": {
+          "title": "Een EnOcean-apparaat toevoegen",
+          "description": "Alleen configuratie, geen radio: voer de EnOcean-ID van het apparaat in als AA:BB:CC:DD of plak zijn inbedrijfstellingslabel van de EnOcean Alliance, kies hoe Home Assistant het moet tonen en geef het een naam. Het apparaat wordt een eigen item onder deze integratie; zijn entiteiten worden onmiddellijk aangemaakt, zonder de andere apparaten te herladen. Inleervensters, Ubiwizz-UTE-koppeling en begeleide D2-koppeling blijven onder Configureren.",
+          "data": {
+            "name": "Naam",
+            "qr_code": "EnOcean-ID of inbedrijfstellingslabel",
+            "platform": "Type",
+            "manual_eep": "Handmatig EEP-profiel (optioneel)"
+          },
+          "data_description": {
+            "qr_code": "Vier hex-bytes (05:8F:22:33) of een ANSI MH10.8.2-label met 30S- en 1P-containers. Een 48-bits EURID wordt geweigerd in plaats van afgekapt.",
+            "manual_eep": "Formaat XX-XX-XX, bijv. F6-10-00. Wordt genegeerd wanneer het label al een profiel declareert. Een getypt profiel wordt vastgelegd als een bewering van de operator, nooit als bewijs."
+          }
+        },
+        "details": {
+          "title": "Apparaatgegevens",
+          "description": "EnOcean-ID: {captured_id}, naam: {name}, type: {platform}.\n\nEEP-profiel: {radio_eep}\nFabrikant: {radio_manufacturer}\nFabrikantenregister: {radio_manufacturer_name}\nFabrikant-ID: {radio_manufacturer_id}\nModel: {radio_model}\nBewijs: {radio_evidence}\nOndersteuning: {radio_support}\nConflict: {radio_conflict}",
+          "data": {
+            "device_class": "Apparaatklasse",
+            "eep": "EEP-profiel voor de generieke decoder (apparaatklasse eep)",
+            "channel": "Kanaal",
+            "switch_type": "Schakelaartype",
+            "sender_id": "Zender-ID",
+            "id_switch": "Zender-ID van de schakelaar",
+            "device_type": "Apparaattype",
+            "sensor_entity_id": "Temperatuursensor-entiteit",
+            "temperature_frost_protection": "Vorstbeveiligingstemperatuur",
+            "sensor_target_temperature_range": "Bereik van de doeltemperatuur van de sensor",
+            "sensor_target_temperature_update_tolerance": "Bijwerktolerantie van de doeltemperatuur van de sensor",
+            "target_temperature_base_value": "Basis-doeltemperatuur",
+            "target_temperature_reduction_night": "Nachtelijke verlaging van de doeltemperatuur",
+            "command_frequency": "Commandofrequentie",
+            "pi_control_Kp": "PI-proportionele versterking (Kp)",
+            "pi_control_Tn": "PI-integratietijd (Tn)",
+            "max_temp": "Maximumtemperatuur",
+            "min_temp": "Minimumtemperatuur",
+            "range_from": "Begin van het ruwe bereik",
+            "range_to": "Einde van het ruwe bereik"
+          }
+        },
+        "reconfigure": {
+          "title": "{name} opnieuw configureren",
+          "description": "Apparaat {name} ({captured_id}, {rows} rij(en)). Hernoemen wijzigt de apparaatnaam die Home Assistant toont; entiteits-ID's en unieke ID's veranderen nooit. Wanneer het profiel van een rij nog onbekend is of alleen handmatig is opgegeven, kies dan een product of typ zijn EEP om het te declareren: de bestaande entiteit behoudt haar identiteit en begeleidende entiteiten worden toegevoegd. Een profiel dat de entiteit in een andere klasse zou veranderen, wordt geweigerd.",
+          "data": {
+            "name": "Apparaatnaam",
+            "row": "Rij waarvoor een profiel wordt gedeclareerd",
+            "catalog_product": "Product (optioneel)",
+            "manual_eep": "EEP-profiel (optioneel)"
+          },
+          "data_description": {
+            "catalog_product": "Alleen producten met een bruikbare decoder voor het type van deze rij worden getoond. Laat op Aangepast staan om het EEP zelf in te typen, of laat het EEP leeg om alleen te hernoemen."
+          }
+        }
+      },
+      "error": {
+        "invalid_qr_code": "De waarde is noch een ondersteunde EnOcean Alliance-inbedrijfstellings-QR-inhoud, noch een ID in het formaat AA:BB:CC:DD.",
+        "name_required": "Voer een naam in voor het apparaat.",
+        "invalid_device_details": "De apparaatgegevens zijn ongeldig.",
+        "invalid_eep": "Het handmatige EEP moet het exacte hexadecimale formaat XX-XX-XX hebben, bijv. A5-12-01.",
+        "invalid_channel": "Het kanaal moet een exact geheel getal tussen 0 en 31 zijn.",
+        "invalid_channel_rps": "RPS-schakelaars ondersteunen alleen kanaal 0 of 1.",
+        "invalid_sender_id": "De zender-ID moet uit 4 hex-bytes bestaan, bijv. 05:9F:89:34.",
+        "sender_id_collision": "Deze zender-ID wordt al gebruikt door een andere lamp, klimaatactor of RPS-geëmuleerde schakelaar. Elk heeft een eigen virtuele identiteit nodig; de hierboven voorgestelde waarde is vrij.",
+        "invalid_exact_integer": "De waarde moet een exact geheel getal binnen de getoonde grenzen zijn.",
+        "invalid_number": "De waarde moet een eindig getal binnen de getoonde grenzen zijn.",
+        "invalid_temperature_range": "De minimumtemperatuur moet lager zijn dan de maximumtemperatuur.",
+        "invalid_raw_range": "Het begin en einde van het ruwe bereik moeten verschillen.",
+        "invalid_command_frequency": "De commandofrequentie moet een geldige positieve duur van minstens één seconde zijn.",
+        "eep_unsupported": "De apparaatklasse eep heeft een profiel nodig dat de generieke decoder dekt: kies er een uit de lijst of laat een 4BS-inleren het declareren.",
+        "unique_id_exists": "Er bestaat al een apparaat met deze identiteit. Inleren voegt nooit een bestaand apparaat samen en overschrijft het nooit.",
+        "profile_changes_identity": "Dit profiel zou de bestaande entiteit in een andere entiteitsklasse veranderen. Verwijder het apparaat en voeg het in plaats daarvan opnieuw toe met het profiel."
+      },
+      "abort": {
+        "already_configured": "Deze EnOcean-ID is al als apparaat geconfigureerd. Open dat apparaat om het opnieuw te configureren, of gebruik Configureren om er een extra kanaal aan toe te voegen.",
+        "device_form_missing": "De sessie van het apparaatformulier is verlopen; begin opnieuw."
+      }
+    }
+  },
+  "device": {
+    "gateway": {
+      "name": "EnOcean-gateway"
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "gateway_connected": {
+        "name": "Dongle verbonden"
+      },
+      "smoke_battery_low": {
+        "name": "Batterij laag"
+      },
+      "d2_14_30_sensor_fault": {
+        "name": "Sensorfout"
+      },
+      "d2_14_30_maintenance_due": {
+        "name": "Onderhoud nodig"
+      },
+      "eep_occupancy": {
+        "name": "Aanwezigheid"
+      },
+      "eep_contact": {
+        "name": "Contact"
+      },
+      "eep_rain": {
+        "name": "Regen"
+      }
+    },
+    "button": {
+      "d2_01_refresh": {
+        "name": "Status vernieuwen (kanaal {channel})"
+      }
+    },
+    "event": {
+      "rocker_event": {
+        "name": "Drukknop",
+        "state": {
+          "channel_0_pressed": "Kanaal 0 ingedrukt",
+          "channel_0_released": "Kanaal 0 losgelaten",
+          "channel_0_long_pressed": "Kanaal 0 lang ingedrukt",
+          "channel_1_pressed": "Kanaal 1 ingedrukt",
+          "channel_1_released": "Kanaal 1 losgelaten",
+          "channel_1_long_pressed": "Kanaal 1 lang ingedrukt",
+          "both_pressed": "Beide kanalen ingedrukt",
+          "both_released": "Beide kanalen losgelaten",
+          "both_long_pressed": "Beide kanalen lang ingedrukt"
+        }
+      }
+    },
+    "select": {
+      "gateway_repeater": {
+        "name": "Repeater",
+        "state": {
+          "off": "Uit",
+          "level_1": "Niveau 1 (één hop)",
+          "level_2": "Niveau 2 (twee hops)"
+        }
+      }
+    },
+    "sensor": {
+      "temperature": {
+        "name": "Temperatuur"
+      },
+      "humidity": {
+        "name": "Luchtvochtigheid"
+      },
+      "power": {
+        "name": "Vermogen"
+      },
+      "energy": {
+        "name": "Energie"
+      },
+      "supply_voltage": {
+        "name": "Voedingsspanning"
+      },
+      "window_handle": {
+        "name": "Greepstand",
+        "state": {
+          "open": "Open",
+          "tilt": "Gekanteld",
+          "closed": "Gesloten"
+        }
+      },
+      "d5_contact": {
+        "name": "Contact",
+        "state": {
+          "open": "Open",
+          "closed": "Gesloten"
+        }
+      },
+      "radio_rssi": {
+        "name": "Signaalsterkte"
+      },
+      "radio_last_seen": {
+        "name": "Laatste telegram"
+      },
+      "radio_repeater_count": {
+        "name": "Repeater-hops"
+      },
+      "signal_energy": {
+        "name": "Signaal-energiestatus"
+      },
+      "gateway_received_telegrams": {
+        "name": "Ontvangen telegrammen"
+      },
+      "gateway_last_telegram": {
+        "name": "Laatste telegram"
+      },
+      "gateway_base_id": {
+        "name": "Base-ID"
+      },
+      "eep_temperature": {
+        "name": "Temperatuur"
+      },
+      "eep_actual_setpoint": {
+        "name": "Actuele instelwaarde"
+      },
+      "eep_humidity": {
+        "name": "Luchtvochtigheid"
+      },
+      "eep_illuminance": {
+        "name": "Verlichtingssterkte"
+      },
+      "eep_illuminance_range_1": {
+        "name": "Verlichtingssterkte (bereik 1)"
+      },
+      "eep_illuminance_range_2": {
+        "name": "Verlichtingssterkte (bereik 2)"
+      },
+      "eep_dawn": {
+        "name": "Schemerlicht"
+      },
+      "eep_supply_voltage": {
+        "name": "Voedingsspanning"
+      },
+      "eep_wind_speed": {
+        "name": "Windsnelheid"
+      },
+      "eep_setpoint": {
+        "name": "Instelwaarde"
+      },
+      "eep_controller_output": {
+        "name": "Regelaaruitgang"
+      },
+      "eep_blind_position": {
+        "name": "Jaloeziepositie"
+      },
+      "eep_blind_angle": {
+        "name": "Jaloeziehoek"
+      },
+      "eep_acceleration_x": {
+        "name": "Versnelling X"
+      },
+      "eep_acceleration_y": {
+        "name": "Versnelling Y"
+      },
+      "eep_acceleration_z": {
+        "name": "Versnelling Z"
+      },
+      "eep_co2": {
+        "name": "CO2"
+      },
+      "eep_voc": {
+        "name": "VOS"
+      },
+      "d2_14_30_temperature": {
+        "name": "Temperatuur"
+      },
+      "d2_14_30_humidity": {
+        "name": "Luchtvochtigheid"
+      },
+      "d2_14_30_energy_storage": {
+        "name": "Energieopslag",
+        "state": {
+          "high": "Hoog",
+          "medium": "Gemiddeld",
+          "low": "Laag",
+          "critical": "Kritiek"
+        }
+      },
+      "d2_14_30_comfort": {
+        "name": "Hygrothermisch comfort",
+        "state": {
+          "good": "Goed",
+          "medium": "Gemiddeld",
+          "bad": "Slecht",
+          "error": "Fout"
+        }
+      },
+      "d2_14_30_air_quality": {
+        "name": "Binnenluchtanalyse",
+        "state": {
+          "optimal": "Optimaal",
+          "dry": "Droge lucht",
+          "humidity_high": "Luchtvochtigheid te hoog",
+          "temperature_humidity_high": "Temperatuur en luchtvochtigheid te hoog",
+          "error": "Fout"
+        }
+      },
+      "d2_14_30_maintenance_weeks": {
+        "name": "Weken sinds onderhoud"
+      },
+      "d2_14_30_remaining_life": {
+        "name": "Resterende levensduur"
+      }
+    }
+  },
+  "services": {
+    "climate_teach_in_actor": {
+      "name": "Klimaatactor inleren",
+      "description": "Verzendt het inleertelegram van het geconfigureerde klimaatprofiel naar de geselecteerde actor."
+    },
+    "climate_teach_in_actor_switch": {
+      "name": "Klimaat-drukknopingang inleren",
+      "description": "Verzendt het legacy RPS-inleertelegram naar de geselecteerde SRC-D08-actor."
+    },
+    "learn": {
+      "name": "EnOcean-inleren starten",
+      "description": "Luistert naar de volgende onbekende EnOcean-zender en activeert enocean_custom_device_learned zodra er een is vastgelegd."
+    },
+    "send_teach_in": {
+      "name": "Dimmer-inleren verzenden",
+      "description": "Verzendt een A5-38-08 4BS-inleertelegram met de zender-ID van de geselecteerde lichtentiteit."
+    },
+    "reload": {
+      "name": "EnOcean-YAML-platforms herladen",
+      "description": "Herlaadt de via YAML geconfigureerde EnOcean-platforms vanuit de huidige configuratie."
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "button_pressed": "Knop ingedrukt",
+      "button_released": "Knop losgelaten",
+      "button_pressed_channel_0": "Knop kanaal 1 ingedrukt",
+      "button_pressed_channel_1": "Knop kanaal 2 ingedrukt"
+    }
+  },
+  "exceptions": {
+    "base_id_unavailable": {
+      "message": "De dongle heeft zijn Base-ID niet gemeld, dus het commando voor {name} is niet verzonden. Ze wordt automatisch opnieuw opgevraagd; probeer het binnen enkele seconden opnieuw of herlaad de integratie."
+    },
+    "command_rejected": {
+      "message": "De dongle weigerde het commando voor {name} in de wachtrij te zetten: de seriële worker is gestopt of zijn zendwachtrij is vol. Controleer de USB-verbinding en de pagina Herstellingen."
+    },
+    "light_sender_missing": {
+      "message": "{name} heeft geen zender-ID om mee te zenden. Configureer er eerst een (Base-ID van de dongle plus een offset)."
+    },
+    "teach_in_rejected": {
+      "message": "Het inleertelegram voor {name} is door de dongle geweigerd."
+    },
+    "rocker_teach_in_not_supported": {
+      "message": "{name} gebruikt het profiel {profile}, dat geen drukknop-inleertelegram (RPS) heeft. Gebruik in plaats daarvan de actor-inleeractie."
+    },
+    "learn_in_progress": {
+      "message": "Er is al een EnOcean-inleervenster bezig; probeer het opnieuw zodra het is afgelopen."
+    },
+    "gateway_not_loaded": {
+      "message": "De EnOcean-dongle is niet geladen, dus er kan geen inleervenster worden geopend. Stel de integratie eerst in of herlaad haar."
+    },
+    "repeater_write_rejected": {
+      "message": "De dongle weigerde de repeaterinstelling; ze is ongewijzigd. Controleer of de dongle is aangesloten en of zijn firmware CO_WR_REPEATER ondersteunt."
+    },
+    "repeater_readback_timeout": {
+      "message": "De dongle accepteerde de repeaterinstelling maar bevestigde ze niet binnen {seconds} seconden. Herlaad de integratie om de huidige instelling opnieuw te lezen."
+    }
+  },
+  "issues": {
+    "serial_communicator_stopped": {
+      "title": "De seriële EnOcean-worker is gestopt",
+      "description": "De seriële worker voor {device} draait niet meer: {reason}. EnOcean-entiteiten zijn niet beschikbaar en uitgaande commando's worden geweigerd om te voorkomen dat een tweede proces om de poort concurreert. Controleer de USB-verbinding en de logboeken, herlaad daarna de integratie of herstart Home Assistant één keer."
+    },
+    "silent_device": {
+      "title": "{name} is stil geworden",
+      "description": "Er is al {minutes} minuten geen telegram van {name} ontvangen, dus zijn entiteiten zijn niet beschikbaar. Controleer de batterij of energieoogst, de montage en het radiobereik (de diagnosesensor signaalsterkte helpt). Deze melding verdwijnt vanzelf wanneer het volgende telegram aankomt. Pas de time-out aan of schakel hem uit onder Configureren → Beschikbaarheid en stille apparaten."
+    }
+  }
+}

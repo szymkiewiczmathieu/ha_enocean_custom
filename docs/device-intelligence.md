@@ -128,6 +128,29 @@ not **validated**: compare the first real telegram of your product with the
 entities before relying on them, and report mismatches with the device
 diagnostics (the last raw telegram is included).
 
+### D2-01 actuator queries (CMD 0x3 / CMD 0x6)
+
+Since 2.11.0 a D2-01 actuator can be *asked* for its state instead of waiting
+for its next telegram. `d2_01.py` transcribes the relevant parts of EEP 2.6.7
+(D2-01, pages 131-146) and nothing else:
+
+| What | Source | Rule in this repository |
+| --- | --- | --- |
+| Actuator Status Query, CMD 0x3 | EEP 2.6.7 p. 135 | Two data bytes (`D2 03 <channel>`), directed to the actuator, sent as the dongle's Base ID. Applies to every D2-01 TYPE. The CMD 0x4 answer "shall be received within a maximum of 300ms from the time of transmission"; the pass waits exactly that window from the physical write, then moves on, never retries. |
+| Actuator Measurement Query, CMD 0x6 | EEP 2.6.7 p. 137 | `D2 06 <qu|channel>` with `qu` (offset 10) selecting energy or power; same 300 ms window. Sent only for a TYPE whose capability matrix (pp. 131-132) marks "Measurement report on query", energy and power each following their own row, and only when a `powersensor` sensor row exists on the same sender to decode the CMD 0x7 answer. |
+| Capability matrix | EEP 2.6.7 pp. 131-132 | `ENERGY_MEASUREMENT_TYPES`, `POWER_MEASUREMENT_TYPES`, `MEASUREMENT_REPORT_ON_QUERY_TYPES`, `LOCAL_CONTROL_TYPES`, `POWER_FAILURE_DETECTION_TYPES`, `OUTPUT_CHANNELS_BY_TYPE`. D2-01-0A (ASP-2-1-00): no metering. D2-01-0B (ASP-2-1-01): energy + power, report on query. D2-01-12 (UBID1507C): no metering. |
+| Actuator Set Local, CMD 0x2 | EEP 2.6.7 pp. 133-134 | **Not implemented.** The message rewrites every local setting at once with no "keep" value and has "Response Timing: None"; only the local-control flag echoed in CMD 0x4 is exposed, read-only. |
+| Actuator Set Measurement, CMD 0x5 | EEP 2.6.7 p. 136 | **Not implemented**: changes the actuator's autonomous reporting, no read-back. |
+
+Triggers: the per-channel **Refresh state** button (on demand) and the
+`d2_01_query_on_start` entry option (one pass after each start-up, off by
+default). Both run through one serialized runner per entry: one ESP3 command
+in flight, at least 250 ms between writes, at most one query per device and
+channel per pass. Rows emulating a rocker (`switch_type: RPS`, every Ubiwizz
+UBID1507C profile row) are not D2 actuators from this integration's point of
+view and are never queried. Hardware validation of the CMD 0x3/0x4 exchange on
+the NodOn ASP-2-1-00 and on a UTE-associated UBID1507C is still pending.
+
 ### NodOn catalogue boundary
 
 This bounded inventory records manufacturer documentation, not radio identity,
