@@ -1,5 +1,125 @@
 # Changelog
 
+## 2.10.0 - 2026-10-24
+
+- Move the shared base entity from `device.py` to `entity.py`, register the
+  `learn` action in `async_setup` instead of `async_setup_entry`, resolve the
+  dongle and inbox only through `ConfigEntry.runtime_data` (drop the
+  `hass.data` mirror), and declare `PARALLEL_UPDATES = 0` on every platform.
+  No functional change.
+- Raise translated `HomeAssistantError`/`ServiceValidationError` (new
+  `exceptions` section, EN/FR) for a D2 command without a resolved Base ID, a
+  command the dongle refuses, a light without sender identity, a rejected
+  teach-in telegram, and a rocker teach-in attempted on a valve profile;
+  transport results are still recorded on the entity before the error is
+  raised.
+- Stop inferring the Ubiwizz UBID1507C profile for every RPS switch row (true
+  since 2.7.0, contrary to what the README promised). The config entry gains
+  minor version 2 with a one-time, explicit migration: legacy inferred rows
+  get the profile written once, where it is visible and editable; everything
+  else is carried over untouched. No `unique_id` changes, and a downgrade to
+  2.9.x still loads the entry.
+- F6-10-00 window handles and D5-00-01 contacts become ENUM sensors with
+  frozen option lists (`open`/`tilt`/`closed` and `open`/`closed`), translated
+  state labels and per-state icons. The state values themselves do not
+  change, so existing automations keep matching; an undocumented handle
+  nibble still renders as "unknown", and a stray pre-2.10 "unknown" value is
+  dropped on restore instead of being rejected by the new option list.
+- Ship three automation blueprints under
+  `blueprints/automation/enocean_custom/` (rocker to light, handle left open
+  to HVAC off plus notification, smoke alarm to notification and lights),
+  each validated against the blueprint and automation schemas with sample
+  inputs.
+- Document every action, device trigger, bus event, the update model, use
+  cases and troubleshooting in the README; declare the minimum Home
+  Assistant release in `hacs.json`; run CI against both Home Assistant
+  2026.7.3 and 2026.10.3.
+- Add a gateway device, populated from `CO_RD_VERSION` and `CO_RD_REPEATER`
+  at start-up (manufacturer, model, firmware/hardware version, chip ID as
+  serial number); every radio sender device now links to it through
+  `via_device`. New disabled-by-default hub sensors report the received
+  telegram count, the last telegram and the Base ID, alongside a
+  connectivity binary sensor.
+- Add per-sender radio diagnostics, disabled by default and restored across
+  restarts: signal strength in dBm with range-based icons, last-telegram
+  timestamp and repeater-hop count. One set per sender, not per row; existing
+  entity identities are unchanged.
+- Add a `select` entity on the gateway device for the dongle's own repeater
+  (off, level 1, level 2), using only the documented `CO_WR_REPEATER`
+  followed by a mandatory `CO_RD_REPEATER` read-back; a refused write or a
+  missing read-back is a translated error that leaves the displayed state
+  untouched. The separate, still-blocked Ubiwizz module repeater is
+  untouched.
+- Add opt-in silence detection, configured under Configure → "Availability
+  and silent devices" with one timeout per category. A sender that stays
+  silent past its timeout has its entities become unavailable; contacts,
+  smoke detectors and handles also raise a Repair issue that clears itself on
+  the next telegram. Devices can now be deleted from their device page, and
+  devices whose rows were all removed are cleaned up at start-up.
+- Add downloadable per-device diagnostics (anonymized row shapes, inbox
+  facts, the last raw telegram with its sender bytes blanked, entities by
+  domain) alongside the existing per-entry diagnostics.
+- Add F6-05-02 smoke detector support (alarm plus a diagnostic low-battery
+  companion) and a "Declare the profile of an existing device" options-flow
+  step to assert an EEP by hand on an existing row, with identity-collision
+  checks; the profile is still never inferred from the raw telegram.
+- Add a generic, `EEP.xml`-driven decoder (`device_class: eep`) covering 43
+  A5 sensor profiles plus D2-14-41, in place of manual-scale guessing for
+  CO2, presence, weather-station and similar profiles; selectable from a
+  pre-filled 4BS teach-in or a manual assertion. Existing manual-scale rows
+  are untouched.
+- Add D2-14-30 multi-function smoke detector decoding (alarm, sensor fault,
+  maintenance due, temperature/humidity/comfort/air-quality, energy storage,
+  remaining lifetime). The byte layout comes from two independent, mutually
+  agreeing open-source implementations rather than the vendored `EEP.xml`,
+  and is marked "needs hardware validation" throughout the documentation.
+- Add passive decoding of SIGNAL telegrams (RORG 0xD0: energy status,
+  revision, heartbeat, RX-channel quality, Product ID). Energy status
+  becomes a fourth disabled-by-default per-sender diagnostic sensor; the
+  other four surface read-only in the per-device diagnostics export. Nothing
+  in this integration ever transmits a command that would make a device
+  start emitting SIGNAL telegrams on its own.
+- Add an `event` entity per rocker (channel_0, channel_1 and both, each with
+  pressed, released and long_pressed) alongside the existing device triggers
+  and bus event; all three are built from the exact same source of truth, so
+  they can never disagree.
+- Add a JSON-backed product-recipe catalog (`data/products.json`: NodOn,
+  Eltako, HOPPE, Nexelec, Micropelt, Kieback & Peter) as a picker in the
+  "declare profile" step. A picked recipe feeds the same validated manual-EEP
+  path as free text and is recorded the same way; it is a convenience, never
+  proof.
+- Add a software-only sender ID pool (Base ID plus offset 1-127) that
+  pre-fills a free offset for new lights, climate panels and RPS-emulated
+  switches, and refuses a submitted ID already in use by another row.
+  `CO_WR_IDBASE` is never written. A new `sender_id` diagnostic attribute
+  shows the identity each such entity transmits as.
+- Accept `socket://` and `rfc2217://` dongle paths through
+  `serial.serial_for_url`, for a dongle shared over the network (ser2net,
+  ESPHome stream_server, esp-ha-usb-gateway). A network link now reconnects
+  on an unexpected drop with a bounded, growing backoff (2/5/15/30/60 s, 5
+  attempts) before giving up until a manual reload; a local device path is
+  unaffected and still requires a reload exactly as before.
+- Add experimental, YAML-only climate support for the A5-20-01 and A5-20-06
+  valve profiles, gated behind an explicit `experimental_valve_ack: true`
+  because neither profile has been validated against real hardware in this
+  environment. Both profiles poll this integration for a same-second reply,
+  so the exchange happens synchronously, inside the radio callback itself.
+- Migrate to `has_entity_name`/`translation_key` on switch, light, climate
+  and the primary binary_sensor entity, but only where a row's own name
+  already equals its device's displayed name, so the text shown today does
+  not change; a row sharing a sender with a differently named earlier row
+  keeps its explicit name untouched. Displayed names for other, newly
+  migrated rows follow Home Assistant's own device/entity naming from here
+  on and may read differently after upgrading; `entity_id` and `unique_id`
+  never change, and a registry custom name, where the operator set one,
+  still takes priority either way.
+- Add a `tests/pytest` suite (pytest-homeassistant-custom-component against
+  Home Assistant 2026.10.3) covering the config flow and diagnostics through
+  the real flow manager and device registry, with measured coverage and
+  frozen-time diagnostics snapshots. It is additive to, not a replacement
+  for, the existing unittest suite, which keeps running unchanged on every
+  supported Home Assistant release.
+
 ## 2.9.8 - 2026-10-23
 
 - Drive the Ubiwizz UTE association from the module's own request: the guided
