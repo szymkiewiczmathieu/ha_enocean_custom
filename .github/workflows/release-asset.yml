@@ -1,0 +1,122 @@
+name: Release asset
+
+# Safety net for the HACS zip_release asset (docs/releasing.md).
+#
+# Nominal path, done by hand: create the release as a draft, attach
+# dist/enocean_custom.zip built by scripts/build_release_zip.py, check it,
+# publish. This workflow then runs on publication and only re-verifies: it
+# rebuilds the archive from the tag, downloads the attached asset and fails
+# loudly unless both are byte-identical (sha256).
+#
+# Repair path: if the asset was forgotten, the rebuilt archive is attached so
+# that HACS updates recover without a new release. `workflow_dispatch` with
+# the tag does the same for a release that is already published.
+#
+# It never creates, edits, publishes or deletes a release, and never replaces
+# an existing asset.
+
+on:
+  release:
+    types: [published, prereleased]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag of an existing release to verify or repair (e.g. v2.11.1)"
+        required: true
+        type: string
+
+permissions: {}
+
+# Publishing a pre-release fires both events: one run at a time per tag, the
+# second one finds the asset attached by the first and verifies it.
+concurrency:
+  group: release-asset-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  ASSET: enocean_custom.zip
+
+jobs:
+  asset:
+    name: Verify or attach enocean_custom.zip
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Validate the tag
+        run: |
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) echo "Release tag: $TAG" ;;
+            *) echo "::error::'$TAG' is not a release tag (expected vX.Y.Z)"; exit 1 ;;
+          esac
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          ref: refs/tags/${{ env.TAG }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.14"
+      - name: Build the archive for the tag and check it
+        run: |
+          python scripts/build_release_zip.py --output "dist/$ASSET" --tag "$TAG"
+          python scripts/build_release_zip.py --check "dist/$ASSET" --tag "$TAG" \
+            --install-to "$RUNNER_TEMP/hacs-install"
+      - name: Compare with the attached asset, or attach the archive
+        run: |
+          release="$RUNNER_TEMP/release.json"
+          gh release view "$TAG" --json tagName,isDraft,isPrerelease,assets > "$release"
+          mapfile -t assets < <(jq -r '.assets[].name' "$release")
+          echo "Release $TAG: draft=$(jq -r .isDraft "$release")" \
+            "prerelease=$(jq -r .isPrerelease "$release") assets=${assets[*]:-none}"
+          for name in "${assets[@]}"; do
+            if [ "$name" != "$ASSET" ]; then
+              echo "::warning::Unexpected asset '$name' on $TAG. HACS 2.0.5 shows the" \
+                "download count of the first asset; keep $ASSET the only one."
+            fi
+          done
+
+          local_sha=$(sha256sum "dist/$ASSET" | cut -d' ' -f1)
+          if printf '%s\n' "${assets[@]}" | grep -qx "$ASSET"; then
+            gh release download "$TAG" --pattern "$ASSET" --dir "$RUNNER_TEMP/attached" --clobber
+            attached_sha=$(sha256sum "$RUNNER_TEMP/attached/$ASSET" | cut -d' ' -f1)
+            if [ "$local_sha" != "$attached_sha" ]; then
+              echo "::error::$ASSET attached to $TAG (sha256 $attached_sha) differs from" \
+                "the archive rebuilt from the tag (sha256 $local_sha)."
+              echo "Diagnostic of the attached asset:"
+              python scripts/build_release_zip.py --check "$RUNNER_TEMP/attached/$ASSET" --tag "$TAG" || true
+              echo "The attached asset is left untouched. Rebuild it from a clean checkout" \
+                "of $TAG, replace it by hand, then re-run this workflow (docs/releasing.md)."
+              exit 1
+            fi
+            echo "Attached $ASSET is byte-identical to the rebuilt archive (sha256 $local_sha)."
+            outcome="verified"
+          else
+            echo "::warning::$TAG has no $ASSET: HACS installs and updates of this release" \
+              "fail until it is attached. Attaching the archive rebuilt from the tag."
+            # No --clobber: this workflow never replaces an existing asset. GitHub
+            # refuses the upload when the repository uses immutable releases; the
+            # asset must then be attached to the draft before publication.
+            gh release upload "$TAG" "dist/$ASSET"
+            gh release download "$TAG" --pattern "$ASSET" --dir "$RUNNER_TEMP/attached" --clobber
+            uploaded_sha=$(sha256sum "$RUNNER_TEMP/attached/$ASSET" | cut -d' ' -f1)
+            if [ "$uploaded_sha" != "$local_sha" ]; then
+              echo "::error::Downloaded asset differs from the upload ($uploaded_sha != $local_sha)."
+              exit 1
+            fi
+            echo "Attached $ASSET to $TAG (sha256 $local_sha)."
+            outcome="attached"
+          fi
+
+          files=$(python -c 'import sys, zipfile; print(len(zipfile.ZipFile(sys.argv[1]).namelist()))' "dist/$ASSET")
+          {
+            echo "### $ASSET for $TAG: $outcome"
+            echo
+            echo "- sha256: \`$local_sha\`"
+            echo "- files: $files"
+            echo "- URL: https://github.com/$GH_REPO/releases/download/$TAG/$ASSET"
+          } >> "$GITHUB_STEP_SUMMARY"

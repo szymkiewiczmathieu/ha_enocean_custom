@@ -110,6 +110,69 @@ jobs:
       - name: Run the pytest-homeassistant-custom-component suite
         run: python -m pytest
 
+  release-zip:
+    name: HACS release asset (build, --check, install simulation on HA 2026.10.3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.14"
+      # hacs.json declares zip_release + filename: HACS installs every release
+      # from the enocean_custom.zip asset, extracted straight into
+      # custom_components/enocean_custom/ (docs/releasing.md). The archive is
+      # rebuilt here from the tree, checked against it, then installed exactly
+      # the way HACS does it and smoke-tested from that location.
+      - name: Build dist/enocean_custom.zip twice and prove the build is deterministic
+        run: |
+          python scripts/build_release_zip.py --output dist/enocean_custom.zip
+          python scripts/build_release_zip.py --output "$RUNNER_TEMP/rebuild.zip" > /dev/null
+          cmp dist/enocean_custom.zip "$RUNNER_TEMP/rebuild.zip"
+          sha256sum dist/enocean_custom.zip
+      - name: Check the archive against the tree and extract it like HACS does
+        run: |
+          version=$(python -c 'import json; print(json.load(open("custom_components/enocean_custom/manifest.json"))["version"])')
+          python scripts/build_release_zip.py --check dist/enocean_custom.zip \
+            --version "$version" --install-to "$RUNNER_TEMP/hacs-install"
+          python -m json.tool "$RUNNER_TEMP/hacs-install/custom_components/enocean_custom/manifest.json" > /dev/null
+          python -m compileall -q "$RUNNER_TEMP/hacs-install/custom_components/enocean_custom"
+      - name: Install Home Assistant 2026.10.3 and runtime dependencies
+        run: |
+          python -m pip install --disable-pip-version-check \
+            "homeassistant==2026.10.3" \
+            beautifulsoup4==4.13.3 \
+            lxml==6.1.1 \
+            pyserial==3.5
+          python -m pip check
+      # tests/ha_smoke.py resolves the integration from its own parent
+      # directory, so a copy next to the extracted tree exercises that tree,
+      # not the repository checkout.
+      - name: Import and smoke-test the extracted tree with Home Assistant
+        run: |
+          install="$RUNNER_TEMP/hacs-install"
+          mkdir -p "$install/tests"
+          cp tests/ha_smoke.py "$install/tests/ha_smoke.py"
+          cd "$install"
+          python - <<'PY'
+          import os
+          import sys
+
+          sys.path.insert(0, os.getcwd())
+          import custom_components.enocean_custom as integration
+
+          assert integration.__file__.startswith(os.getcwd()), integration.__file__
+          print("imported", integration.__file__)
+          PY
+          python tests/ha_smoke.py
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: enocean_custom.zip
+          path: dist/enocean_custom.zip
+          if-no-files-found: error
+
   hacs:
     name: HACS validation
     runs-on: ubuntu-latest
