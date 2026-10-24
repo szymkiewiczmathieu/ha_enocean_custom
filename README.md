@@ -2,13 +2,14 @@
 
 [![HACS](https://img.shields.io/badge/HACS-Default-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/default)
 [![Validation](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml)
+[![GitHub stars](https://img.shields.io/github/stars/szymkiewiczmathieu/ha_enocean_custom?style=for-the-badge&logo=github&label=Stars)](https://github.com/szymkiewiczmathieu/ha_enocean_custom/stargazers)
 
 Local-first Home Assistant integration for ESP3 EnOcean USB dongles (USB 300
 and compatible). It provides configuration-entry and YAML setup, guided device
 learning, diagnostics, native rocker triggers, automation blueprints and
 bounded actuator control without cloud services or telemetry.
 
-**Current release:** [v2.11.0](CHANGELOG.md) · Apache-2.0 · available in the HACS default store
+**Current release:** [v2.11.1](CHANGELOG.md) · Apache-2.0 · available in the HACS default store
 
 ## Contents
 
@@ -483,6 +484,11 @@ options.
 ## Release and licensing
 
 - [CHANGELOG.md](CHANGELOG.md) is the release record.
+- Each release carries one asset, `enocean_custom.zip`, from which HACS
+  installs and updates the integration (`hacs.json`: `zip_release`). It is the
+  content of `custom_components/enocean_custom/`, built reproducibly by
+  `scripts/build_release_zip.py`; the maintainer procedure is in
+  [docs/releasing.md](docs/releasing.md).
 - [NOTICE](NOTICE) lists third-party attributions; the vendored EnOcean library
   retains its MIT license.
 - This is an independent custom integration, not the official Home Assistant

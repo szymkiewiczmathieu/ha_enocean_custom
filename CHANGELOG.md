@@ -1,5 +1,32 @@
 # Changelog
 
+## 2.11.1 - 2026-10-24
+
+Packaging only, no runtime change: the integration code, strings and
+translations are byte for byte those of 2.11.0; only the version in
+`manifest.json` moves.
+
+- **HACS installs each release from a `enocean_custom.zip` asset** attached to
+  it (`hacs.json`: `"zip_release": true`, `"filename": "enocean_custom.zip"`)
+  instead of the Git tree. Why: the download figure HACS shows in its store is
+  the GitHub download count of a release asset, so from this release on it
+  counts real installations and updates (the "1" shown until now was a leftover
+  of an asset of August 2026). Nothing changes for users: same HACS install and
+  update steps, same files installed; earlier releases keep installing from the
+  Git tree because HACS reads the `hacs.json` of the version it installs.
+- `scripts/build_release_zip.py` builds the asset deterministically (content of
+  `custom_components/enocean_custom/` at the archive root, sorted entries, fixed
+  timestamp, stored) and `--check` refuses an archive whose layout, paths, file
+  list, content or manifest version is wrong; `tests/test_release_zip.py` covers
+  it. A new `release-zip` CI job builds the archive twice, checks it, extracts it
+  the way HACS does and runs the Home Assistant smoke test on the extracted
+  tree. A new `Release asset` workflow re-verifies the attached asset at
+  publication (sha256 against a rebuild from the tag) and attaches it if it was
+  forgotten, so a forgotten upload never leaves HACS updates failing.
+- `docs/releasing.md`: release procedure (draft release → asset → check →
+  publish), what happens when the asset is missing and how to repair.
+- README: GitHub stars badge.
+
 ## 2.11.0 - 2026-10-24
 
 Lot 2 of the roadmap: config subentries (A1), D2-01 state queries (M11),
