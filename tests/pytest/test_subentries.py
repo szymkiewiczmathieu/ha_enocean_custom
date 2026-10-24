@@ -322,3 +322,27 @@ async def test_options_flow_style_write_adds_a_device_without_a_reload(
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
     assert entry.state is config_entries.ConfigEntryState.NOT_LOADED
+
+
+async def test_radio_devices_link_to_the_gateway_without_deprecated_via_device(
+    hass: HomeAssistant, fake_dongle, setup_calls, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Every radio device hangs off the gateway via ``via_device_id``.
+
+    HA 2026.10 logs a deprecation (breaking in 2027.8) when ``via_device`` is
+    passed to the device registry; the integration must never trigger it.
+    """
+    rows = [_row(SENDER, 0, "Stairs"), _row(OTHER)]
+    entry = await _load(hass, rows, minor_version=2)
+
+    device_registry = dr.async_get(hass)
+    devices = dr.async_entries_for_config_entry(device_registry, entry.entry_id)
+    gateway = [
+        d for d in devices if any(i.startswith("gateway:") for _, i in d.identifiers)
+    ]
+    assert len(gateway) == 1
+    radio = [d for d in devices if d is not gateway[0]]
+    assert len(radio) == 2
+    for device in radio:
+        assert device.via_device_id == gateway[0].id, device.name
+    assert "deprecated `via_device`" not in caplog.text

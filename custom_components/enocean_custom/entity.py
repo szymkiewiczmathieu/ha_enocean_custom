@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from homeassistant.core import CALLBACK_TYPE, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -50,6 +51,26 @@ def get_gateway_base_id(gateway: object) -> list[int] | None:
             retry()
         return None
     return list(base_id)
+
+
+def _gateway_link(hass: Any, entry_id: str) -> dict[str, Any]:
+    """Return the DeviceInfo key linking a radio device to its gateway.
+
+    Home Assistant 2026.10 deprecates ``via_device`` (an identifier tuple,
+    removed in 2027.8) in favour of ``via_device_id`` (the registry id of the
+    gateway device). Older supported cores (2026.7) only know ``via_device``,
+    so the key is chosen from what the running core provides. The gateway
+    device is registered before any platform is set up; if it is somehow
+    missing, no link is invented.
+    """
+    identifier = (DOMAIN, gateway_device_identifier(entry_id))
+    lookup = getattr(dr, "async_get_device_id_by_identifier", None)
+    if lookup is None:
+        return {"via_device": identifier}
+    try:
+        return {"via_device_id": lookup(hass, identifier, config_entry_id=entry_id)}
+    except ValueError:
+        return {}
 
 
 class EnOceanEntity(Entity):
@@ -128,10 +149,11 @@ class EnOceanEntity(Entity):
             info["model"] = product.model
             info["model_id"] = product.model_id
         # Every radio device is reached through the dongle of the config entry.
-        gateway = get_gateway(getattr(self, "hass", None))
+        hass = getattr(self, "hass", None)
+        gateway = get_gateway(hass)
         entry_id = getattr(gateway, "entry_id", None)
         if entry_id:
-            info["via_device"] = (DOMAIN, gateway_device_identifier(entry_id))
+            info.update(_gateway_link(hass, entry_id))
         return DeviceInfo(**info)
 
     @property

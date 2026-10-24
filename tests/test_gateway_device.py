@@ -370,16 +370,36 @@ class GatewayDeviceAndEntityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(updated.serial_number, "FFD3E580")
 
     async def test_radio_devices_reference_the_gateway_through_via_device(self):
-        self._gateway()
+        gateway = self._gateway()
         entity = EnOceanEntity([1, 2, 3, 4], "Rocker")
         entity.hass = self.hass
-        self.assertEqual(
-            entity.device_info["via_device"],
-            (DOMAIN, gateway_device_identifier(self.entry.entry_id)),
-        )
+        identifier = (DOMAIN, gateway_device_identifier(self.entry.entry_id))
+        if hasattr(dr, "async_get_device_id_by_identifier"):
+            # HA >= 2026.10: the deprecated identifier tuple is never sent.
+            gateway_device = async_register_gateway_device(
+                self.hass, self.entry, gateway
+            )
+            info = entity.device_info
+            self.assertNotIn("via_device", info)
+            self.assertEqual(info["via_device_id"], gateway_device.id)
+        else:
+            info = entity.device_info
+            self.assertNotIn("via_device_id", info)
+            self.assertEqual(info["via_device"], identifier)
         # Without a loaded gateway nothing is invented.
         orphan = EnOceanEntity([1, 2, 3, 4], "Rocker")
         self.assertNotIn("via_device", orphan.device_info)
+        self.assertNotIn("via_device_id", orphan.device_info)
+
+    async def test_missing_gateway_device_invents_no_link(self):
+        self._gateway()
+        entity = EnOceanEntity([1, 2, 3, 4], "Rocker")
+        entity.hass = self.hass
+        if not hasattr(dr, "async_get_device_id_by_identifier"):
+            self.skipTest("core predates via_device_id")
+        info = entity.device_info
+        self.assertNotIn("via_device", info)
+        self.assertNotIn("via_device_id", info)
 
     async def test_hub_sensors_read_the_dongle_and_stay_available(self):
         gateway = self._gateway(available=False)

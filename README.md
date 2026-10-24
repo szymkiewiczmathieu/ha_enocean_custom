@@ -9,7 +9,7 @@ and compatible). It provides configuration-entry and YAML setup, guided device
 learning, diagnostics, native rocker triggers, automation blueprints and
 bounded actuator control without cloud services or telemetry.
 
-**Current release:** [v2.11.1](CHANGELOG.md) · Apache-2.0 · available in the HACS default store
+**Current release:** [v2.11.2](CHANGELOG.md) · Apache-2.0 · available in the HACS default store
 
 ## Contents
 

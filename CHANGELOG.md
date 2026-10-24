@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.11.2 - 2026-10-24
+
+- **No more `via_device` deprecation warning on Home Assistant 2026.10+.** Each
+  radio device is linked to the "EnOcean gateway" device through
+  `via_device_id` (the registry id of the gateway device) instead of the
+  `via_device` identifier tuple, which Home Assistant 2026.10 deprecates and
+  will stop accepting in 2027.8. On older supported cores (2026.7, which have
+  no `via_device_id`) the previous link is kept. The device tree, device ids,
+  entity ids and unique ids do not change: the same gateway device is
+  referenced, only the way it is designated.
+- Tests: the unit test covers both cores, and a real-core setup test fails if
+  the device registry logs the `via_device` deprecation and checks that every
+  radio device hangs off the gateway.
+
 ## 2.11.1 - 2026-10-24
 
 Packaging only, no runtime change: the integration code, strings and
