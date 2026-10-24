@@ -60,9 +60,10 @@ LOGGER = logging.getLogger(__package__)
 UI_DEVICE_PLATFORMS = ("binary_sensor", "climate", "light", "sensor", "switch")
 
 # Every platform the config entry forwards: the row platforms, ``select``
-# (the dongle's own repeater setting, never a UI row) and ``event`` (one
-# companion entity per rocker sender, never a UI row either).
+# (the dongle's own repeater setting, never a UI row), ``event`` (one
+# companion entity per rocker sender, never a UI row either) and ``button``
+# (one "refresh state" action per D2-01 actuator channel, see d2_01.py).
 PLATFORMS: tuple[Platform, ...] = tuple(
-    Platform(name) for name in (*UI_DEVICE_PLATFORMS, "select", "event")
+    Platform(name) for name in (*UI_DEVICE_PLATFORMS, "select", "event", "button")
 )
 FORWARDED_PLATFORMS = tuple(platform.value for platform in PLATFORMS)

@@ -147,6 +147,9 @@ class EnOceanEntity(Entity):
                 status.power_failure_detection_enabled
             ),
             "d2_power_failure_detected": status.power_failure_detected,
+            # CMD 0x4 offset 16 (EEP 2.6.7 p.136): the one local setting the
+            # actuator reports back; read-only, see d2_01.py on CMD 0x2.
+            "d2_local_control_enabled": status.local_control_enabled,
             "last_status": self._last_status,
         }
 

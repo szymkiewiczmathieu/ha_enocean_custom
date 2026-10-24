@@ -36,6 +36,7 @@ from .const import (
     SERVICE_SEND_TEACH_IN,
     SIGNAL_RECEIVE_MESSAGE,
 )
+from .d2_01 import CONF_D2_01_QUERY_ON_START, d2_01_targets
 from .device_catalog import (
     UBIWIZZ_LIGHT_D2_01_08,
     get_product_recipe,
@@ -84,6 +85,7 @@ from .enocean_library.protocol.packet import (
 from .enocean_library.utils import combine_hex, to_hex_string
 from .entity import build_radio_optional, get_gateway_base_id
 from .identity import (
+    d2_01_refresh_unique_id,
     rocker_event_unique_id,
     sender_diagnostic_identities,
     ui_device_entity_identities,
@@ -566,6 +568,7 @@ class EnOceanOptionsFlow(OptionsFlow):
             "declare_profile",
             "manage",
             "settings",
+            "actuators",
         ]
         if self._pending_yaml_rows():
             menu_options.append("import_yaml")
@@ -573,6 +576,43 @@ class EnOceanOptionsFlow(OptionsFlow):
             step_id="init",
             menu_options=menu_options,
         )
+
+    async def async_step_actuators(self, user_input=None):
+        """Edit the D2-01 actuator settings: the opt-in start-up state query.
+
+        Off by default. When enabled, every D2-01 actuator channel (``switch``
+        rows with ``switch_type: default``) is asked once for its status after
+        each start-up or reload, one query at a time; saving reloads the entry
+        and therefore runs the first pass. Nothing else transmits on its own.
+        """
+        current = self.config_entry.options.get(CONF_D2_01_QUERY_ON_START) is True
+        if user_input is None:
+            return self.async_show_form(
+                step_id="actuators",
+                data_schema=vol.Schema(
+                    {
+                        vol.Required(
+                            CONF_D2_01_QUERY_ON_START, default=current
+                        ): selector.BooleanSelector()
+                    }
+                ),
+                description_placeholders={
+                    "count": str(
+                        len(
+                            d2_01_targets(
+                                valid_ui_devices(
+                                    self.config_entry.options.get(CONF_UI_DEVICES, [])
+                                )
+                            )
+                        )
+                    )
+                },
+            )
+        updated_options = dict(self.config_entry.options)
+        updated_options[CONF_D2_01_QUERY_ON_START] = (
+            user_input.get(CONF_D2_01_QUERY_ON_START) is True
+        )
+        return self.async_create_entry(title="", data=updated_options)
 
     def _undeclared_rows(self) -> dict[int, dict[str, Any]]:
         """Return the valid rows whose profile is unknown or only asserted."""
@@ -2152,9 +2192,15 @@ class EnOceanOptionsFlow(OptionsFlow):
             return dict(self.config_entry.options), "yaml_managed"
 
         # Remove every entity this row created, companions included, so no
-        # orphaned registry row survives the deletion.
+        # orphaned registry row survives the deletion. The D2-01 refresh
+        # button (2.11.0) is keyed by sender and channel like the switch.
         registry = er.async_get(self.hass)
-        for platform, unique_id in ui_device_entity_identities(device):
+        identities = list(ui_device_entity_identities(device))
+        if device["platform"] == "switch":
+            identities.append(
+                ("button", d2_01_refresh_unique_id(device["id"], device["channel"]))
+            )
+        for platform, unique_id in identities:
             entity_id = registry.async_get_entity_id(platform, DOMAIN, unique_id)
             if entity_id is not None:
                 registry.async_remove(entity_id)

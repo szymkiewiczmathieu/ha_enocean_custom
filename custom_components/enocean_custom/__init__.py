@@ -31,6 +31,12 @@ from .const import (
     SIGNAL_GATEWAY_UPDATE,
     SIGNAL_SUBENTRY_SETUP,
 )
+from .d2_01 import (
+    CONF_D2_01_QUERY_ON_START,
+    async_startup_pass,
+    d2_01_targets,
+    drop_d2_01_runner,
+)
 from .device_rows import (
     SUBENTRY_ROWS,
     async_adopt_rows,
@@ -186,6 +192,17 @@ async def async_setup_entry(
         raise
 
     entry.async_on_unload(entry.add_update_listener(_async_entry_updated(entry)))
+    entry.async_on_unload(lambda: drop_d2_01_runner(hass, entry.entry_id))
+    if entry.options.get(CONF_D2_01_QUERY_ON_START) is True:
+        # Opt-in only: one CMD 0x3 per D2-01 actuator channel, serialized,
+        # cancelled with the entry. Off by default, nothing is transmitted.
+        entry.async_create_background_task(
+            hass,
+            async_startup_pass(
+                hass, gateway, entry.entry_id, d2_01_targets(configured_rows(entry))
+            ),
+            "EnOcean D2-01 start-up state query",
+        )
     return True
 
 

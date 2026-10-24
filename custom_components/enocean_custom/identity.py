@@ -182,6 +182,16 @@ def rocker_event_unique_id(dev_id: list[int]) -> str:
     return f"{combine_hex(dev_id)}-rocker-event"
 
 
+def d2_01_refresh_unique_id(dev_id: list[int], channel: int) -> str:
+    """Return the identity of a D2-01 channel's "refresh state" button (2.11.0).
+
+    A companion of a ``switch`` row with ``switch_type: default``, keyed by
+    sender and channel like the switch itself; not part of
+    ``ui_device_entity_identities`` (frozen), removed with its row.
+    """
+    return f"{combine_hex(dev_id)}-{channel}-d2-01-refresh"
+
+
 def device_names_by_sender(rows: Any) -> dict[int, str]:
     """Return the device name of each sender: the name of its first valid row.
 

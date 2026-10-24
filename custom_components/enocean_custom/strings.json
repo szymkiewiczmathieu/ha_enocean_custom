@@ -79,6 +79,7 @@
           "declare_profile": "Declare the profile of an existing device",
           "manage": "Manage UI devices",
           "settings": "Availability and silent devices",
+          "actuators": "D2-01 actuators: state query at start-up",
           "import_yaml": "Import YAML devices"
         }
       },
@@ -109,6 +110,16 @@
           "contact_minutes": "Window and door contacts",
           "smoke_minutes": "Smoke detectors",
           "handle_minutes": "Window handles"
+        }
+      },
+      "actuators": {
+        "title": "D2-01 actuators",
+        "description": "Optional, off by default. When enabled, each of the {count} configured D2-01 actuator channels (relays driven with directed D2 commands; Ubiwizz rows emulating a rocker are not concerned) is asked once for its status after every start-up or reload with one Actuator Status Query (CMD 0x3), so switches leave \"unknown\" without waiting for the next telegram. Queries are sent one at a time, at least 250 ms apart, and never repeated; the actuator must answer within the 300 ms window of the EEP specification. The \"Refresh state\" button of each actuator sends the same query on demand, whatever this setting.",
+        "data": {
+          "d2_01_query_on_start": "Query every D2-01 actuator once after start-up"
+        },
+        "data_description": {
+          "d2_01_query_on_start": "Transmits one radio query per actuator channel after each start-up or reload. Leave off if you prefer this integration to never transmit on its own."
         }
       },
       "pair_actuator": {
@@ -458,6 +469,11 @@
       },
       "eep_rain": {
         "name": "Rain"
+      }
+    },
+    "button": {
+      "d2_01_refresh": {
+        "name": "Refresh state (channel {channel})"
       }
     },
     "event": {

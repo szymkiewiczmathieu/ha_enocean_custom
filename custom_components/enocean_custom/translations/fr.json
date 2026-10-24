@@ -79,6 +79,7 @@
           "declare_profile": "Déclarer le profil d'un équipement existant",
           "manage": "Gérer les équipements de l'interface",
           "settings": "Disponibilité et équipements silencieux",
+          "actuators": "Actionneurs D2-01 : requête d'état au démarrage",
           "import_yaml": "Importer les équipements YAML"
         }
       },
@@ -109,6 +110,16 @@
           "contact_minutes": "Contacts de porte et de fenêtre",
           "smoke_minutes": "Détecteurs de fumée",
           "handle_minutes": "Poignées de fenêtre"
+        }
+      },
+      "actuators": {
+        "title": "Actionneurs D2-01",
+        "description": "Optionnel, désactivé par défaut. Lorsque c'est activé, chacun des {count} canaux d'actionneur D2-01 configurés (relais pilotés par commandes D2 adressées ; les lignes Ubiwizz émulant un interrupteur ne sont pas concernées) reçoit une seule requête d'état (Actuator Status Query, CMD 0x3) après chaque démarrage ou rechargement, pour que les interrupteurs sortent de « inconnu » sans attendre le prochain télégramme. Les requêtes sont envoyées une par une, espacées d'au moins 250 ms, et jamais répétées ; l'actionneur doit répondre dans la fenêtre de 300 ms de la spécification EEP. Le bouton « Actualiser l'état » de chaque actionneur envoie la même requête à la demande, quel que soit ce réglage.",
+        "data": {
+          "d2_01_query_on_start": "Interroger chaque actionneur D2-01 une fois après le démarrage"
+        },
+        "data_description": {
+          "d2_01_query_on_start": "Émet une requête radio par canal d'actionneur après chaque démarrage ou rechargement. Laissez désactivé si vous préférez que cette intégration n'émette jamais de sa propre initiative."
         }
       },
       "pair_actuator": {
@@ -458,6 +469,11 @@
       },
       "eep_rain": {
         "name": "Pluie"
+      }
+    },
+    "button": {
+      "d2_01_refresh": {
+        "name": "Actualiser l'état (canal {channel})"
       }
     },
     "event": {
