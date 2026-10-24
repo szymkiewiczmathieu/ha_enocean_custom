@@ -21,11 +21,16 @@ from homeassistant.helpers import entity_registry as er
 
 from .availability import availability_settings, silence_category
 from .const import DOMAIN
+from .device_rows import (
+    device_subentries,
+    device_subentry_id,
+    legacy_rows,
+    rows_for_sender,
+)
 from .dongle import EnOceanDongle
 from .enocean_library.utils import combine_hex
 from .identity import gateway_device_identifier
 from .inbox import get_device_inbox
-from .schema import CONF_UI_DEVICES, valid_ui_devices
 from .ubiwizz_repeater import ubiwizz_repeater_diagnostics
 
 TO_REDACT = {
@@ -74,6 +79,13 @@ async def async_get_config_entry_diagnostics(
             getattr(entry, "options", {})
         ).as_options(),
         "ubiwizz_repeater": ubiwizz_repeater_diagnostics(),
+        # Counts only: how many radio devices are subentries, how many valid
+        # rows still wait outside one (normally zero after the minor-3 migration).
+        "subentries": {
+            "minor_version": getattr(entry, "minor_version", None),
+            "device_subentries": len(device_subentries(entry)),
+            "legacy_rows": len(legacy_rows(entry)),
+        },
     }
 
 
@@ -172,11 +184,7 @@ async def async_get_device_diagnostics(
     sender_bytes = [int(senders[0][index : index + 2], 16) for index in range(0, 8, 2)]
     sender_int = combine_hex(sender_bytes)
 
-    rows = [
-        _row_shape(row)
-        for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
-        if combine_hex(row["id"]) == sender_int
-    ]
+    rows = [_row_shape(row) for row in rows_for_sender(entry, sender_int)]
     inbox = get_device_inbox(hass)
     observation = inbox.get(sender_int) if inbox is not None else None
     radio: dict[str, Any] | None = None
@@ -206,6 +214,9 @@ async def async_get_device_diagnostics(
     return async_redact_data(
         {
             "kind": "radio_sender",
+            # Whether this device is attached to its own config subentry (the
+            # id itself is an opaque ULID and is not exported).
+            "in_subentry": device_subentry_id(device, entry.entry_id) is not None,
             "rows": rows,
             "radio": radio,
             "entities": entities,

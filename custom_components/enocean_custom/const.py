@@ -11,8 +11,16 @@ MANUFACTURER = "EnOcean"
 # Config entry schema version. The minor version is bumped when stored options
 # are rewritten in a backward-compatible way (see migration.py); a downgrade to
 # an older release still loads the entry.
+#
+# Minor 3 (v2.11.0): every radio device becomes one config subentry of type
+# ``device``; ``options.ui_devices`` is kept as a complete, downgrade-safe
+# mirror of the rows those subentries hold.
 CONFIG_ENTRY_VERSION: Final = 1
-CONFIG_ENTRY_MINOR_VERSION: Final = 2
+CONFIG_ENTRY_MINOR_VERSION: Final = 3
+
+# The one subentry type this integration declares: one EnOcean radio device
+# (one four-byte sender), holding every UI row configured for that sender.
+SUBENTRY_TYPE_DEVICE: Final = "device"
 
 # ``hass.data[DATA_ENOCEAN]`` holds only integration-wide state that is not
 # tied to the config entry: YAML-claimed sender ids, the teach-in manager and
@@ -36,6 +44,10 @@ SIGNAL_RECEIVE_MESSAGE = f"{DOMAIN}.receive_message"
 # Fired on the event loop when the dongle learns something about itself:
 # firmware version, Base ID, repeater state.
 SIGNAL_GATEWAY_UPDATE = f"{DOMAIN}.gateway_update"
+# Fired on the event loop with ``(entry_id, subentry_id)`` when a device
+# subentry was added or rewritten while the entry is loaded: every platform
+# creates that device's entities without the entry being reloaded.
+SIGNAL_SUBENTRY_SETUP = f"{DOMAIN}.subentry_setup"
 
 LEARN_TIMEOUT_DEFAULT = 60
 LEARN_TIMEOUT_MIN = 15

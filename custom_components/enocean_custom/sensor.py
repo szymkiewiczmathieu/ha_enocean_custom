@@ -38,13 +38,23 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
-from .availability import REPAIR_CATEGORIES, availability_settings, silence_category
+from .availability import (
+    REPAIR_CATEGORIES,
+    AvailabilitySettings,
+    availability_settings,
+    silence_category,
+)
 from .const import DOMAIN, LOGGER
 from .d2_14 import (
     AIR_QUALITY_STATES,
     COMFORT_STATES,
     ENERGY_STORAGE_STATES,
     decode_d2_14_30,
+)
+from .device_rows import (
+    add_entities_for_group,
+    async_connect_subentry_setup,
+    rows_by_subentry,
 )
 from .eep_catalog import EepField, EepProfile, generic_profile
 from .enocean_library.protocol.constants import RORG
@@ -75,7 +85,7 @@ from .identity import (
 )
 from .inbox import PacketObservation, packet_observation
 from .learn import register_known_id
-from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devices
+from .schema import ENOCEAN_ID, exact_finite_int
 from .yaml_import import track_yaml_device
 
 # Every state change is pushed by the serial worker; nothing here polls.
@@ -247,14 +257,31 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Create measurement entities stored in the entry options.
+    """Create measurement entities stored in the entry options, per device subentry.
 
-    Row entities come first; the device-level radio diagnostics and the
-    gateway's own sensors are appended after them.
+    Within a group, row entities come first and the device-level radio
+    diagnostics after them; the gateway's own sensors belong to the main
+    entry and are added with the legacy group.
     """
-    entities: list[SensorEntity] = []
     settings = availability_settings(getattr(entry, "options", {}))
-    rows = valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
+
+    def build(rows: list[dict]) -> list[SensorEntity]:
+        return _row_entities(rows, settings)
+
+    groups = dict(rows_by_subentry(entry))
+    legacy = build(groups.pop(None, []))
+    legacy.extend(_gateway_entities(entry))
+    add_entities_for_group(async_add_entities, legacy, None)
+    for subentry_id, rows in groups.items():
+        add_entities_for_group(async_add_entities, build(rows), subentry_id)
+    async_connect_subentry_setup(hass, entry, async_add_entities, build)
+
+
+def _row_entities(
+    rows: list[dict], settings: AvailabilitySettings
+) -> list[SensorEntity]:
+    """Build the measurement and radio-diagnostic sensors of one group of rows."""
+    entities: list[SensorEntity] = []
     for row in rows:
         category = silence_category(row)
         silence = (settings.timeout_for(category), category in REPAIR_CATEGORIES)
@@ -314,8 +341,7 @@ async def async_setup_entry(
             for entity in _entities_from_config(config)
         )
     entities.extend(_radio_diagnostic_entities(rows))
-    entities.extend(_gateway_entities(entry))
-    async_add_entities(entities)
+    return entities
 
 
 def _gateway_entities(entry: Any) -> list[SensorEntity]:

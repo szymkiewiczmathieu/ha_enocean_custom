@@ -57,12 +57,17 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, LOGGER
+from .device_rows import (
+    add_entities_for_group,
+    async_connect_subentry_setup,
+    rows_by_subentry,
+)
 from .enocean_library.protocol.constants import RORG
 from .enocean_library.utils import combine_hex, to_hex_string
 from .entity import EnOceanEntity, build_radio_optional
 from .identity import climate_unique_id
 from .learn import register_known_id
-from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devices
+from .schema import ENOCEAN_ID, exact_finite_int
 from .valve_a5_20 import (
     bidirectional_teach_in_response,
     decode_a5_20_01,
@@ -313,9 +318,21 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Create heating controllers stored in the entry options."""
+    """Create heating controllers stored in the entry options, per device subentry."""
+
+    def build(rows: list[dict]) -> list[EnOceanClimate]:
+        return _climate_entities(hass, rows)
+
+    for subentry_id, rows in rows_by_subentry(entry):
+        add_entities_for_group(async_add_entities, build(rows), subentry_id)
+    async_connect_subentry_setup(hass, entry, async_add_entities, build)
+    _register_climate_services()
+
+
+def _climate_entities(hass: HomeAssistant, rows: list[dict]) -> list[EnOceanClimate]:
+    """Build the heating controllers of one group of rows."""
     entities: list[EnOceanClimate] = []
-    for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, [])):
+    for row in rows:
         if row["platform"] != "climate":
             continue
         config = PLATFORM_SCHEMA(
@@ -344,8 +361,7 @@ async def async_setup_entry(
         entities.append(
             _entity_from_config(config).set_radio_metadata(row.get("radio_metadata"))
         )
-    async_add_entities(entities)
-    _register_climate_services()
+    return entities
 
 
 def _register_climate_services() -> None:

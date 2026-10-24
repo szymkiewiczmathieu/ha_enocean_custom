@@ -4,17 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import copy
-import re
 from datetime import UTC, datetime, timedelta
-from math import isfinite
 from typing import Any
 
-import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.config_entries import OptionsFlow
 from homeassistant.const import (
-    CONF_DEVICE_CLASS,
     CONF_ENTITY_ID,
     CONF_NAME,
     CONF_PLATFORM,
@@ -34,31 +29,35 @@ from .availability import (
     availability_settings,
     minutes_key,
 )
-from .climate import (
-    CONF_COMMAND_FREQUENCY,
-    CONF_DEVICE_TYPE,
-    CONF_PI_CONTROL_KP,
-    CONF_PI_CONTROL_TN,
-    CONF_SENDER_ID_SWITCH,
-    CONF_SENSOR_ENTITY_ID,
-    CONF_SENSOR_TARGET_TEMP_FROST_PROTECTION,
-    CONF_SENSOR_TARGET_TEMP_RANGE,
-    CONF_SENSOR_TARGET_TEMP_TOLERANCE,
-    CONF_TARGET_TEMP_BASE,
-    CONF_TARGET_TEMP_NIGHT_REDUCTION,
-)
 from .const import (
     DOMAIN,
     LEARN_TIMEOUT_DEFAULT,
     LOGGER,
     SERVICE_SEND_TEACH_IN,
     SIGNAL_RECEIVE_MESSAGE,
-    UI_DEVICE_PLATFORMS,
 )
 from .device_catalog import (
     UBIWIZZ_LIGHT_D2_01_08,
     get_product_recipe,
     recipes_for_platform,
+)
+from .device_form import (
+    CONF_MANUAL_EEP as _CONF_MANUAL_EEP,
+)
+from .device_form import (
+    CONF_QR_CODE as _CONF_QR_CODE,
+)
+from .device_form import (
+    declare_profile_on_row,
+    declared_generic_eep,
+    device_details_schema,
+    device_form_schema,
+    exact_int,
+    finite_float,
+    manual_eep_offered,
+    parse_commissioning_code,
+    parse_sender_id,
+    validate_device_details,
 )
 from .device_intelligence import (
     UNKNOWN_PLACEHOLDER,
@@ -71,11 +70,9 @@ from .device_intelligence import (
     metadata_declares_eep,
     parse_commissioning_identity,
     parse_manual_eep,
-    recommended_platform,
     reconcile_commissioning_metadata,
     safe_metadata,
 )
-from .eep_catalog import generic_profiles, is_generic_supported
 from .enocean_library.protocol.constants import PACKET, RORG
 from .enocean_library.protocol.d2 import is_matching_d2_01_feedback
 from .enocean_library.protocol.packet import (
@@ -87,7 +84,6 @@ from .enocean_library.protocol.packet import (
 from .enocean_library.utils import combine_hex, to_hex_string
 from .entity import build_radio_optional, get_gateway_base_id
 from .identity import (
-    GENERIC_SENSOR_DEVICE_CLASS,
     rocker_event_unique_id,
     sender_diagnostic_identities,
     ui_device_entity_identities,
@@ -99,20 +95,12 @@ from .runtime import get_gateway
 from .schema import (
     CONF_RADIO_METADATA,
     CONF_UI_DEVICES,
-    UI_CLIMATE_DEVICE_TYPES,
     UI_DEVICE_SCHEMA,
     used_sender_ids,
     valid_ui_devices,
 )
 from .sender_pool import allocate_sender_id
-from .sensor import (
-    CONF_MAX_TEMP,
-    CONF_MIN_TEMP,
-    CONF_RANGE_FROM,
-    CONF_RANGE_TO,
-    SENSOR_TYPES,
-)
-from .switch import CONF_ACTUATOR_PROFILE, CONF_CHANNEL, CONF_SWITCH_TYPE, SWITCH_TYPES
+from .switch import CONF_ACTUATOR_PROFILE, CONF_CHANNEL
 from .ubiwizz import UBID1507C, accepted_ute_request_channels
 from .ubiwizz_repeater import (
     UBIWIZZ_REPEATER_CANDIDATE_EEPS,
@@ -123,12 +111,8 @@ from .ubiwizz_repeater import (
 from .yaml_import import yaml_inventory
 
 _FLOW_OWNER = "options_flow"
-_HEX_BYTE = re.compile(r"^[0-9A-Fa-f]{2}$")
-_CONF_QR_CODE = "qr_code"
-_CONF_MANUAL_EEP = "manual_eep"
 _CONF_CATALOG_PRODUCT = "catalog_product"
 _CATALOG_CUSTOM = "__custom__"
-_CONF_GENERIC_EEP = "eep"
 _CONF_ACTUATOR_TYPE = "actuator_type"
 _CONF_FAILURE_ACTION = "failure_action"
 _CONF_CONFIRM_RELAY_D2 = "confirm_relay_d2"
@@ -167,58 +151,12 @@ def _unique_id_for(device: dict[str, Any]) -> str:
     return ui_device_entity_identities(device)[0][1]
 
 
-def _parse_sender_id(value: Any) -> list[int] | None:
-    """Parse a sender id typed as 'AA:BB:CC:DD' (or space separated) hex bytes."""
-    if not isinstance(value, str):
-        return None
-    parts = re.split(r"[: ]+", value.strip())
-    if len(parts) != 4 or not all(_HEX_BYTE.match(part) for part in parts):
-        return None
-    return [int(part, 16) for part in parts]
-
-
-def _exact_int(value: Any) -> int | None:
-    """Return value as an exact integer, or None when it is not one."""
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float) and value.is_integer():
-        return int(value)
-    return None
-
-
-def _finite_float(value: Any) -> float | None:
-    """Return a finite float, or None when conversion is unsafe."""
-    if isinstance(value, bool):
-        return None
-    try:
-        result = float(value)
-    except (TypeError, ValueError, OverflowError):
-        return None
-    return result if isfinite(result) else None
-
-
-def _parse_commissioning_code(value: Any) -> list[int] | None:
-    """Extract a 32-bit EURID from an Alliance product label or typed ID.
-
-    Product ID and Standardized Labeling Specification 1.8, sections 4.1 and
-    4.3, defines an ANSI MH10.8.2 label with mandatory 30S (12-hex EURID) and
-    1P (12-hex Product ID) containers. This integration supports 32-bit radio
-    IDs only, so a genuine 48-bit EURID is rejected instead of truncated.
-    """
-    parsed = parse_commissioning_identity(value)
-    if parsed:
-        return list(parsed.sender_id)
-
-    # Ubiwizz labels may expose the compact 14-hex QR payload
-    # ``04B382DAED6780`` rather than an ANSI MH10.8.2 container.  The first
-    # eight hex digits are the EnOcean EURID; retain the suffix only as label
-    # data outside this parser and never send it over radio.
-    compact = str(value or "").strip()
-    if re.fullmatch(r"[0-9A-Fa-f]{14}", compact):
-        return [int(compact[index : index + 2], 16) for index in range(0, 8, 2)]
-    return None
+# The parsers and number coercions are shared with the device subentry flow
+# (``device_form.py``); the historical private names stay importable here.
+_parse_sender_id = parse_sender_id
+_exact_int = exact_int
+_finite_float = finite_float
+_parse_commissioning_code = parse_commissioning_code
 
 
 def _qr_code_schema() -> vol.Schema:
@@ -713,35 +651,24 @@ class EnOceanOptionsFlow(OptionsFlow):
                 {_CONF_MANUAL_EEP: "invalid_eep"},
                 submitted if isinstance(submitted, str) else "",
             )
-        metadata = apply_manual_eep(device.get(CONF_RADIO_METADATA), eep)
-        metadata.setdefault("sender_id", list(device["id"]))
         raw_devices = list(self.config_entry.options.get(CONF_UI_DEVICES, []))
-        updated_raw = {**raw_devices[index], CONF_RADIO_METADATA: metadata}
-        try:
-            updated = UI_DEVICE_SCHEMA(updated_raw)
-        except vol.Invalid:
-            return show({"base": "invalid_device_details"}, eep)
-        before = ui_device_entity_identities(device)
-        after = ui_device_entity_identities(updated)
-        if after[0] != before[0]:
-            # The row would be re-created as a different entity class: that is
-            # a new device, not a declaration on this one.
-            return show({_CONF_MANUAL_EEP: "profile_changes_identity"}, eep)
-        registry = er.async_get(self.hass)
-        others = {
-            identity
-            for position, raw in enumerate(raw_devices)
-            if position != index
-            for existing in valid_ui_devices([raw])
-            for identity in ui_device_entity_identities(existing)
-        }
-        for platform, unique_id in after:
-            if (platform, unique_id) in before:
-                continue
-            if (platform, unique_id) in others or registry.async_get_entity_id(
-                platform, DOMAIN, unique_id
-            ) is not None:
-                return show({"base": "unique_id_exists"}, eep)
+        # A profile that would re-create the row as a different entity class
+        # is a new device, not a declaration on this one; new companion
+        # identities must be free (shared with the subentry reconfigure flow).
+        updated_raw, errors = declare_profile_on_row(
+            raw_devices[index],
+            device,
+            eep,
+            other_rows=[
+                existing
+                for position, raw in enumerate(raw_devices)
+                if position != index
+                for existing in valid_ui_devices([raw])
+            ],
+            registry_lookup=er.async_get(self.hass).async_get_entity_id,
+        )
+        if updated_raw is None:
+            return show(errors, eep)
         raw_devices[index] = updated_raw
         updated_options = dict(self.config_entry.options)
         updated_options[CONF_UI_DEVICES] = raw_devices
@@ -1981,58 +1908,20 @@ class EnOceanOptionsFlow(OptionsFlow):
 
     def _declared_generic_eep(self) -> str | None:
         """Return the declared EEP when the generic sensor decoder covers it."""
-        if not metadata_declares_eep(self._radio_metadata):
-            return None
-        eep = (self._radio_metadata or {}).get("eep")
-        return eep if is_generic_supported(eep) else None
+        return declared_generic_eep(self._radio_metadata)
 
     def _manual_eep_offered(self) -> bool:
-        """Return whether the operator may still assert a profile by hand.
-
-        The field only appears when no radio telegram and no Product ID has
-        declared one; a proven profile is never presented as editable.
-        """
-        return not metadata_declares_eep(self._radio_metadata)
+        """Return whether the operator may still assert a profile by hand."""
+        return manual_eep_offered(self._radio_metadata)
 
     def _device_form_schema(self) -> vol.Schema:
-        """Build the platform/name form with websocket-serializable selectors.
-
-        Values typed during a rejected submit are restored as defaults, and the
-        optional manual EEP field is appended only when it is offered at all.
-        """
-        if self._pending_platform is not None:
-            schema: dict[Any, Any] = {
-                vol.Required(
-                    CONF_PLATFORM, default=self._pending_platform
-                ): selector.SelectSelector(
-                    selector.SelectSelectorConfig(options=list(UI_DEVICE_PLATFORMS))
-                ),
-                vol.Required(
-                    CONF_NAME, default=self._pending_name
-                ): selector.TextSelector(
-                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                ),
-            }
-        else:
-            recommendation = recommended_platform(self._radio_metadata)
-            schema = {
-                vol.Required(
-                    CONF_PLATFORM,
-                    **({"default": recommendation} if recommendation else {}),
-                ): selector.SelectSelector(
-                    selector.SelectSelectorConfig(options=list(UI_DEVICE_PLATFORMS))
-                ),
-                vol.Required(CONF_NAME): selector.TextSelector(
-                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                ),
-            }
-        if self._manual_eep_offered():
-            schema[vol.Optional(_CONF_MANUAL_EEP, default=self._pending_manual_eep)] = (
-                selector.TextSelector(
-                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                )
-            )
-        return vol.Schema(schema)
+        """Build the platform/name form (shared with the subentry flow)."""
+        return device_form_schema(
+            self._radio_metadata,
+            pending_platform=self._pending_platform,
+            pending_name=self._pending_name,
+            pending_manual_eep=self._pending_manual_eep,
+        )
 
     def _show_device_form(self, errors: dict[str, str] | None = None):
         """Render the platform/name form, pre-filled after a rejected submit."""
@@ -2087,130 +1976,12 @@ class EnOceanOptionsFlow(OptionsFlow):
         return to_hex_string(allocated) if allocated is not None else ""
 
     def _device_details_schema(self, platform: str) -> vol.Schema:
-        """Build the platform form with websocket-serializable selectors only.
-
-        Custom voluptuous functions crash the WS/REST flow handler with a
-        ValueError (HTTP 500); native selectors are always serializable.
-        """
-        schema_dict: dict[Any, Any] = {}
-        if platform == "binary_sensor":
-            schema_dict[vol.Optional(CONF_DEVICE_CLASS)] = selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=[item.value for item in BinarySensorDeviceClass]
-                )
-            )
-        elif platform == "switch":
-            schema_dict[vol.Optional(CONF_CHANNEL, default=0)] = (
-                selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        min=0, max=31, mode=selector.NumberSelectorMode.BOX
-                    )
-                )
-            )
-            schema_dict[vol.Required(CONF_SWITCH_TYPE, default="default")] = (
-                selector.SelectSelector(
-                    selector.SelectSelectorConfig(options=list(SWITCH_TYPES))
-                )
-            )
-        elif platform == "light":
-            schema_dict[
-                vol.Required(CONF_SENDER_ID, default=self._suggested_sender_id())
-            ] = selector.TextSelector(
-                selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-            )
-            # D2-01-12 multi-gang actuators report every channel; pick which
-            # one drives this light (I/O channel is 5 bits wide).
-            schema_dict[vol.Optional("channel", default=0)] = selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=0,
-                    max=31,
-                    step=1,
-                    mode=selector.NumberSelectorMode.BOX,
-                )
-            )
-        elif platform == "sensor":
-            # A profile declared by a 4BS teach-in (or a label) and covered by
-            # the generic EEP.xml decoder pre-selects the ``eep`` class.
-            declared = self._declared_generic_eep()
-            schema_dict[
-                vol.Optional(
-                    CONF_DEVICE_CLASS,
-                    default=GENERIC_SENSOR_DEVICE_CLASS if declared else "powersensor",
-                )
-            ] = selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=[*SENSOR_TYPES, GENERIC_SENSOR_DEVICE_CLASS]
-                )
-            )
-            eep_options = [
-                {"value": eep, "label": f"{eep} · {profile.description}"}
-                for eep, profile in generic_profiles().items()
-            ]
-            eep_key = (
-                vol.Optional(_CONF_GENERIC_EEP, default=declared)
-                if declared
-                else vol.Optional(_CONF_GENERIC_EEP)
-            )
-            schema_dict[eep_key] = selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=eep_options, mode=selector.SelectSelectorMode.DROPDOWN
-                )
-            )
-            for field, default, minimum, maximum in (
-                (CONF_MAX_TEMP, 40, -100, 100),
-                (CONF_MIN_TEMP, 0, -100, 100),
-                (CONF_RANGE_FROM, 255, 0, 255),
-                (CONF_RANGE_TO, 0, 0, 255),
-            ):
-                schema_dict[vol.Optional(field, default=default)] = (
-                    selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=minimum,
-                            max=maximum,
-                            step=1,
-                            mode=selector.NumberSelectorMode.BOX,
-                        )
-                    )
-                )
-        elif platform == "climate":
-            schema_dict[
-                vol.Required(CONF_SENDER_ID_SWITCH, default=self._suggested_sender_id())
-            ] = selector.TextSelector(
-                selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-            )
-            schema_dict[vol.Required(CONF_DEVICE_TYPE)] = selector.SelectSelector(
-                # Review finding P2-02: only offer what UI_DEVICE_SCHEMA can
-                # actually persist (A5-20-04 stays YAML-only for now).
-                selector.SelectSelectorConfig(options=list(UI_CLIMATE_DEVICE_TYPES))
-            )
-            schema_dict[vol.Required(CONF_SENSOR_ENTITY_ID)] = selector.TextSelector(
-                selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-            )
-            for field, default, minimum, maximum, step in (
-                (CONF_SENSOR_TARGET_TEMP_FROST_PROTECTION, 8.0, 0, 20, 0.1),
-                (CONF_SENSOR_TARGET_TEMP_RANGE, 5, 0, 20, 1),
-                (CONF_SENSOR_TARGET_TEMP_TOLERANCE, 0.5, 0, 10, 0.1),
-                (CONF_TARGET_TEMP_BASE, 21.0, 5, 35, 0.1),
-                (CONF_TARGET_TEMP_NIGHT_REDUCTION, 4.0, 0, 20, 0.1),
-                (CONF_PI_CONTROL_KP, 5.0, 0.001, 100, 0.001),
-                (CONF_PI_CONTROL_TN, 240.0, 0.001, 1440, 0.001),
-            ):
-                schema_dict[vol.Optional(field, default=default)] = (
-                    selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=minimum,
-                            max=maximum,
-                            step=step,
-                            mode=selector.NumberSelectorMode.BOX,
-                        )
-                    )
-                )
-            schema_dict[vol.Optional(CONF_COMMAND_FREQUENCY, default="00:17:00")] = (
-                selector.TextSelector(
-                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                )
-            )
-        return vol.Schema(schema_dict)
+        """Build the platform details form (shared with the subentry flow)."""
+        return device_details_schema(
+            platform,
+            suggested_sender_id=self._suggested_sender_id(),
+            declared_eep=self._declared_generic_eep(),
+        )
 
     def _show_details_form(self, platform: str, errors: dict[str, str] | None = None):
         """Render the platform-specific details form."""
@@ -2233,169 +2004,24 @@ class EnOceanOptionsFlow(OptionsFlow):
         if user_input is None:
             return self._show_details_form(platform)
 
-        if platform == "switch":
-            channel = _exact_int(user_input.get(CONF_CHANNEL, 0))
-            if channel is None or not 0 <= channel <= 31:
-                return self._show_details_form(
-                    platform, errors={CONF_CHANNEL: "invalid_channel"}
-                )
-            if user_input.get(CONF_SWITCH_TYPE) == "RPS" and channel not in (0, 1):
-                return self._show_details_form(
-                    platform, errors={CONF_CHANNEL: "invalid_channel_rps"}
-                )
-        elif platform == "light":
-            # D2-01-12 I/O channel is 5 bits wide (0-31).
-            channel = _exact_int(user_input.get(CONF_CHANNEL, 0))
-            if channel is None or not 0 <= channel <= 31:
-                return self._show_details_form(
-                    platform, errors={CONF_CHANNEL: "invalid_channel"}
-                )
-        else:
-            channel = 0
-
-        sender_id: list[int] | None = None
-        id_switch: list[int] | None = None
-        if platform == "light":
-            sender_id = _parse_sender_id(user_input.get(CONF_SENDER_ID))
-            if sender_id is None:
-                return self._show_details_form(
-                    platform, errors={CONF_SENDER_ID: "invalid_sender_id"}
-                )
-            if sender_id in used_sender_ids(
+        if self._captured_id is None or self._pending_name is None:
+            return self.async_abort(reason="device_form_missing")
+        outcome = validate_device_details(
+            platform,
+            user_input,
+            captured_id=self._captured_id,
+            name=self._pending_name,
+            radio_metadata=self._radio_metadata,
+            used_sender_ids=used_sender_ids(
                 self.config_entry.options.get(CONF_UI_DEVICES, [])
-            ):
-                return self._show_details_form(
-                    platform, errors={CONF_SENDER_ID: "sender_id_collision"}
-                )
-        elif platform == "climate":
-            id_switch = _parse_sender_id(user_input.get(CONF_SENDER_ID_SWITCH))
-            if id_switch is None:
-                return self._show_details_form(
-                    platform, errors={CONF_SENDER_ID_SWITCH: "invalid_sender_id"}
-                )
-            if id_switch in used_sender_ids(
-                self.config_entry.options.get(CONF_UI_DEVICES, [])
-            ):
-                return self._show_details_form(
-                    platform, errors={CONF_SENDER_ID_SWITCH: "sender_id_collision"}
-                )
-
-        if platform == "sensor":
-            if user_input.get(CONF_DEVICE_CLASS) == GENERIC_SENSOR_DEVICE_CLASS:
-                # A declared profile wins; otherwise the chosen one is recorded
-                # as a manual assertion. Either way it must have a decoder.
-                declared = self._declared_generic_eep()
-                chosen = declared or parse_manual_eep(user_input.get(_CONF_GENERIC_EEP))
-                if not is_generic_supported(chosen):
-                    return self._show_details_form(
-                        platform, errors={_CONF_GENERIC_EEP: "eep_unsupported"}
-                    )
-                if declared is None:
-                    self._radio_metadata = apply_manual_eep(
-                        self._radio_metadata, chosen
-                    )
-            for field, minimum, maximum in (
-                (CONF_MAX_TEMP, -100, 100),
-                (CONF_MIN_TEMP, -100, 100),
-                (CONF_RANGE_FROM, 0, 255),
-                (CONF_RANGE_TO, 0, 255),
-            ):
-                value = _exact_int(user_input.get(field))
-                if value is None or not minimum <= value <= maximum:
-                    return self._show_details_form(
-                        platform, errors={field: "invalid_exact_integer"}
-                    )
-                user_input[field] = value
-            if (
-                user_input.get(CONF_DEVICE_CLASS) == "temperature"
-                and user_input[CONF_MIN_TEMP] >= user_input[CONF_MAX_TEMP]
-            ):
-                return self._show_details_form(
-                    platform, errors={"base": "invalid_temperature_range"}
-                )
-            if (
-                user_input.get(CONF_DEVICE_CLASS) == "temperature"
-                and user_input[CONF_RANGE_FROM] == user_input[CONF_RANGE_TO]
-            ):
-                return self._show_details_form(
-                    platform, errors={"base": "invalid_raw_range"}
-                )
-
-        if platform == "climate":
-            for field, minimum, maximum in (
-                (CONF_SENSOR_TARGET_TEMP_FROST_PROTECTION, 0, 20),
-                (CONF_SENSOR_TARGET_TEMP_TOLERANCE, 0, 10),
-                (CONF_TARGET_TEMP_BASE, 5, 35),
-                (CONF_TARGET_TEMP_NIGHT_REDUCTION, 0, 20),
-                (CONF_PI_CONTROL_KP, 0.001, 100),
-                (CONF_PI_CONTROL_TN, 0.001, 1440),
-            ):
-                value = _finite_float(user_input.get(field))
-                if value is None or not minimum <= value <= maximum:
-                    return self._show_details_form(
-                        platform, errors={field: "invalid_number"}
-                    )
-                user_input[field] = value
-            target_range = _exact_int(user_input.get(CONF_SENSOR_TARGET_TEMP_RANGE))
-            if target_range is None or not 0 <= target_range <= 20:
-                return self._show_details_form(
-                    platform,
-                    errors={CONF_SENSOR_TARGET_TEMP_RANGE: "invalid_exact_integer"},
-                )
-            user_input[CONF_SENSOR_TARGET_TEMP_RANGE] = target_range
-            try:
-                command_frequency = cv.positive_time_period(
-                    user_input.get(CONF_COMMAND_FREQUENCY)
-                )
-            except vol.Invalid:
-                command_frequency = timedelta(0)
-            if command_frequency < timedelta(seconds=1):
-                return self._show_details_form(
-                    platform,
-                    errors={CONF_COMMAND_FREQUENCY: "invalid_command_frequency"},
-                )
-
-        device = {
-            "id": self._captured_id,
-            "platform": platform,
-            "name": self._pending_name,
-            CONF_RADIO_METADATA: self._radio_metadata,
-            "device_class": user_input.get(CONF_DEVICE_CLASS),
-            "channel": channel,
-            "switch_type": user_input.get(CONF_SWITCH_TYPE),
-            "sender_id": sender_id,
-            "id_switch": id_switch,
-            "device_type": user_input.get(CONF_DEVICE_TYPE),
-            "sensor_entity_id": user_input.get(CONF_SENSOR_ENTITY_ID),
-            "temperature_frost_protection": user_input.get(
-                CONF_SENSOR_TARGET_TEMP_FROST_PROTECTION, 8.0
             ),
-            "sensor_target_temperature_range": user_input.get(
-                CONF_SENSOR_TARGET_TEMP_RANGE, 5
-            ),
-            "sensor_target_temperature_update_tolerance": user_input.get(
-                CONF_SENSOR_TARGET_TEMP_TOLERANCE, 0.5
-            ),
-            "target_temperature_base_value": user_input.get(
-                CONF_TARGET_TEMP_BASE, 21.0
-            ),
-            "target_temperature_reduction_night": user_input.get(
-                CONF_TARGET_TEMP_NIGHT_REDUCTION, 4.0
-            ),
-            "command_frequency": user_input.get(CONF_COMMAND_FREQUENCY, "00:17:00"),
-            "pi_control_Kp": user_input.get(CONF_PI_CONTROL_KP, 5.0),
-            "pi_control_Tn": user_input.get(CONF_PI_CONTROL_TN, 240.0),
-            "max_temp": user_input.get(CONF_MAX_TEMP, 40),
-            "min_temp": user_input.get(CONF_MIN_TEMP, 0),
-            "range_from": user_input.get(CONF_RANGE_FROM, 255),
-            "range_to": user_input.get(CONF_RANGE_TO, 0),
-        }
-        try:
-            device = UI_DEVICE_SCHEMA(device)
-        except vol.Invalid:
-            return self._show_details_form(
-                platform, errors={"base": "invalid_device_details"}
-            )
+        )
+        if outcome.row is None:
+            return self._show_details_form(platform, errors=outcome.errors)
+        # A generic EEP picked for a sensor row is a manual assertion the
+        # flow keeps, exactly as the radio metadata captured earlier.
+        self._radio_metadata = outcome.radio_metadata
+        device = outcome.row
         updated_options = self._options_with_added_device(device)
         if updated_options is None:
             return self._show_device_form(errors={"base": "unique_id_exists"})

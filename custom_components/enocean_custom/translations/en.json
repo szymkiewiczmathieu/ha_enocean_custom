@@ -253,20 +253,20 @@
         }
       },
       "radio_probe": {
-      "title": "Passive module radio test",
-      "description": "Enter the exact EURID. This test listens for one complete telegram from that module, but never sends radio, creates a device, or changes configuration.",
-      "data": {
-        "qr_code": "Module EURID or commissioning label"
-      }
-    },
-    "radio_probe_confirm": {
-      "title": "Start the passive test",
-      "description": "The receiver is armed. Perform the module's documented local action once, then confirm immediately. This test sends no radio command and cannot change pairing.",
-      "data": {
-        "ute_ready": "The passive receiver test is armed; I will now perform the local action"
-      }
-    },
-    "ubiwizz_repeater": {
+        "title": "Passive module radio test",
+        "description": "Enter the exact EURID. This test listens for one complete telegram from that module, but never sends radio, creates a device, or changes configuration.",
+        "data": {
+          "qr_code": "Module EURID or commissioning label"
+        }
+      },
+      "radio_probe_confirm": {
+        "title": "Start the passive test",
+        "description": "The receiver is armed. Perform the module's documented local action once, then confirm immediately. This test sends no radio command and cannot change pairing.",
+        "data": {
+          "ute_ready": "The passive receiver test is armed; I will now perform the local action"
+        }
+      },
+      "ubiwizz_repeater": {
         "title": "Ubiwizz repeater diagnostic",
         "description": "Diagnostic boundary only. Choose the profile written in the module documentation and the level you intend to evaluate. This does not identify a Ubiwizz model, observe its repeater state, change its configuration, or send radio.",
         "data": {
@@ -290,7 +290,7 @@
       "waiting_for_device": "Press the button on the device now. Waiting up to 60 seconds for an unknown EnOcean sender.",
       "pairing_actuator": "Pairing in progress for up to {timeout} seconds. Commands are sent repeatedly; keep the module in pairing mode.",
       "waiting_for_ute_request": "Waiting up to {timeout} seconds for the exact module UTE request. Home Assistant will answer only a matching request within the protocol deadline.",
-    "waiting_for_radio_probe": "Waiting up to {timeout} seconds for one complete telegram from the selected module. This diagnostic sends no radio command."
+      "waiting_for_radio_probe": "Waiting up to {timeout} seconds for one complete telegram from the selected module. This diagnostic sends no radio command."
     },
     "error": {
       "unique_id_exists": "A device with this identity already exists. Teach-in never merges or overwrites an existing device.",
@@ -343,6 +343,92 @@
       "ute_discovery_failed": "The UTE association could not be completed safely. No device was saved.",
       "ute_discovery_no_request": "No matching UTE request was received before the listening window expired. No radio response or device was saved.",
       "ute_discovery_deadline_missed": "A matching UTE request arrived after the response deadline. It was deliberately not answered and no device was saved."
+    }
+  },
+  "config_subentries": {
+    "device": {
+      "entry_type": "Device",
+      "initiate_flow": {
+        "user": "Add device",
+        "reconfigure": "Reconfigure device"
+      },
+      "step": {
+        "user": {
+          "title": "Add an EnOcean device",
+          "description": "Configuration only, no radio: enter the device's EnOcean ID as AA:BB:CC:DD or paste its EnOcean Alliance commissioning label, choose how Home Assistant should expose it and name it. The device becomes its own entry under this integration; its entities are created immediately, without reloading the other devices. Teach-in windows, Ubiwizz UTE association and guided D2 pairing stay under Configure.",
+          "data": {
+            "name": "Name",
+            "qr_code": "EnOcean ID or commissioning label",
+            "platform": "Type",
+            "manual_eep": "Manual EEP profile (optional)"
+          },
+          "data_description": {
+            "qr_code": "Four hex bytes (05:8F:22:33) or an ANSI MH10.8.2 label with 30S and 1P containers. A 48-bit EURID is refused rather than truncated.",
+            "manual_eep": "Format XX-XX-XX, e.g. F6-10-00. Ignored when the label already declares a profile. A typed profile is recorded as an operator assertion, never as proof."
+          }
+        },
+        "details": {
+          "title": "Device details",
+          "description": "EnOcean ID: {captured_id}, name: {name}, type: {platform}.\n\nEEP profile: {radio_eep}\nManufacturer: {radio_manufacturer}\nManufacturer registry: {radio_manufacturer_name}\nManufacturer ID: {radio_manufacturer_id}\nModel: {radio_model}\nEvidence: {radio_evidence}\nSupport: {radio_support}\nConflict: {radio_conflict}",
+          "data": {
+            "device_class": "Device class",
+            "eep": "EEP profile for the generic decoder (device class eep)",
+            "channel": "Channel",
+            "switch_type": "Switch type",
+            "sender_id": "Sender ID",
+            "id_switch": "Switch sender ID",
+            "device_type": "Device type",
+            "sensor_entity_id": "Temperature sensor entity",
+            "temperature_frost_protection": "Frost-protection temperature",
+            "sensor_target_temperature_range": "Sensor target-temperature range",
+            "sensor_target_temperature_update_tolerance": "Sensor target-temperature update tolerance",
+            "target_temperature_base_value": "Base target temperature",
+            "target_temperature_reduction_night": "Night target-temperature reduction",
+            "command_frequency": "Command frequency",
+            "pi_control_Kp": "PI proportional gain (Kp)",
+            "pi_control_Tn": "PI integral time (Tn)",
+            "max_temp": "Maximum temperature",
+            "min_temp": "Minimum temperature",
+            "range_from": "Raw range start",
+            "range_to": "Raw range end"
+          }
+        },
+        "reconfigure": {
+          "title": "Reconfigure {name}",
+          "description": "Device {name} ({captured_id}, {rows} row(s)). Renaming changes the device name shown by Home Assistant; entity IDs and unique IDs never change. When a row's profile is still unknown or only asserted by hand, pick a product or type its EEP to declare it: the existing entity keeps its identity and companion entities are added. A profile that would turn the entity into a different class is refused.",
+          "data": {
+            "name": "Device name",
+            "row": "Row to declare a profile for",
+            "catalog_product": "Product (optional)",
+            "manual_eep": "EEP profile (optional)"
+          },
+          "data_description": {
+            "catalog_product": "Only products with a usable decoder for this row's type are listed. Leave on Custom to type the EEP yourself, or leave the EEP empty to only rename."
+          }
+        }
+      },
+      "error": {
+        "invalid_qr_code": "The value is neither a supported EnOcean Alliance commissioning QR payload nor an ID formatted as AA:BB:CC:DD.",
+        "name_required": "Enter a name for the device.",
+        "invalid_device_details": "The device details are invalid.",
+        "invalid_eep": "The manual EEP must use the exact XX-XX-XX hexadecimal format, e.g. A5-12-01.",
+        "invalid_channel": "Channel must be an exact integer between 0 and 31.",
+        "invalid_channel_rps": "RPS switches only support channel 0 or 1.",
+        "invalid_sender_id": "Sender ID must be 4 hex bytes, e.g. 05:9F:89:34.",
+        "sender_id_collision": "This sender ID is already used by another light, climate actor or RPS-emulated switch. Each one needs a distinct virtual identity; the suggested value above is free.",
+        "invalid_exact_integer": "Value must be an exact integer within the displayed bounds.",
+        "invalid_number": "Value must be a finite number within the displayed bounds.",
+        "invalid_temperature_range": "Minimum temperature must be lower than maximum temperature.",
+        "invalid_raw_range": "Raw range start and end must differ.",
+        "invalid_command_frequency": "Command frequency must be a valid positive duration of at least one second.",
+        "eep_unsupported": "The eep device class needs a profile covered by the generic decoder: pick one from the list, or let a 4BS teach-in declare it.",
+        "unique_id_exists": "A device with this identity already exists. Teach-in never merges or overwrites an existing device.",
+        "profile_changes_identity": "This profile would turn the existing entity into a different entity class. Remove the device and add it again with the profile instead."
+      },
+      "abort": {
+        "already_configured": "This EnOcean ID is already configured as a device. Open that device to reconfigure it, or use Configure to add another channel to it.",
+        "device_form_missing": "The device form session expired; start again."
+      }
     }
   },
   "device": {

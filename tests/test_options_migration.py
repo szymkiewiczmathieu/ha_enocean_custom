@@ -21,13 +21,18 @@ sys.path.insert(0, str(ROOT))
 try:  # The bare unit-test environment has no Home Assistant installed.
     from homeassistant.config_entries import ConfigEntries, ConfigEntry
     from homeassistant.core import HomeAssistant
+    from homeassistant.helpers import area_registry as ar
+    from homeassistant.helpers import device_registry as dr
+    from homeassistant.helpers import entity_registry as er
 
     from custom_components.enocean_custom import async_migrate_entry, switch
     from custom_components.enocean_custom.const import (
         CONFIG_ENTRY_MINOR_VERSION,
         CONFIG_ENTRY_VERSION,
         DOMAIN,
+        SUBENTRY_TYPE_DEVICE,
     )
+    from custom_components.enocean_custom.device_rows import subentry_rows
     from custom_components.enocean_custom.migration import (
         explicit_rps_actuator_profiles,
     )
@@ -104,6 +109,13 @@ class EntryMigrationTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self._config_dir = TemporaryDirectory()
         self.hass = HomeAssistant(self._config_dir.name)
+        # The minor-3 step re-attaches registry devices and entities to the
+        # new subentries, so the registries must exist, as they do in Home
+        # Assistant before any entry is migrated.
+        await ar.async_load(self.hass, load_empty=True)
+        dr.async_setup(self.hass)
+        await dr.async_load(self.hass, load_empty=True)
+        await er.async_load(self.hass, load_empty=True)
         self.hass.config_entries = ConfigEntries(self.hass, {})
 
     async def asyncTearDown(self):
@@ -127,7 +139,7 @@ class EntryMigrationTests(unittest.IsolatedAsyncioTestCase):
         return entry
 
     def test_flow_handler_declares_the_migrated_version(self):
-        self.assertEqual((CONFIG_ENTRY_VERSION, CONFIG_ENTRY_MINOR_VERSION), (1, 2))
+        self.assertEqual((CONFIG_ENTRY_VERSION, CONFIG_ENTRY_MINOR_VERSION), (1, 3))
         try:
             # The flow imports Home Assistant's usb component, whose optional
             # dependencies are absent from the bare test environment.
@@ -146,24 +158,37 @@ class EntryMigrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await async_migrate_entry(self.hass, entry))
 
         self.assertEqual(entry.version, 1)
-        self.assertEqual(entry.minor_version, 2)
+        self.assertEqual(entry.minor_version, 3)
         self.assertEqual(entry.data, {"device": "/dev/test-migration"})
         rows = entry.options[CONF_UI_DEVICES]
         self.assertEqual(rows[0]["actuator_profile"], PROFILE)
         self.assertEqual(rows[1], explicit)
+        # Minor 3 (2.11.0): both rows name the same sender, so they share one
+        # device subentry whose rows carry the minor-2 rewrite.
+        subentries = list(entry.subentries.values())
+        self.assertEqual(len(subentries), 1)
+        self.assertEqual(subentries[0].subentry_type, SUBENTRY_TYPE_DEVICE)
+        self.assertEqual(subentries[0].unique_id, "058F2233")
+        self.assertEqual(subentries[0].title, "Stairs")
+        self.assertEqual(
+            [row["actuator_profile"] for row in subentry_rows(subentries[0])],
+            [PROFILE, PROFILE],
+        )
 
         # Idempotent: a second run (e.g. after a downgrade/upgrade cycle)
         # changes nothing.
         before = entry.options
         self.assertTrue(await async_migrate_entry(self.hass, entry))
         self.assertEqual(entry.options, before)
-        self.assertEqual(entry.minor_version, 2)
+        self.assertEqual(entry.minor_version, 3)
+        self.assertEqual(len(entry.subentries), 1)
 
     async def test_newer_minor_version_is_left_alone_and_newer_major_refused(self):
-        future_minor = self._entry([_rps_row(0)], minor_version=3)
+        future_minor = self._entry([_rps_row(0)], minor_version=4)
         self.assertTrue(await async_migrate_entry(self.hass, future_minor))
         self.assertNotIn("actuator_profile", future_minor.options[CONF_UI_DEVICES][0])
-        self.assertEqual(future_minor.minor_version, 3)
+        self.assertEqual(future_minor.minor_version, 4)
+        self.assertEqual(future_minor.subentries, {})
 
         future_major = self._entry([_rps_row(0)], version=2)
         self.assertFalse(await async_migrate_entry(self.hass, future_major))

@@ -17,6 +17,11 @@
   "inbox": {
     "observed_senders_count": 1
   },
+  "subentries": {
+    "device_subentries": 0,
+    "legacy_rows": 1,
+    "minor_version": 2
+  },
   "ubiwizz_repeater": {
     "candidate_eep_profiles": [
       "D2-01-01",

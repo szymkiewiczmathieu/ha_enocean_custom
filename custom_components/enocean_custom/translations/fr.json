@@ -345,6 +345,92 @@
       "ute_discovery_deadline_missed": "Une requête UTE correspondante est arrivée après le délai de réponse. Elle n’a volontairement pas reçu de réponse et aucun équipement n’a été enregistré."
     }
   },
+  "config_subentries": {
+    "device": {
+      "entry_type": "Appareil",
+      "initiate_flow": {
+        "user": "Ajouter un appareil",
+        "reconfigure": "Reconfigurer l'appareil"
+      },
+      "step": {
+        "user": {
+          "title": "Ajouter un appareil EnOcean",
+          "description": "Configuration seule, sans radio : saisissez l'identifiant EnOcean de l'appareil au format AA:BB:CC:DD ou collez son étiquette de mise en service EnOcean Alliance, choisissez comment Home Assistant doit l'exposer et nommez-le. L'appareil devient sa propre entrée sous cette intégration ; ses entités sont créées immédiatement, sans recharger les autres appareils. Les fenêtres d'apprentissage, l'association UTE Ubiwizz et l'appairage D2 guidé restent sous Configurer.",
+          "data": {
+            "name": "Nom",
+            "qr_code": "Identifiant EnOcean ou étiquette de mise en service",
+            "platform": "Type",
+            "manual_eep": "Profil EEP manuel (optionnel)"
+          },
+          "data_description": {
+            "qr_code": "Quatre octets hexadécimaux (05:8F:22:33) ou une étiquette ANSI MH10.8.2 avec conteneurs 30S et 1P. Un EURID 48 bits est refusé plutôt que tronqué.",
+            "manual_eep": "Format XX-XX-XX, par exemple F6-10-00. Ignoré lorsque l'étiquette déclare déjà un profil. Un profil saisi est enregistré comme une assertion de l'opérateur, jamais comme une preuve."
+          }
+        },
+        "details": {
+          "title": "Détails de l'appareil",
+          "description": "Identifiant EnOcean : {captured_id}, nom : {name}, type : {platform}.\n\nProfil EEP : {radio_eep}\nFabricant : {radio_manufacturer}\nRegistre fabricant : {radio_manufacturer_name}\nID fabricant : {radio_manufacturer_id}\nModèle : {radio_model}\nPreuve : {radio_evidence}\nSupport : {radio_support}\nConflit : {radio_conflict}",
+          "data": {
+            "device_class": "Classe d'appareil",
+            "eep": "Profil EEP pour le décodeur générique (classe eep)",
+            "channel": "Canal",
+            "switch_type": "Type d'interrupteur",
+            "sender_id": "ID d'émission",
+            "id_switch": "ID d'émission de l'interrupteur",
+            "device_type": "Type d'équipement",
+            "sensor_entity_id": "Entité du capteur de température",
+            "temperature_frost_protection": "Température de protection antigel",
+            "sensor_target_temperature_range": "Plage de température cible du capteur",
+            "sensor_target_temperature_update_tolerance": "Tolérance de mise à jour de la température cible",
+            "target_temperature_base_value": "Température cible de base",
+            "target_temperature_reduction_night": "Réduction nocturne de la température cible",
+            "command_frequency": "Fréquence des commandes",
+            "pi_control_Kp": "Gain proportionnel PI (Kp)",
+            "pi_control_Tn": "Temps intégral PI (Tn)",
+            "max_temp": "Température maximale",
+            "min_temp": "Température minimale",
+            "range_from": "Début de la plage brute",
+            "range_to": "Fin de la plage brute"
+          }
+        },
+        "reconfigure": {
+          "title": "Reconfigurer {name}",
+          "description": "Appareil {name} ({captured_id}, {rows} ligne(s)). Renommer change le nom de l'appareil affiché par Home Assistant ; les identifiants d'entité et les unique ID ne changent jamais. Lorsque le profil d'une ligne est encore inconnu ou seulement affirmé à la main, choisissez un produit ou saisissez son EEP pour le déclarer : l'entité existante conserve son identité et les entités compagnes sont ajoutées. Un profil qui transformerait l'entité en une autre classe est refusé.",
+          "data": {
+            "name": "Nom de l'appareil",
+            "row": "Ligne dont déclarer le profil",
+            "catalog_product": "Produit (optionnel)",
+            "manual_eep": "Profil EEP (optionnel)"
+          },
+          "data_description": {
+            "catalog_product": "Seuls les produits disposant d'un décodeur utilisable pour le type de cette ligne sont listés. Laissez sur Personnalisé pour saisir l'EEP vous-même, ou laissez l'EEP vide pour seulement renommer."
+          }
+        }
+      },
+      "error": {
+        "invalid_qr_code": "La valeur n'est ni un QR de commissioning EnOcean Alliance pris en charge, ni un ID au format AA:BB:CC:DD.",
+        "name_required": "Saisissez un nom pour l'appareil.",
+        "invalid_device_details": "Les détails de l'équipement sont invalides.",
+        "invalid_eep": "L'EEP manuel doit respecter le format hexadécimal exact XX-XX-XX, ex. A5-12-01.",
+        "invalid_channel": "Le canal doit être un entier exact entre 0 et 31.",
+        "invalid_channel_rps": "Un interrupteur RPS n'accepte que le canal 0 ou 1.",
+        "invalid_sender_id": "L'ID émetteur doit être 4 octets hex, ex. 05:9F:89:34.",
+        "sender_id_collision": "Cet ID émetteur est déjà utilisé par une autre lumière, un autre acteur climatique ou un interrupteur émulé RPS. Chacun a besoin d'une identité virtuelle distincte ; la valeur suggérée ci-dessus est libre.",
+        "invalid_exact_integer": "La valeur doit être un entier exact dans les limites affichées.",
+        "invalid_number": "La valeur doit être un nombre fini dans les limites affichées.",
+        "invalid_temperature_range": "La température minimale doit être inférieure à la température maximale.",
+        "invalid_raw_range": "Le début et la fin de la plage brute doivent être différents.",
+        "invalid_command_frequency": "La fréquence des commandes doit être une durée positive valide d'au moins une seconde.",
+        "eep_unsupported": "La classe d'appareil eep exige un profil couvert par le décodeur générique : choisissez-en un dans la liste, ou laissez un teach-in 4BS le déclarer.",
+        "unique_id_exists": "Un équipement avec cette identité existe déjà. Le mode apprentissage ne fusionne ni n'écrase jamais un équipement existant.",
+        "profile_changes_identity": "Ce profil transformerait l'entité existante en une autre classe d'entité. Supprimez l'équipement et ajoutez-le de nouveau avec ce profil."
+      },
+      "abort": {
+        "already_configured": "Cet identifiant EnOcean est déjà configuré comme appareil. Ouvrez cet appareil pour le reconfigurer, ou utilisez Configurer pour lui ajouter un autre canal.",
+        "device_form_missing": "La session du formulaire a expiré ; recommencez."
+      }
+    }
+  },
   "device": {
     "gateway": {
       "name": "Passerelle EnOcean"

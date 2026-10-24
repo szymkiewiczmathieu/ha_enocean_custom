@@ -28,10 +28,14 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from .binary_sensor import EVENT_BUTTON_PRESSED
+from .device_rows import (
+    add_entities_for_group,
+    async_connect_subentry_setup,
+    rows_by_subentry,
+)
 from .enocean_library.utils import combine_hex
 from .entity import EnOceanEntity
 from .identity import A514_EEP, D2_14_30_EEP, SMOKE_EEP, rocker_event_unique_id
-from .schema import CONF_UI_DEVICES, valid_ui_devices
 
 # Nothing here polls, and reacting to the bus event never sends radio.
 PARALLEL_UPDATES = 0
@@ -51,15 +55,11 @@ EVENT_TYPES: Final = tuple(
 _NOT_A_ROCKER_EEPS: Final = frozenset((A514_EEP, SMOKE_EEP, D2_14_30_EEP))
 
 
-async def async_setup_entry(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
-) -> None:
-    """Create one rocker event entity per sender that may fire button_pressed."""
+def _rocker_event_entities(rows: list[dict]) -> list[EnOceanRockerEvent]:
+    """Build one rocker event entity per sender of a group that may fire button_pressed."""
     entities: list[EnOceanRockerEvent] = []
     seen: set[int] = set()
-    for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, [])):
+    for row in rows:
         if row["platform"] != "binary_sensor":
             continue
         metadata = row.get("radio_metadata") or {}
@@ -70,7 +70,22 @@ async def async_setup_entry(
             continue
         seen.add(sender)
         entities.append(EnOceanRockerEvent(row["id"], row["name"]))
-    async_add_entities(entities)
+    return entities
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Create one rocker event entity per sender, one batch per device subentry."""
+    for subentry_id, rows in rows_by_subentry(entry):
+        add_entities_for_group(
+            async_add_entities, _rocker_event_entities(rows), subentry_id
+        )
+    async_connect_subentry_setup(
+        hass, entry, async_add_entities, _rocker_event_entities
+    )
 
 
 class EnOceanRockerEvent(EnOceanEntity, EventEntity):

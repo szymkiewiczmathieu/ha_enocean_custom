@@ -27,19 +27,18 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .const import DOMAIN, SERVICE_SEND_TEACH_IN
+from .device_rows import (
+    add_entities_for_group,
+    async_connect_subentry_setup,
+    rows_by_subentry,
+)
 from .enocean_library.protocol.constants import RORG
 from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
 from .enocean_library.utils import to_hex_string
 from .entity import EnOceanEntity, build_radio_optional
 from .identity import device_names_by_sender, light_unique_id, row_names_the_device
 from .learn import register_known_id
-from .schema import (
-    CONF_UI_DEVICES,
-    ENOCEAN_ID,
-    exact_finite_int,
-    optional_enocean_id,
-    valid_ui_devices,
-)
+from .schema import ENOCEAN_ID, exact_finite_int, optional_enocean_id
 from .yaml_import import track_yaml_device
 
 # Every state change is pushed by the serial worker; nothing here polls.
@@ -104,13 +103,8 @@ async def async_setup_platform(
     _async_register_send_teach_in_service()
 
 
-async def async_setup_entry(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
-) -> None:
-    """Create dimmers stored in the entry options."""
-    rows = valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
+def _light_entities(rows: list[dict]) -> list[EnOceanLight]:
+    """Build the dimmers of one group of rows (legacy list or one subentry)."""
     names_by_sender = device_names_by_sender(rows)
     entities = []
     for row in rows:
@@ -126,7 +120,18 @@ async def async_setup_entry(
             entity._attr_has_entity_name = True
             entity._attr_name = None
         entities.append(entity)
-    async_add_entities(entities)
+    return entities
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Create dimmers stored in the entry options, one batch per device subentry."""
+    for subentry_id, rows in rows_by_subentry(entry):
+        add_entities_for_group(async_add_entities, _light_entities(rows), subentry_id)
+    async_connect_subentry_setup(hass, entry, async_add_entities, _light_entities)
     _async_register_send_teach_in_service()
 
 

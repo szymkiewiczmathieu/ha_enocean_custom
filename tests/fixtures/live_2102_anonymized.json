@@ -1,0 +1,4172 @@
+{
+ "entry_id": "01TESTENTRYSUBENTRIES00000",
+ "entry": {
+  "version": 1,
+  "minor_version": 2,
+  "options": {
+   "ui_devices": [
+    {
+     "channel": 0,
+     "device_class": null,
+     "id": [
+      1,
+      138,
+      0,
+      1
+     ],
+     "name": "Device 01",
+     "platform": "binary_sensor",
+     "sender_id": null,
+     "switch_type": null
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      2
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 02",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": null,
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": "smoke",
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      3
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 03",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      4
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 04",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      5
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 05",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      6
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 06",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      7
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 07",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      8
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 08",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      9
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 09",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      10
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 10",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      11
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 11",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      12
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 12",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      13
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 13",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      14
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 14",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      15
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 15",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      16
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 16",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      17
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 17",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      18
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 18",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "actuator_profile": "ubiwizz_ubid1507c",
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      19
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 19",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "switch",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "RPS",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "actuator_profile": "ubiwizz_ubid1507c",
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      20
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 20",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "switch",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "RPS",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      21
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 21",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      22
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 22",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      23
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 23",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      24
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 24",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "actuator_profile": "ubiwizz_ubid1507c",
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      25
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 25",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "switch",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "RPS",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": "smoke",
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      26
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 26",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "binary_sensor",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "actuator_profile": "ubiwizz_ubid1507c",
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      27
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 27",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "switch",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "RPS",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "actuator_profile": "ubiwizz_ubid1507c",
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      28
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 28",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "switch",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "RPS",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "actuator_profile": "ubiwizz_ubid1507c",
+     "channel": 1,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      28
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 28 A",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "switch",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "RPS",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "actuator_profile": "ubiwizz_ubid1507c",
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      29
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 29",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "switch",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "RPS",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "actuator_profile": "ubiwizz_ubid1507c",
+     "channel": 1,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      29
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 29 A",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "switch",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "RPS",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "actuator_profile": "ubiwizz_ubid1507c",
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      30
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 30",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "switch",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "RPS",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "actuator_profile": "ubiwizz_ubid1507c",
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      31
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 31",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "switch",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "RPS",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "actuator_profile": "ubiwizz_ubid1507c",
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      32
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 32",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "switch",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "RPS",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "actuator_profile": "ubiwizz_ubid1507c",
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      33
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 33",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "switch",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "RPS",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "actuator_profile": "ubiwizz_ubid1507c",
+     "channel": 1,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      33
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 33 A",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "switch",
+     "radio_metadata": null,
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "RPS",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      34
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 34",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "switch",
+     "radio_metadata": {
+      "evidence": "assisted",
+      "sender_id": [
+       1,
+       138,
+       0,
+       34
+      ],
+      "support": "unknown"
+     },
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      35
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 35",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "switch",
+     "radio_metadata": {
+      "eep": "D2-01-0A",
+      "eep_source": "radio_declared",
+      "evidence": "exact",
+      "manufacturer_id": 70,
+      "sender_id": [
+       1,
+       138,
+       0,
+       35
+      ],
+      "support": "unsupported"
+     },
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      36
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 36",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "switch",
+     "radio_metadata": {
+      "evidence": "profile_unknown",
+      "sender_id": [
+       1,
+       138,
+       0,
+       36
+      ],
+      "support": "unknown"
+     },
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "actuator_profile": null,
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": null,
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      37
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 37",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "switch",
+     "radio_metadata": {
+      "eep": "D2-01-08",
+      "eep_source": "manual",
+      "evidence": "manual",
+      "manufacturer_id": 70,
+      "sender_id": [
+       1,
+       138,
+       0,
+       37
+      ],
+      "support": "manual"
+     },
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": "default",
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "actuator_profile": null,
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": "windowhandle",
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      38
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 38",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "sensor",
+     "radio_metadata": {
+      "eep": "F6-10-00",
+      "eep_source": "manual",
+      "evidence": "manual",
+      "sender_id": [
+       1,
+       138,
+       0,
+       38
+      ],
+      "support": "manual"
+     },
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": null,
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "actuator_profile": null,
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": "windowhandle",
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      39
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 39",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "sensor",
+     "radio_metadata": {
+      "eep": "F6-10-00",
+      "eep_source": "manual",
+      "evidence": "manual",
+      "sender_id": [
+       1,
+       138,
+       0,
+       39
+      ],
+      "support": "manual"
+     },
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": null,
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    },
+    {
+     "actuator_profile": null,
+     "channel": 0,
+     "command_frequency": "00:17:00",
+     "device_class": "windowhandle",
+     "device_type": null,
+     "id": [
+      1,
+      138,
+      0,
+      40
+     ],
+     "id_switch": null,
+     "max_temp": 40,
+     "min_temp": 0,
+     "name": "Device 40",
+     "pi_control_Kp": 5.0,
+     "pi_control_Tn": 240.0,
+     "platform": "sensor",
+     "radio_metadata": {
+      "eep": "F6-10-00",
+      "eep_source": "manual",
+      "evidence": "manual",
+      "sender_id": [
+       1,
+       138,
+       0,
+       40
+      ],
+      "support": "manual"
+     },
+     "range_from": 255,
+     "range_to": 0,
+     "sender_id": null,
+     "sensor_entity_id": null,
+     "sensor_target_temperature_range": 5,
+     "sensor_target_temperature_update_tolerance": 0.5,
+     "switch_type": null,
+     "target_temperature_base_value": 21.0,
+     "target_temperature_reduction_night": 4.0,
+     "temperature_frost_protection": 8.0
+    }
+   ]
+  },
+  "subentries": 0
+ },
+ "entities": [
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_001",
+   "unique_id": "25821188-None",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "2ade641f16a146185500256ad74b91e3",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_002",
+   "unique_id": "25821190-None",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "5b195520f47db5bd79ea7c161126522e",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_003",
+   "unique_id": "25821194-None",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "685bb3b1afe9bd85ebb26acb574e83b5",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_004",
+   "unique_id": "25821191-None",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "47b5106baaaa28a925bb42801c83cee9",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_005",
+   "unique_id": "25821196-None",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "af8222ff2c20995d376c3995cd5f5b41",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_006",
+   "unique_id": "25821195-None",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "d68864950fd0aca9149da94bf221e594",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_007",
+   "unique_id": "25821202-None",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "43a4175c8ef7fd8623389ec49ec6735d",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_008",
+   "unique_id": "25821192-None",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "6dd0e2ff52b651b63fe0f687605defae",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_009",
+   "unique_id": "25821197-None",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "a4cf6bce43f8aa76494f4144d7c8c4d7",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_010",
+   "unique_id": "25821199-None",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "e3f8003cb35580861b735cc9d576c91a",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_011",
+   "unique_id": "25821193-None",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "bbe9b92063d0e7ceb19e4a1a5e2ab812",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_012",
+   "unique_id": "25821189-None",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "521d3fb4373188d959e297669da9ebf7",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_013",
+   "unique_id": "25821200-None",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "da0f4909696e1a37502755118fcbcb21",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_014",
+   "unique_id": "25821206-None",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "b4f1a48d6d263c3dec30a84b13af3413",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_015",
+   "unique_id": "25821207-None",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "398cf661543e4ad65f296121d96ca1b4",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_016",
+   "unique_id": "25821198-None",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "07b425a64d6d8e3103e90dec78462045",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "switch.fixture_switch_001",
+   "unique_id": "25821203-0",
+   "domain": "switch",
+   "disabled_by": null,
+   "device_id": "dda87375d2a46a72f91a81d585d9a9f0",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "switch.fixture_switch_002",
+   "unique_id": "25821204-0",
+   "domain": "switch",
+   "disabled_by": null,
+   "device_id": "e1bb710092352a615baa129012da8a58",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "switch.fixture_switch_003",
+   "unique_id": "25821209-0",
+   "domain": "switch",
+   "disabled_by": null,
+   "device_id": "86b331ab5f773de3915f3b55599b3226",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "switch.fixture_switch_004",
+   "unique_id": "25821211-0",
+   "domain": "switch",
+   "disabled_by": null,
+   "device_id": "0a527e2a6951a5cee7315257cef34a60",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "switch.fixture_switch_005",
+   "unique_id": "25821212-0",
+   "domain": "switch",
+   "disabled_by": null,
+   "device_id": "870fd14d0e79c6643915b6101c6cfaf3",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "switch.fixture_switch_006",
+   "unique_id": "25821212-1",
+   "domain": "switch",
+   "disabled_by": null,
+   "device_id": "870fd14d0e79c6643915b6101c6cfaf3",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "switch.fixture_switch_007",
+   "unique_id": "25821213-0",
+   "domain": "switch",
+   "disabled_by": null,
+   "device_id": "6e3f57acbeefa00326c4c7725b9e53cf",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "switch.fixture_switch_008",
+   "unique_id": "25821213-1",
+   "domain": "switch",
+   "disabled_by": null,
+   "device_id": "6e3f57acbeefa00326c4c7725b9e53cf",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "switch.fixture_switch_009",
+   "unique_id": "25821214-0",
+   "domain": "switch",
+   "disabled_by": null,
+   "device_id": "f813fd88bedac79998fa29504906eb77",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "switch.fixture_switch_010",
+   "unique_id": "25821215-0",
+   "domain": "switch",
+   "disabled_by": null,
+   "device_id": "78ad43489e28efad7994bcc5d745bddb",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "switch.fixture_switch_011",
+   "unique_id": "25821216-0",
+   "domain": "switch",
+   "disabled_by": null,
+   "device_id": "228157f451aabc74cd04999be12347e9",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "switch.fixture_switch_012",
+   "unique_id": "25821217-0",
+   "domain": "switch",
+   "disabled_by": null,
+   "device_id": "4ba91ed0ba40b8750a3f636bd7a152dc",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "switch.fixture_switch_013",
+   "unique_id": "25821217-1",
+   "domain": "switch",
+   "disabled_by": null,
+   "device_id": "4ba91ed0ba40b8750a3f636bd7a152dc",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_017",
+   "unique_id": "25821210-smoke",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "3aa6e8a87921c74cb595d0492a8eb097",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_018",
+   "unique_id": "25821187-smoke",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "e124f0afb2a679b55cbfa3d71089e089",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_019",
+   "unique_id": "25821205-None",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "2d9b5485ba36ae82a795ba60a0fdd516",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_020",
+   "unique_id": "25821201-None",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "a0883c4b79ca87b996ddff6e01fe8a1b",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_021",
+   "unique_id": "25821208-None",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "1b7c1b899350c6f2c47da06bb4484140",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_022",
+   "unique_id": "25821185-None",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "13643385b6f4568a29530c93b8c6b2b1",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_023",
+   "unique_id": "25821186-None",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "1e029b044cc1e9e4111fc6e34d035161",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "switch.fixture_switch_014",
+   "unique_id": "25821218-0",
+   "domain": "switch",
+   "disabled_by": null,
+   "device_id": "b927b4b586dc57b08eb09f5b31e51238",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "switch.fixture_switch_015",
+   "unique_id": "25821219-0",
+   "domain": "switch",
+   "disabled_by": null,
+   "device_id": "57345f4d54e60dc116fc7cdfc3d8da41",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "switch.fixture_switch_016",
+   "unique_id": "25821220-0",
+   "domain": "switch",
+   "disabled_by": null,
+   "device_id": "b10a38acffa6c2c0c390461aa62f0ca6",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "switch.fixture_switch_017",
+   "unique_id": "25821221-0",
+   "domain": "switch",
+   "disabled_by": null,
+   "device_id": "df4e24ec546363ef03aea96fc74cc320",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_001",
+   "unique_id": "25821222-windowhandle",
+   "domain": "sensor",
+   "disabled_by": null,
+   "device_id": "60c9a160f2f2346e96f60f6bd9cd268f",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_002",
+   "unique_id": "25821224-windowhandle",
+   "domain": "sensor",
+   "disabled_by": null,
+   "device_id": "22697f05c655dd0831a8a0ab539aeaa5",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_003",
+   "unique_id": "25821223-windowhandle",
+   "domain": "sensor",
+   "disabled_by": null,
+   "device_id": "258cf862905e31923eb59a3f5eebb008",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "binary_sensor.fixture_binary_sensor_024",
+   "unique_id": "gateway:01TESTENTRYSUBENTRIES00000:gateway_connected",
+   "domain": "binary_sensor",
+   "disabled_by": null,
+   "device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_004",
+   "unique_id": "25821185-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "13643385b6f4568a29530c93b8c6b2b1",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_005",
+   "unique_id": "25821185-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "13643385b6f4568a29530c93b8c6b2b1",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_006",
+   "unique_id": "25821185-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "13643385b6f4568a29530c93b8c6b2b1",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_007",
+   "unique_id": "25821185-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "13643385b6f4568a29530c93b8c6b2b1",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_008",
+   "unique_id": "25821186-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "1e029b044cc1e9e4111fc6e34d035161",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_009",
+   "unique_id": "25821186-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "1e029b044cc1e9e4111fc6e34d035161",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_010",
+   "unique_id": "25821186-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "1e029b044cc1e9e4111fc6e34d035161",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_011",
+   "unique_id": "25821186-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "1e029b044cc1e9e4111fc6e34d035161",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_012",
+   "unique_id": "25821187-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "e124f0afb2a679b55cbfa3d71089e089",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_013",
+   "unique_id": "25821187-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "e124f0afb2a679b55cbfa3d71089e089",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_014",
+   "unique_id": "25821187-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "e124f0afb2a679b55cbfa3d71089e089",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_015",
+   "unique_id": "25821187-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "e124f0afb2a679b55cbfa3d71089e089",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_016",
+   "unique_id": "25821188-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "2ade641f16a146185500256ad74b91e3",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_017",
+   "unique_id": "25821188-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "2ade641f16a146185500256ad74b91e3",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_018",
+   "unique_id": "25821188-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "2ade641f16a146185500256ad74b91e3",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_019",
+   "unique_id": "25821188-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "2ade641f16a146185500256ad74b91e3",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_020",
+   "unique_id": "25821189-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "521d3fb4373188d959e297669da9ebf7",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_021",
+   "unique_id": "25821189-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "521d3fb4373188d959e297669da9ebf7",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_022",
+   "unique_id": "25821189-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "521d3fb4373188d959e297669da9ebf7",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_023",
+   "unique_id": "25821189-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "521d3fb4373188d959e297669da9ebf7",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_024",
+   "unique_id": "25821190-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "5b195520f47db5bd79ea7c161126522e",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_025",
+   "unique_id": "25821190-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "5b195520f47db5bd79ea7c161126522e",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_026",
+   "unique_id": "25821190-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "5b195520f47db5bd79ea7c161126522e",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_027",
+   "unique_id": "25821190-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "5b195520f47db5bd79ea7c161126522e",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_028",
+   "unique_id": "25821191-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "47b5106baaaa28a925bb42801c83cee9",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_029",
+   "unique_id": "25821191-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "47b5106baaaa28a925bb42801c83cee9",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_030",
+   "unique_id": "25821191-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "47b5106baaaa28a925bb42801c83cee9",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_031",
+   "unique_id": "25821191-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "47b5106baaaa28a925bb42801c83cee9",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_032",
+   "unique_id": "25821192-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "6dd0e2ff52b651b63fe0f687605defae",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_033",
+   "unique_id": "25821192-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "6dd0e2ff52b651b63fe0f687605defae",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_034",
+   "unique_id": "25821192-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "6dd0e2ff52b651b63fe0f687605defae",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_035",
+   "unique_id": "25821192-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "6dd0e2ff52b651b63fe0f687605defae",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_036",
+   "unique_id": "25821193-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "bbe9b92063d0e7ceb19e4a1a5e2ab812",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_037",
+   "unique_id": "25821193-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "bbe9b92063d0e7ceb19e4a1a5e2ab812",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_038",
+   "unique_id": "25821193-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "bbe9b92063d0e7ceb19e4a1a5e2ab812",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_039",
+   "unique_id": "25821193-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "bbe9b92063d0e7ceb19e4a1a5e2ab812",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_040",
+   "unique_id": "25821194-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "685bb3b1afe9bd85ebb26acb574e83b5",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_041",
+   "unique_id": "25821194-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "685bb3b1afe9bd85ebb26acb574e83b5",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_042",
+   "unique_id": "25821194-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "685bb3b1afe9bd85ebb26acb574e83b5",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_043",
+   "unique_id": "25821194-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "685bb3b1afe9bd85ebb26acb574e83b5",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_044",
+   "unique_id": "25821195-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "d68864950fd0aca9149da94bf221e594",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_045",
+   "unique_id": "25821195-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "d68864950fd0aca9149da94bf221e594",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_046",
+   "unique_id": "25821195-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "d68864950fd0aca9149da94bf221e594",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_047",
+   "unique_id": "25821195-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "d68864950fd0aca9149da94bf221e594",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_048",
+   "unique_id": "25821196-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "af8222ff2c20995d376c3995cd5f5b41",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_049",
+   "unique_id": "25821196-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "af8222ff2c20995d376c3995cd5f5b41",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_050",
+   "unique_id": "25821196-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "af8222ff2c20995d376c3995cd5f5b41",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_051",
+   "unique_id": "25821196-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "af8222ff2c20995d376c3995cd5f5b41",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_052",
+   "unique_id": "25821197-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "a4cf6bce43f8aa76494f4144d7c8c4d7",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_053",
+   "unique_id": "25821197-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "a4cf6bce43f8aa76494f4144d7c8c4d7",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_054",
+   "unique_id": "25821197-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "a4cf6bce43f8aa76494f4144d7c8c4d7",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_055",
+   "unique_id": "25821197-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "a4cf6bce43f8aa76494f4144d7c8c4d7",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_056",
+   "unique_id": "25821198-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "07b425a64d6d8e3103e90dec78462045",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_057",
+   "unique_id": "25821198-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "07b425a64d6d8e3103e90dec78462045",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_058",
+   "unique_id": "25821198-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "07b425a64d6d8e3103e90dec78462045",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_059",
+   "unique_id": "25821198-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "07b425a64d6d8e3103e90dec78462045",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_060",
+   "unique_id": "25821199-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "e3f8003cb35580861b735cc9d576c91a",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_061",
+   "unique_id": "25821199-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "e3f8003cb35580861b735cc9d576c91a",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_062",
+   "unique_id": "25821199-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "e3f8003cb35580861b735cc9d576c91a",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_063",
+   "unique_id": "25821199-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "e3f8003cb35580861b735cc9d576c91a",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_064",
+   "unique_id": "25821200-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "da0f4909696e1a37502755118fcbcb21",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_065",
+   "unique_id": "25821200-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "da0f4909696e1a37502755118fcbcb21",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_066",
+   "unique_id": "25821200-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "da0f4909696e1a37502755118fcbcb21",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_067",
+   "unique_id": "25821200-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "da0f4909696e1a37502755118fcbcb21",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_068",
+   "unique_id": "25821201-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "a0883c4b79ca87b996ddff6e01fe8a1b",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_069",
+   "unique_id": "25821201-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "a0883c4b79ca87b996ddff6e01fe8a1b",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_070",
+   "unique_id": "25821201-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "a0883c4b79ca87b996ddff6e01fe8a1b",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_071",
+   "unique_id": "25821201-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "a0883c4b79ca87b996ddff6e01fe8a1b",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_072",
+   "unique_id": "25821202-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "43a4175c8ef7fd8623389ec49ec6735d",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_073",
+   "unique_id": "25821202-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "43a4175c8ef7fd8623389ec49ec6735d",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_074",
+   "unique_id": "25821202-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "43a4175c8ef7fd8623389ec49ec6735d",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_075",
+   "unique_id": "25821202-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "43a4175c8ef7fd8623389ec49ec6735d",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_076",
+   "unique_id": "25821203-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "dda87375d2a46a72f91a81d585d9a9f0",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_077",
+   "unique_id": "25821203-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "dda87375d2a46a72f91a81d585d9a9f0",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_078",
+   "unique_id": "25821203-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "dda87375d2a46a72f91a81d585d9a9f0",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_079",
+   "unique_id": "25821203-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "dda87375d2a46a72f91a81d585d9a9f0",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_080",
+   "unique_id": "25821204-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "e1bb710092352a615baa129012da8a58",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_081",
+   "unique_id": "25821204-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "e1bb710092352a615baa129012da8a58",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_082",
+   "unique_id": "25821204-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "e1bb710092352a615baa129012da8a58",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_083",
+   "unique_id": "25821204-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "e1bb710092352a615baa129012da8a58",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_084",
+   "unique_id": "25821205-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "2d9b5485ba36ae82a795ba60a0fdd516",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_085",
+   "unique_id": "25821205-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "2d9b5485ba36ae82a795ba60a0fdd516",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_086",
+   "unique_id": "25821205-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "2d9b5485ba36ae82a795ba60a0fdd516",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_087",
+   "unique_id": "25821205-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "2d9b5485ba36ae82a795ba60a0fdd516",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_088",
+   "unique_id": "25821206-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "b4f1a48d6d263c3dec30a84b13af3413",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_089",
+   "unique_id": "25821206-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "b4f1a48d6d263c3dec30a84b13af3413",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_090",
+   "unique_id": "25821206-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "b4f1a48d6d263c3dec30a84b13af3413",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_091",
+   "unique_id": "25821206-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "b4f1a48d6d263c3dec30a84b13af3413",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_092",
+   "unique_id": "25821207-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "398cf661543e4ad65f296121d96ca1b4",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_093",
+   "unique_id": "25821207-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "398cf661543e4ad65f296121d96ca1b4",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_094",
+   "unique_id": "25821207-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "398cf661543e4ad65f296121d96ca1b4",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_095",
+   "unique_id": "25821207-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "398cf661543e4ad65f296121d96ca1b4",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_096",
+   "unique_id": "25821208-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "1b7c1b899350c6f2c47da06bb4484140",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_097",
+   "unique_id": "25821208-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "1b7c1b899350c6f2c47da06bb4484140",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_098",
+   "unique_id": "25821208-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "1b7c1b899350c6f2c47da06bb4484140",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_099",
+   "unique_id": "25821208-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "1b7c1b899350c6f2c47da06bb4484140",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_100",
+   "unique_id": "25821209-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "86b331ab5f773de3915f3b55599b3226",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_101",
+   "unique_id": "25821209-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "86b331ab5f773de3915f3b55599b3226",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_102",
+   "unique_id": "25821209-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "86b331ab5f773de3915f3b55599b3226",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_103",
+   "unique_id": "25821209-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "86b331ab5f773de3915f3b55599b3226",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_104",
+   "unique_id": "25821210-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "3aa6e8a87921c74cb595d0492a8eb097",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_105",
+   "unique_id": "25821210-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "3aa6e8a87921c74cb595d0492a8eb097",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_106",
+   "unique_id": "25821210-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "3aa6e8a87921c74cb595d0492a8eb097",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_107",
+   "unique_id": "25821210-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "3aa6e8a87921c74cb595d0492a8eb097",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_108",
+   "unique_id": "25821211-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "0a527e2a6951a5cee7315257cef34a60",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_109",
+   "unique_id": "25821211-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "0a527e2a6951a5cee7315257cef34a60",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_110",
+   "unique_id": "25821211-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "0a527e2a6951a5cee7315257cef34a60",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_111",
+   "unique_id": "25821211-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "0a527e2a6951a5cee7315257cef34a60",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_112",
+   "unique_id": "25821212-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "870fd14d0e79c6643915b6101c6cfaf3",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_113",
+   "unique_id": "25821212-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "870fd14d0e79c6643915b6101c6cfaf3",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_114",
+   "unique_id": "25821212-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "870fd14d0e79c6643915b6101c6cfaf3",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_115",
+   "unique_id": "25821212-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "870fd14d0e79c6643915b6101c6cfaf3",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_116",
+   "unique_id": "25821213-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "6e3f57acbeefa00326c4c7725b9e53cf",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_117",
+   "unique_id": "25821213-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "6e3f57acbeefa00326c4c7725b9e53cf",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_118",
+   "unique_id": "25821213-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "6e3f57acbeefa00326c4c7725b9e53cf",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_119",
+   "unique_id": "25821213-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "6e3f57acbeefa00326c4c7725b9e53cf",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_120",
+   "unique_id": "25821214-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "f813fd88bedac79998fa29504906eb77",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_121",
+   "unique_id": "25821214-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "f813fd88bedac79998fa29504906eb77",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_122",
+   "unique_id": "25821214-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "f813fd88bedac79998fa29504906eb77",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_123",
+   "unique_id": "25821214-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "f813fd88bedac79998fa29504906eb77",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_124",
+   "unique_id": "25821215-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "78ad43489e28efad7994bcc5d745bddb",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_125",
+   "unique_id": "25821215-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "78ad43489e28efad7994bcc5d745bddb",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_126",
+   "unique_id": "25821215-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "78ad43489e28efad7994bcc5d745bddb",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_127",
+   "unique_id": "25821215-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "78ad43489e28efad7994bcc5d745bddb",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_128",
+   "unique_id": "25821216-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "228157f451aabc74cd04999be12347e9",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_129",
+   "unique_id": "25821216-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "228157f451aabc74cd04999be12347e9",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_130",
+   "unique_id": "25821216-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "228157f451aabc74cd04999be12347e9",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_131",
+   "unique_id": "25821216-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "228157f451aabc74cd04999be12347e9",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_132",
+   "unique_id": "25821217-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "4ba91ed0ba40b8750a3f636bd7a152dc",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_133",
+   "unique_id": "25821217-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "4ba91ed0ba40b8750a3f636bd7a152dc",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_134",
+   "unique_id": "25821217-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "4ba91ed0ba40b8750a3f636bd7a152dc",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_135",
+   "unique_id": "25821217-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "4ba91ed0ba40b8750a3f636bd7a152dc",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_136",
+   "unique_id": "25821218-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "b927b4b586dc57b08eb09f5b31e51238",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_137",
+   "unique_id": "25821218-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "b927b4b586dc57b08eb09f5b31e51238",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_138",
+   "unique_id": "25821218-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "b927b4b586dc57b08eb09f5b31e51238",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_139",
+   "unique_id": "25821218-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "b927b4b586dc57b08eb09f5b31e51238",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_140",
+   "unique_id": "25821219-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "57345f4d54e60dc116fc7cdfc3d8da41",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_141",
+   "unique_id": "25821219-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "57345f4d54e60dc116fc7cdfc3d8da41",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_142",
+   "unique_id": "25821219-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "57345f4d54e60dc116fc7cdfc3d8da41",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_143",
+   "unique_id": "25821219-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "57345f4d54e60dc116fc7cdfc3d8da41",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_144",
+   "unique_id": "25821220-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "b10a38acffa6c2c0c390461aa62f0ca6",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_145",
+   "unique_id": "25821220-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "b10a38acffa6c2c0c390461aa62f0ca6",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_146",
+   "unique_id": "25821220-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "b10a38acffa6c2c0c390461aa62f0ca6",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_147",
+   "unique_id": "25821220-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "b10a38acffa6c2c0c390461aa62f0ca6",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_148",
+   "unique_id": "25821221-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "df4e24ec546363ef03aea96fc74cc320",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_149",
+   "unique_id": "25821221-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "df4e24ec546363ef03aea96fc74cc320",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_150",
+   "unique_id": "25821221-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "df4e24ec546363ef03aea96fc74cc320",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_151",
+   "unique_id": "25821221-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "df4e24ec546363ef03aea96fc74cc320",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_152",
+   "unique_id": "25821222-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "60c9a160f2f2346e96f60f6bd9cd268f",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_153",
+   "unique_id": "25821222-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "60c9a160f2f2346e96f60f6bd9cd268f",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_154",
+   "unique_id": "25821222-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "60c9a160f2f2346e96f60f6bd9cd268f",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_155",
+   "unique_id": "25821222-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "60c9a160f2f2346e96f60f6bd9cd268f",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_156",
+   "unique_id": "25821223-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "258cf862905e31923eb59a3f5eebb008",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_157",
+   "unique_id": "25821223-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "258cf862905e31923eb59a3f5eebb008",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_158",
+   "unique_id": "25821223-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "258cf862905e31923eb59a3f5eebb008",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_159",
+   "unique_id": "25821223-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "258cf862905e31923eb59a3f5eebb008",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_160",
+   "unique_id": "25821224-radio_rssi",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "22697f05c655dd0831a8a0ab539aeaa5",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_161",
+   "unique_id": "25821224-radio_last_seen",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "22697f05c655dd0831a8a0ab539aeaa5",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_162",
+   "unique_id": "25821224-radio_repeater_count",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "22697f05c655dd0831a8a0ab539aeaa5",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_163",
+   "unique_id": "25821224-signal_energy",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "22697f05c655dd0831a8a0ab539aeaa5",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_164",
+   "unique_id": "gateway:01TESTENTRYSUBENTRIES00000:gateway_received_telegrams",
+   "domain": "sensor",
+   "disabled_by": null,
+   "device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_165",
+   "unique_id": "gateway:01TESTENTRYSUBENTRIES00000:gateway_last_telegram",
+   "domain": "sensor",
+   "disabled_by": null,
+   "device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "sensor.fixture_sensor_166",
+   "unique_id": "gateway:01TESTENTRYSUBENTRIES00000:gateway_base_id",
+   "domain": "sensor",
+   "disabled_by": "integration",
+   "device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "select.fixture_select_001",
+   "unique_id": "gateway:01TESTENTRYSUBENTRIES00000:gateway_repeater",
+   "domain": "select",
+   "disabled_by": null,
+   "device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_001",
+   "unique_id": "25821185-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "13643385b6f4568a29530c93b8c6b2b1",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_002",
+   "unique_id": "25821186-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "1e029b044cc1e9e4111fc6e34d035161",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_003",
+   "unique_id": "25821187-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "e124f0afb2a679b55cbfa3d71089e089",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_004",
+   "unique_id": "25821188-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "2ade641f16a146185500256ad74b91e3",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_005",
+   "unique_id": "25821189-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "521d3fb4373188d959e297669da9ebf7",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_006",
+   "unique_id": "25821190-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "5b195520f47db5bd79ea7c161126522e",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_007",
+   "unique_id": "25821191-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "47b5106baaaa28a925bb42801c83cee9",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_008",
+   "unique_id": "25821192-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "6dd0e2ff52b651b63fe0f687605defae",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_009",
+   "unique_id": "25821193-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "bbe9b92063d0e7ceb19e4a1a5e2ab812",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_010",
+   "unique_id": "25821194-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "685bb3b1afe9bd85ebb26acb574e83b5",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_011",
+   "unique_id": "25821195-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "d68864950fd0aca9149da94bf221e594",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_012",
+   "unique_id": "25821196-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "af8222ff2c20995d376c3995cd5f5b41",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_013",
+   "unique_id": "25821197-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "a4cf6bce43f8aa76494f4144d7c8c4d7",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_014",
+   "unique_id": "25821198-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "07b425a64d6d8e3103e90dec78462045",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_015",
+   "unique_id": "25821199-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "e3f8003cb35580861b735cc9d576c91a",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_016",
+   "unique_id": "25821200-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "da0f4909696e1a37502755118fcbcb21",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_017",
+   "unique_id": "25821201-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "a0883c4b79ca87b996ddff6e01fe8a1b",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_018",
+   "unique_id": "25821202-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "43a4175c8ef7fd8623389ec49ec6735d",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_019",
+   "unique_id": "25821205-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "2d9b5485ba36ae82a795ba60a0fdd516",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_020",
+   "unique_id": "25821206-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "b4f1a48d6d263c3dec30a84b13af3413",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_021",
+   "unique_id": "25821207-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "398cf661543e4ad65f296121d96ca1b4",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_022",
+   "unique_id": "25821208-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "1b7c1b899350c6f2c47da06bb4484140",
+   "config_subentry_id": null
+  },
+  {
+   "entity_id": "event.fixture_event_023",
+   "unique_id": "25821210-rocker-event",
+   "domain": "event",
+   "disabled_by": null,
+   "device_id": "3aa6e8a87921c74cb595d0492a8eb097",
+   "config_subentry_id": null
+  }
+ ],
+ "devices": [
+  {
+   "id": "13643385b6f4568a29530c93b8c6b2b1",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0001"
+    ]
+   ],
+   "name": "Device 01",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "1e029b044cc1e9e4111fc6e34d035161",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0002"
+    ]
+   ],
+   "name": "Device 02",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "da0f4909696e1a37502755118fcbcb21",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0010"
+    ]
+   ],
+   "name": "Device 16",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "a0883c4b79ca87b996ddff6e01fe8a1b",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0011"
+    ]
+   ],
+   "name": "Device 17",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "43a4175c8ef7fd8623389ec49ec6735d",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0012"
+    ]
+   ],
+   "name": "Device 18",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "2d9b5485ba36ae82a795ba60a0fdd516",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0015"
+    ]
+   ],
+   "name": "Device 21",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "b4f1a48d6d263c3dec30a84b13af3413",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0016"
+    ]
+   ],
+   "name": "Device 22",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "398cf661543e4ad65f296121d96ca1b4",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0017"
+    ]
+   ],
+   "name": "Device 23",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "1b7c1b899350c6f2c47da06bb4484140",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0018"
+    ]
+   ],
+   "name": "Device 24",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "3aa6e8a87921c74cb595d0492a8eb097",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A001A"
+    ]
+   ],
+   "name": "Device 26",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "dda87375d2a46a72f91a81d585d9a9f0",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0013"
+    ]
+   ],
+   "name": "Device 19",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "e1bb710092352a615baa129012da8a58",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0014"
+    ]
+   ],
+   "name": "Device 20",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "86b331ab5f773de3915f3b55599b3226",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0019"
+    ]
+   ],
+   "name": "Device 25",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "0a527e2a6951a5cee7315257cef34a60",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A001B"
+    ]
+   ],
+   "name": "Device 27",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "870fd14d0e79c6643915b6101c6cfaf3",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A001C"
+    ]
+   ],
+   "name": "Device 28",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "6e3f57acbeefa00326c4c7725b9e53cf",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A001D"
+    ]
+   ],
+   "name": "Device 29",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "f813fd88bedac79998fa29504906eb77",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A001E"
+    ]
+   ],
+   "name": "Device 30",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "78ad43489e28efad7994bcc5d745bddb",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A001F"
+    ]
+   ],
+   "name": "Device 31",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "228157f451aabc74cd04999be12347e9",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0020"
+    ]
+   ],
+   "name": "Device 32",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "4ba91ed0ba40b8750a3f636bd7a152dc",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0021"
+    ]
+   ],
+   "name": "Device 33",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "e124f0afb2a679b55cbfa3d71089e089",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0003"
+    ]
+   ],
+   "name": "Device 03",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "2ade641f16a146185500256ad74b91e3",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0004"
+    ]
+   ],
+   "name": "Device 04",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "521d3fb4373188d959e297669da9ebf7",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0005"
+    ]
+   ],
+   "name": "Device 05",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "5b195520f47db5bd79ea7c161126522e",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0006"
+    ]
+   ],
+   "name": "Device 06",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "47b5106baaaa28a925bb42801c83cee9",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0007"
+    ]
+   ],
+   "name": "Device 07",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "6dd0e2ff52b651b63fe0f687605defae",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0008"
+    ]
+   ],
+   "name": "Device 08",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "bbe9b92063d0e7ceb19e4a1a5e2ab812",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0009"
+    ]
+   ],
+   "name": "Device 09",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "685bb3b1afe9bd85ebb26acb574e83b5",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A000A"
+    ]
+   ],
+   "name": "Device 10",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "d68864950fd0aca9149da94bf221e594",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A000B"
+    ]
+   ],
+   "name": "Device 11",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "af8222ff2c20995d376c3995cd5f5b41",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A000C"
+    ]
+   ],
+   "name": "Device 12",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "a4cf6bce43f8aa76494f4144d7c8c4d7",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A000D"
+    ]
+   ],
+   "name": "Device 13",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "07b425a64d6d8e3103e90dec78462045",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A000E"
+    ]
+   ],
+   "name": "Device 14",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "e3f8003cb35580861b735cc9d576c91a",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A000F"
+    ]
+   ],
+   "name": "Device 15",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "b927b4b586dc57b08eb09f5b31e51238",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0022"
+    ]
+   ],
+   "name": "Device 34",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "57345f4d54e60dc116fc7cdfc3d8da41",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0023"
+    ]
+   ],
+   "name": "Device 35",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "b10a38acffa6c2c0c390461aa62f0ca6",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0024"
+    ]
+   ],
+   "name": "Device 36",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "df4e24ec546363ef03aea96fc74cc320",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0025"
+    ]
+   ],
+   "name": "Device 37",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "60c9a160f2f2346e96f60f6bd9cd268f",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0026"
+    ]
+   ],
+   "name": "Device 38",
+   "name_by_user": "Custom name 38",
+   "area_id": "area_1",
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "258cf862905e31923eb59a3f5eebb008",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0027"
+    ]
+   ],
+   "name": "Device 39",
+   "name_by_user": "Custom name 39",
+   "area_id": "area_2",
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "22697f05c655dd0831a8a0ab539aeaa5",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "018A0028"
+    ]
+   ],
+   "name": "Device 40",
+   "name_by_user": "Custom name 40",
+   "area_id": "area_3",
+   "via_device_id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": null,
+   "sw_version": null
+  },
+  {
+   "id": "0cbf3d255da11416bf6ebce33b7fd6ef",
+   "identifiers": [
+    [
+     "enocean_custom",
+     "gateway:01TESTENTRYSUBENTRIES00000"
+    ]
+   ],
+   "name": "EnOcean gateway",
+   "name_by_user": null,
+   "area_id": null,
+   "via_device_id": null,
+   "config_entries": [
+    "01TESTENTRYSUBENTRIES00000"
+   ],
+   "config_entries_subentries": {
+    "01TESTENTRYSUBENTRIES00000": [
+     null
+    ]
+   },
+   "model": "GATEWAYCTRL",
+   "sw_version": "2.15.0.0"
+  }
+ ]
+}

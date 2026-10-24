@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import override
+from typing import Any, override
 
 import voluptuous as vol
 from homeassistant.components.binary_sensor import (
@@ -22,8 +22,18 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
-from .availability import REPAIR_CATEGORIES, availability_settings, silence_category
+from .availability import (
+    REPAIR_CATEGORIES,
+    AvailabilitySettings,
+    availability_settings,
+    silence_category,
+)
 from .d2_14 import decode_d2_14_30
+from .device_rows import (
+    add_entities_for_group,
+    async_connect_subentry_setup,
+    rows_by_subentry,
+)
 from .eep_catalog import EepField, EepProfile, generic_profile
 from .enocean_library.protocol.constants import RORG
 from .enocean_library.utils import combine_hex
@@ -44,7 +54,7 @@ from .identity import (
     smoke_battery_low_unique_id,
 )
 from .learn import register_known_id
-from .schema import CONF_UI_DEVICES, ENOCEAN_ID, valid_ui_devices
+from .schema import ENOCEAN_ID
 from .yaml_import import track_yaml_device
 
 # Every state change is pushed by the serial worker; nothing here polls.
@@ -89,16 +99,10 @@ def setup_platform(
     )
 
 
-async def async_setup_entry(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
-) -> None:
-    """Create rocker sensors stored in the entry options."""
-    settings = availability_settings(getattr(entry, "options", {}))
-    rows = valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
+def _row_entities(rows: list[dict], settings: AvailabilitySettings) -> list[Any]:
+    """Build the binary sensors of one group of rows (legacy list or one subentry)."""
     names_by_sender = device_names_by_sender(rows)
-    configured = []
+    configured: list[Any] = []
     for row in rows:
         if row["platform"] == "sensor":
             entities = _generic_binary_entities(row)
@@ -120,11 +124,34 @@ async def async_setup_entry(
                 settings.timeout_for(category), repair=category in REPAIR_CATEGORIES
             )
             configured.append(entity)
+    return configured
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Create rocker sensors stored in the entry options, per device subentry.
+
+    The gateway's connectivity sensor belongs to the main entry and is added
+    with the legacy group.
+    """
+    settings = availability_settings(getattr(entry, "options", {}))
+
+    def build(rows: list[dict]) -> list[Any]:
+        return _row_entities(rows, settings)
+
+    groups = dict(rows_by_subentry(entry))
+    legacy = build(groups.pop(None, []))
     gateway = getattr(entry, "runtime_data", None)
     entry_id = getattr(entry, "entry_id", None)
     if gateway is not None and entry_id:
-        configured.append(EnOceanGatewayConnectivity(gateway, entry_id))
-    async_add_entities(configured)
+        legacy.append(EnOceanGatewayConnectivity(gateway, entry_id))
+    add_entities_for_group(async_add_entities, legacy, None)
+    for subentry_id, rows in groups.items():
+        add_entities_for_group(async_add_entities, build(rows), subentry_id)
+    async_connect_subentry_setup(hass, entry, async_add_entities, build)
 
 
 def _generic_binary_entities(row: dict) -> list[EnOceanEntity]:

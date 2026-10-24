@@ -10,7 +10,12 @@ from homeassistant.components.usb import (
     human_readable_device_name,
     usb_unique_id_from_service_info,
 )
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    ConfigSubentryFlow,
+)
 from homeassistant.const import ATTR_MANUFACTURER, CONF_DEVICE, CONF_NAME
 from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
@@ -29,8 +34,10 @@ from .const import (
     ERROR_INVALID_DONGLE_PATH,
     LOGGER,
     MANUFACTURER,
+    SUBENTRY_TYPE_DEVICE,
 )
 from .options_flow import EnOceanOptionsFlow
+from .subentry_flow import EnOceanDeviceSubentryFlow
 
 MANUAL_SCHEMA = vol.Schema({vol.Required(CONF_DEVICE): cv.string})
 
@@ -213,3 +220,11 @@ class EnOceanFlowHandler(ConfigFlow, domain=DOMAIN):
     ) -> EnOceanOptionsFlow:
         """Return the device-management options flow."""
         return EnOceanOptionsFlow()
+
+    @classmethod
+    @callback
+    def async_get_supported_subentry_types(
+        cls, config_entry: ConfigEntry
+    ) -> dict[str, type[ConfigSubentryFlow]]:
+        """Declare the ``device`` subentry: one radio device per subentry."""
+        return {SUBENTRY_TYPE_DEVICE: EnOceanDeviceSubentryFlow}

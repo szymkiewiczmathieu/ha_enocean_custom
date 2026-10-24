@@ -22,6 +22,11 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .const import DOMAIN, LOGGER
+from .device_rows import (
+    add_entities_for_group,
+    async_connect_subentry_setup,
+    rows_by_subentry,
+)
 from .enocean_library.protocol.constants import RORG
 from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
 from .enocean_library.utils import combine_hex, to_hex_string
@@ -29,7 +34,7 @@ from .entity import EnOceanEntity, build_radio_optional, get_gateway_base_id
 from .identity import device_names_by_sender, row_names_the_device, switch_unique_id
 from .learn import register_known_id
 from .runtime import get_gateway
-from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devices
+from .schema import ENOCEAN_ID, exact_finite_int
 from .ubiwizz import UBIWIZZ_ACTUATOR_PROFILES, valid_ubiwizz_actuator_channel
 from .yaml_import import track_yaml_device
 
@@ -130,18 +135,13 @@ async def async_setup_platform(
     )
 
 
-async def async_setup_entry(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
-) -> None:
-    """Create switches stored by the options flow.
+def _switch_entities(rows: list[dict]) -> list[EnOceanSwitch]:
+    """Build the switches of one group of rows (legacy list or one subentry).
 
     The actuator profile is read from the row only. It is never inferred from
     ``switch_type``: rows that relied on the pre-2.10 RPS inference were
     migrated once to carry the profile explicitly (``migration.py``).
     """
-    rows = valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
     names_by_sender = device_names_by_sender(rows)
     entities = []
     for row in rows:
@@ -162,7 +162,18 @@ async def async_setup_entry(
             entity._attr_has_entity_name = True
             entity._attr_name = None
         entities.append(entity)
-    async_add_entities(entities)
+    return entities
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Create switches stored by the options flow, one batch per device subentry."""
+    for subentry_id, rows in rows_by_subentry(entry):
+        add_entities_for_group(async_add_entities, _switch_entities(rows), subentry_id)
+    async_connect_subentry_setup(hass, entry, async_add_entities, _switch_entities)
 
 
 class EnOceanSwitch(EnOceanEntity, SwitchEntity):

@@ -24,9 +24,10 @@ from .const import (
     SIGNAL_RECEIVE_MESSAGE,
 )
 from .device_intelligence import extract_radio_identity, safe_metadata
+from .device_rows import configured_rows
 from .enocean_library.utils import combine_hex, to_hex_string
 from .runtime import get_gateway
-from .schema import CONF_UI_DEVICES, exact_finite_int, valid_ui_devices
+from .schema import exact_finite_int
 
 SERVICE_LEARN_SCHEMA = vol.Schema(
     {
@@ -61,9 +62,10 @@ def _ui_known_ids(hass: HomeAssistant) -> set[int]:
     if config_entries is None:
         return known
     for entry in config_entries.async_entries(DOMAIN):
-        # valid_ui_devices also shields a hand-edited .storage: a malformed
-        # row must be skipped, never crash the learn machinery.
-        for device in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, [])):
+        # configured_rows validates every row (legacy options and device
+        # subentries alike): a malformed hand-edited row is skipped, never
+        # crashes the learn machinery.
+        for device in configured_rows(entry):
             known.add(combine_hex(device["id"]))
     return known
 

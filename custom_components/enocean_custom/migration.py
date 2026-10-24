@@ -9,6 +9,15 @@ same behaviour and attributes, the formerly inferred profile is written into
 those rows once, explicitly, where it can be seen and edited. Rows that
 already carry a profile, non-RPS rows, and rows the profile would make invalid
 are left untouched.
+
+Minor version 3 (v2.11.0). Every radio device becomes one config subentry of
+type ``device`` (see ``device_rows.py``): the rows of ``options["ui_devices"]``
+are grouped by sender, one subentry is created per sender, and the registry
+device of that sender plus every entity attached to it are re-attached to the
+subentry in place. Nothing is created, renamed or removed: ``unique_id``,
+``entity_id`` and ``device_id`` are untouched, and ``options["ui_devices"]``
+itself is not rewritten, so a 2.10.x release still finds every row there
+after a downgrade.
 """
 
 from __future__ import annotations
@@ -16,7 +25,10 @@ from __future__ import annotations
 from typing import Any
 
 import voluptuous as vol
+from homeassistant.core import HomeAssistant, callback
 
+from .const import LOGGER
+from .device_rows import async_adopt_rows, legacy_rows
 from .schema import UI_DEVICE_SCHEMA
 from .ubiwizz import UBIWIZZ_UBID1507C_PROFILE
 
@@ -59,3 +71,26 @@ def _with_explicit_profile(raw: Any) -> dict[str, Any] | None:
         # left as it is rather than being broken differently.
         return None
     return updated
+
+
+@callback
+def async_adopt_legacy_rows(hass: HomeAssistant, entry: Any) -> list[str]:
+    """Give every valid legacy row a device subentry; return the subentry ids.
+
+    This is the minor-3 migration proper, and it is idempotent: a sender that
+    already owns a subentry is skipped, so it also runs at every start-up to
+    pick up rows a 2.10.x release wrote to ``ui_devices`` during a downgrade,
+    or rows hand-edited into ``.storage``. Malformed rows are left where they
+    are: they never produced an entity and are not touched.
+    """
+    rows = legacy_rows(entry)
+    if not rows:
+        return []
+    touched = async_adopt_rows(hass, entry, rows)
+    LOGGER.info(
+        "Attached %d EnOcean row(s) to %d device subentr%s",
+        len(rows),
+        len(touched),
+        "y" if len(touched) == 1 else "ies",
+    )
+    return touched
