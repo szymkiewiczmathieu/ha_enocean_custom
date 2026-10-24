@@ -91,9 +91,13 @@
       },
       "declare_profile_eep": {
         "title": "Profile for {name}",
-        "description": "Device {name} ({platform}, {captured_id}). Enter the EEP exactly as the manufacturer prints it, for example F6-05-02 for a smoke detector or F6-10-00 for a window handle. The existing entity keeps its identity; companion entities are added when the integration reloads.",
+        "description": "Device {name} ({platform}, {captured_id}). Pick a product from the catalog to fill in its EEP automatically, or choose Custom and enter the EEP exactly as the manufacturer prints it, for example F6-05-02 for a smoke detector or F6-10-00 for a window handle. A catalog pick is recorded exactly like a typed EEP: an operator assertion, never hardware proof. The existing entity keeps its identity; companion entities are added when the integration reloads.",
         "data": {
+          "catalog_product": "Product (optional)",
           "manual_eep": "EEP profile"
+        },
+        "data_description": {
+          "catalog_product": "Only products with a usable decoder for this device's type are listed. Leave on Custom to type the EEP yourself."
         }
       },
       "settings": {

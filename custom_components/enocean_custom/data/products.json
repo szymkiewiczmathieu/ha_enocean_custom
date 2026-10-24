@@ -1,0 +1,139 @@
+{
+  "provenance": {
+    "schema": "1.0",
+    "audit_date": "2026-10-24",
+    "note": "Operator-maintained pairing recipes, not a certified catalog. A recipe pre-fills a plausible EEP/platform/channel starting point for the 'declare profile' step; it is never proof of a device's actual identity. Every row it creates is still recorded with eep_source=manual, exactly like a hand-typed EEP. 'support' reflects what this repository can decode today, independently of how well the product itself is documented."
+  },
+  "recipes": {
+    "nodon_asp_2_1_00": {
+      "manufacturer": "NodOn",
+      "model": "ASP-2-1-00 (Smart Plug)",
+      "eep": "D2-01-0A",
+      "platforms": ["switch"],
+      "channels": [0],
+      "teach_in": "ute",
+      "support": "manual",
+      "evidence": [
+        "NodOn ASP-2-1-x0 User Guide (EnOcean Alliance product page)"
+      ]
+    },
+    "nodon_asp_2_1_01": {
+      "manufacturer": "NodOn",
+      "model": "ASP-2-1-01 (Smart Plug + Metering)",
+      "eep": "D2-01-0B",
+      "platforms": ["switch"],
+      "channels": [0],
+      "teach_in": "ute",
+      "support": "manual",
+      "evidence": [
+        "NodOn ASP-2-1-x1 User Guide (EnOcean Alliance product page)"
+      ],
+      "notes": "Instantaneous power and accumulated energy metering per EEP D2-01-0B is not decoded by this release; the row still works as a plain switch."
+    },
+    "nodon_sin_2_2_01": {
+      "manufacturer": "NodOn",
+      "model": "SIN-2-2-01 (dual switch micromodule)",
+      "eep": "D2-01-12",
+      "platforms": ["switch"],
+      "channels": [0, 1],
+      "teach_in": "ute",
+      "support": "manual",
+      "evidence": [
+        "NodOn SIN-2-2-01 retailer datasheet (materiels-electriques.fr, domadoo.fr)"
+      ],
+      "notes": "D2-01-12 is already implemented for the UBID1507C; this recipe applies the same decoder to NodOn's own hardware, not just the Ubiwizz module."
+    },
+    "nodon_sin_2_rs_01": {
+      "manufacturer": "NodOn",
+      "model": "SIN-2-RS-01 (roller shutter module)",
+      "eep": "D2-05-00",
+      "platforms": [],
+      "channels": [],
+      "teach_in": "ute",
+      "support": "unsupported",
+      "evidence": [
+        "NodOn SIN-2-RS-01 User Guide (EnOcean Alliance)"
+      ],
+      "notes": "This repository has no cover platform; D2-05-00 is not decoded and this recipe is never offered in the picker. Listed for documentation only."
+    },
+    "nodon_cws_2_1_01": {
+      "manufacturer": "NodOn",
+      "model": "CWS-2-1-01 (wireless, battery-free wall switch)",
+      "eep": "F6-02-01",
+      "platforms": ["binary_sensor"],
+      "channels": [0, 1],
+      "teach_in": "none",
+      "support": "manual",
+      "evidence": [
+        "NodOn EnOcean wall switch product page"
+      ],
+      "notes": "A plain RPS rocker row already decodes F6-02-01/02 without declaring an EEP (RPS carries none); this recipe is informational and declares nothing new."
+    },
+    "eltako_ft55": {
+      "manufacturer": "Eltako",
+      "model": "FT55 (wireless rocker)",
+      "eep": "F6-02-01",
+      "platforms": ["binary_sensor"],
+      "channels": [0, 1],
+      "teach_in": "none",
+      "support": "manual",
+      "evidence": [
+        "Eltako FT55 datasheet; the EnOcean Alliance reference rocker design licensed to multiple vendors"
+      ],
+      "notes": "Same note as CWS-2-1-01: RPS carries no EEP, so this recipe is informational and declares nothing new."
+    },
+    "hoppe_secusignal": {
+      "manufacturer": "HOPPE",
+      "model": "SecuSignal window handle",
+      "eep": "F6-10-00",
+      "platforms": ["sensor"],
+      "channels": [0],
+      "teach_in": "none",
+      "support": "supported",
+      "evidence": [
+        "HOPPE SecuSignal product documentation; EEP.xml F6-10-00"
+      ]
+    },
+    "nexelec_insafe_plus": {
+      "manufacturer": "Nexelec",
+      "model": "Insafe+ Origin (smoke / air-quality detector)",
+      "eep": "D2-14-30",
+      "platforms": ["binary_sensor"],
+      "channels": [0],
+      "teach_in": "ute",
+      "support": "manual",
+      "evidence": [
+        "Nexelec Insafe+ Origin product documentation",
+        "openHAB multiFunctionSmokeDetector / D2_14_30.java",
+        "FHEM multiFuncSensor.30"
+      ],
+      "notes": "D2-14-30's byte layout has not been hardware-validated by this repository; see docs/device-intelligence.md."
+    },
+    "micropelt_mva005": {
+      "manufacturer": "Micropelt",
+      "model": "MVA005 (self-powered radiator valve, iTRV)",
+      "eep": "A5-20-06",
+      "platforms": [],
+      "channels": [],
+      "teach_in": "4bs",
+      "support": "manual",
+      "evidence": [
+        "Micropelt MVA005 datasheet; EnOcean Alliance product page"
+      ],
+      "notes": "A5-20-06 is an experimental, disabled-by-default climate strategy pending hardware validation; not yet selectable from this picker. Revisit once that item lands."
+    },
+    "kieback_md15": {
+      "manufacturer": "Kieback & Peter",
+      "model": "MD15 (wireless radiator actuator)",
+      "eep": "A5-20-01",
+      "platforms": [],
+      "channels": [],
+      "teach_in": "4bs",
+      "support": "manual",
+      "evidence": [
+        "Kieback & Peter MD15-FTL product documentation"
+      ],
+      "notes": "The MD15 family is configurable (A5-20-01, A5-10-10 or D5-00-01 depending on setup); A5-20-01 is the documented default, not a hardware certainty for every unit. A5-20-01 is an experimental, disabled-by-default climate strategy pending hardware validation; not yet selectable from this picker."
+    }
+  }
+}

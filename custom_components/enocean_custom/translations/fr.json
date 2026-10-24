@@ -91,9 +91,13 @@
       },
       "declare_profile_eep": {
         "title": "Profil de {name}",
-        "description": "Équipement {name} ({platform}, {captured_id}). Saisissez l'EEP exactement comme le fabricant l'indique, par exemple F6-05-02 pour un détecteur de fumée ou F6-10-00 pour une poignée de fenêtre. L'entité existante conserve son identité ; les entités compagnes sont ajoutées au rechargement de l'intégration.",
+        "description": "Équipement {name} ({platform}, {captured_id}). Choisissez un produit du catalogue pour remplir son EEP automatiquement, ou laissez Personnalisé et saisissez l'EEP exactement comme le fabricant l'indique, par exemple F6-05-02 pour un détecteur de fumée ou F6-10-00 pour une poignée de fenêtre. Un choix du catalogue est enregistré exactement comme un EEP saisi : une affirmation de l'opérateur, jamais une preuve matérielle. L'entité existante conserve son identité ; les entités compagnes sont ajoutées au rechargement de l'intégration.",
         "data": {
+          "catalog_product": "Produit (optionnel)",
           "manual_eep": "Profil EEP"
+        },
+        "data_description": {
+          "catalog_product": "Seuls les produits ayant un décodeur utilisable pour ce type d'équipement sont listés. Laissez sur Personnalisé pour saisir l'EEP vous-même."
         }
       },
       "settings": {

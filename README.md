@@ -64,6 +64,17 @@ typical case is a smoke detector added as a plain `smoke` binary sensor: declare
 `F6-05-02` and it becomes a real detector (alarm from DB0 `0x10`/`0x00`) with a
 diagnostic **Battery low** entity (`0x30`). A profile that would turn the
 entity into a different class is refused; remove and re-add the device instead.
+Instead of typing the EEP, a **Product** picker lists catalog recipes whose
+platform matches the row (e.g. "Nexelec Insafe+ Origin" for a smoke detector,
+"NodOn ASP-2-1-00" for a switch); picking one fills in the exact same EEP
+field and is recorded exactly the same way, `eep_source: manual` included —
+a recipe is a convenience, never proof of what the hardware actually is. The
+bundled catalog (`custom_components/enocean_custom/data/products.json`)
+covers NodOn ASP-2-1-00/01, SIN-2-2-01, SIN-2-RS-01 (documented only — this
+integration has no cover platform), CWS-2-1-01, Eltako FT55, HOPPE
+SecuSignal, Nexelec Insafe+ Origin, and placeholders for the Micropelt
+MVA005 and Kieback & Peter MD15 valve actuators pending the experimental
+valve item below.
 
 ```yaml
 switch:

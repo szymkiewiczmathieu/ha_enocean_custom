@@ -55,7 +55,11 @@ from .const import (
     SIGNAL_RECEIVE_MESSAGE,
     UI_DEVICE_PLATFORMS,
 )
-from .device_catalog import UBIWIZZ_LIGHT_D2_01_08
+from .device_catalog import (
+    UBIWIZZ_LIGHT_D2_01_08,
+    get_product_recipe,
+    recipes_for_platform,
+)
 from .device_intelligence import (
     UNKNOWN_PLACEHOLDER,
     CommissioningIdentity,
@@ -119,6 +123,8 @@ _FLOW_OWNER = "options_flow"
 _HEX_BYTE = re.compile(r"^[0-9A-Fa-f]{2}$")
 _CONF_QR_CODE = "qr_code"
 _CONF_MANUAL_EEP = "manual_eep"
+_CONF_CATALOG_PRODUCT = "catalog_product"
+_CATALOG_CUSTOM = "__custom__"
 _CONF_GENERIC_EEP = "eep"
 _CONF_ACTUATOR_TYPE = "actuator_type"
 _CONF_FAILURE_ACTION = "failure_action"
@@ -338,15 +344,35 @@ def _declare_profile_schema(choices: dict[str, str]) -> vol.Schema:
     )
 
 
-def _declare_profile_eep_schema(default: str = "") -> vol.Schema:
-    """Return the manual EEP form used to declare a profile on an existing row."""
-    return vol.Schema(
-        {
-            vol.Required(_CONF_MANUAL_EEP, default=default): selector.TextSelector(
-                selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+def _declare_profile_eep_schema(
+    default: str = "", recipes: tuple[Any, ...] = ()
+) -> vol.Schema:
+    """Return the profile form: a product picker plus the manual EEP fallback.
+
+    Picking a product is exactly as strong an assertion as typing its EEP by
+    hand -- both end up recorded with ``eep_source: manual`` -- it only saves
+    looking the EEP up. Selecting the custom option (the default) keeps
+    today's behavior unchanged.
+    """
+    schema: dict[Any, Any] = {}
+    if recipes:
+        schema[vol.Required(_CONF_CATALOG_PRODUCT, default=_CATALOG_CUSTOM)] = (
+            selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        {"value": _CATALOG_CUSTOM, "label": "Custom (type the EEP)"},
+                        *(
+                            {"value": recipe.recipe_id, "label": recipe.display_name}
+                            for recipe in recipes
+                        ),
+                    ]
+                )
             )
-        }
+        )
+    schema[vol.Required(_CONF_MANUAL_EEP, default=default)] = selector.TextSelector(
+        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
     )
+    return vol.Schema(schema)
 
 
 def _availability_schema(settings: AvailabilitySettings | None = None) -> vol.Schema:
@@ -655,6 +681,7 @@ class EnOceanOptionsFlow(OptionsFlow):
         if index is None or index not in rows:
             return self.async_abort(reason="device_form_missing")
         device = rows[index]
+        recipes = recipes_for_platform(device["platform"])
         placeholders = {
             "name": device["name"],
             "platform": device["platform"],
@@ -664,14 +691,19 @@ class EnOceanOptionsFlow(OptionsFlow):
         def show(errors: dict[str, str] | None = None, default: str = ""):
             return self.async_show_form(
                 step_id="declare_profile_eep",
-                data_schema=_declare_profile_eep_schema(default),
+                data_schema=_declare_profile_eep_schema(default, recipes),
                 description_placeholders=placeholders,
                 errors=errors or {},
             )
 
         if user_input is None:
             return show()
-        submitted = user_input.get(_CONF_MANUAL_EEP)
+        chosen_recipe = user_input.get(_CONF_CATALOG_PRODUCT)
+        if chosen_recipe and chosen_recipe != _CATALOG_CUSTOM:
+            recipe = get_product_recipe(chosen_recipe)
+            submitted = recipe.eep if recipe else None
+        else:
+            submitted = user_input.get(_CONF_MANUAL_EEP)
         eep = parse_manual_eep(submitted)
         if eep is None:
             return show(

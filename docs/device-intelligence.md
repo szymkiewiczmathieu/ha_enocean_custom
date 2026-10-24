@@ -219,6 +219,36 @@ The versioned `data/ddf_catalog.json` is generated deterministically by
 bit-level payload specification, so no decoder is invented. A5-10 profiles are
 not added to the implementation matrix without a documented real-frame test.
 
+### Pairing recipe catalog (declare profile picker)
+
+Do not confuse this with the DDF catalog above: `data/products.json`
+(loaded by `device_catalog.py`) is a *different* file, for a *different*
+purpose. The DDF catalog passively resolves a Product ID actually observed
+on the air into a manufacturer/model string; this one is an operator-chosen
+shortcut in the "declare profile" step of the options flow, so a row can be
+enriched by picking a product name instead of typing an EEP. A pick is
+recorded exactly like a typed EEP (`eep_source: manual`) through the very
+same validated path, identity-preservation and collision checks included —
+one more confirmation of the repository's own doctrine: **a recipe is a
+convenience, never proof**.
+
+| Recipe | EEP | Platform | Selectable today |
+| --- | --- | --- | --- |
+| NodOn ASP-2-1-00 (Smart Plug) | `D2-01-0A` | `switch` | yes |
+| NodOn ASP-2-1-01 (Smart Plug + Metering) | `D2-01-0B` | `switch` | yes (metering not decoded) |
+| NodOn SIN-2-2-01 (dual switch micromodule) | `D2-01-12` | `switch` | yes |
+| NodOn SIN-2-RS-01 (roller shutter module) | `D2-05-00` | — | no: no cover platform exists |
+| NodOn CWS-2-1-01 (wireless wall switch) | `F6-02-01` | `binary_sensor` | yes, informational only (RPS declares no EEP) |
+| Eltako FT55 (wireless rocker) | `F6-02-01` | `binary_sensor` | yes, informational only |
+| HOPPE SecuSignal (window handle) | `F6-10-00` | `sensor` | yes |
+| Nexelec Insafe+ Origin (smoke / air quality) | `D2-14-30` | `binary_sensor` | yes |
+| Micropelt MVA005 (self-powered radiator valve) | `A5-20-06` | — | no: pending the experimental valve item |
+| Kieback & Peter MD15 (radiator actuator) | `A5-20-01` | — | no: pending the experimental valve item; configurable family, not a hardware certainty |
+
+Ubiwizz's own UBID1507C stays the original, hand-written
+`CommissioningProfile` in `device_catalog.py` (field-verified: real
+DolphinView capture and pairing procedure), unaffected by this catalog.
+
 ## Passive device inbox
 
 Every received radio telegram updates an entry-owned in-memory observation:
