@@ -107,6 +107,12 @@ jobs:
       # diagnostics through the real Home Assistant flow manager and
       # registries; it is additive to, not a replacement for, the much
       # larger stdlib unittest suite the job above already runs.
+      - name: Debug snapshot discovery
+        run: |
+          pwd; ls -la tests/pytest tests/pytest/snapshots || true
+          git ls-files tests/pytest
+          python -c "import syrupy,sys;print(syrupy.__file__)"
+          python -m pytest -vv --snapshot-details -k diagnostics -p no:cacheprovider 2>&1 | tail -60 || true
       - name: Run the pytest-homeassistant-custom-component suite
         run: python -m pytest
 
