@@ -112,7 +112,7 @@ jobs:
           pwd; ls -la tests/pytest tests/pytest/snapshots || true
           git ls-files tests/pytest
           python -c "import syrupy,sys;print(syrupy.__file__)"
-          python -m pytest -vv --snapshot-details -k diagnostics -p no:cacheprovider 2>&1 | tail -60 || true
+          python -m pytest tests/pytest/test_diagnostics_snapshot.py -vv --snapshot-details -p no:cacheprovider 2>&1 | grep -v "^  +" | head -120 || true; pip list 2>/dev/null | grep -i -E "syrupy|freez|pytest" 
       - name: Run the pytest-homeassistant-custom-component suite
         run: python -m pytest
 
