@@ -1,0 +1,83 @@
+# serializer version: 1
+# name: test_config_entry_diagnostics_snapshot
+  dict({
+    'availability': dict({
+      'contact_minutes': 1440,
+      'enabled': True,
+      'handle_minutes': 0,
+      'sensor_minutes': 180,
+      'smoke_minutes': 0,
+    }),
+    'config_entry': dict({
+      'device': '**REDACTED**',
+    }),
+    'dongle': dict({
+      'base_id_resolved': True,
+      'health': 'ok',
+      'network_url': False,
+    }),
+    'inbox': dict({
+      'observed_senders_count': 1,
+    }),
+    'ubiwizz_repeater': dict({
+      'candidate_eep_profiles': list([
+        'D2-01-01',
+        'D2-01-12',
+      ]),
+      'documented_default': 'not_documented',
+      'radio_command': 'not_implemented',
+      'requested_levels': list([
+        1,
+        2,
+      ]),
+      'runtime_state': 'unknown',
+    }),
+  })
+# ---
+# name: test_device_diagnostics_snapshot
+  dict({
+    'availability': dict({
+      'contact_minutes': 1440,
+      'enabled': True,
+      'handle_minutes': 0,
+      'sensor_minutes': 180,
+      'smoke_minutes': 0,
+    }),
+    'entities': list([
+    ]),
+    'kind': 'radio_sender',
+    'radio': dict({
+      'last_repeater_count': None,
+      'last_rssi_dbm': -61,
+      'last_seen': '2026-01-01T00:00:00+00:00',
+      'last_signal': None,
+      'last_telegram': 'D2 04 00 64 00 00 00 00 00',
+      'packet_count': 1,
+      'rorgs': list([
+        '0xD2',
+      ]),
+    }),
+    'rows': list([
+      dict({
+        'actuator_profile': None,
+        'channel': 0,
+        'device_class': None,
+        'platform': 'switch',
+        'profile': dict({
+        }),
+        'silence_category': None,
+        'switch_type': 'RPS',
+      }),
+    ]),
+  })
+# ---
+# name: test_gateway_device_diagnostics_snapshot
+  dict({
+    'dongle': dict({
+      'base_id_resolved': True,
+      'health': 'ok',
+      'network_url': False,
+    }),
+    'kind': 'gateway',
+  })
+# ---

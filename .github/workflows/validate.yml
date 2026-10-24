@@ -76,6 +76,40 @@ jobs:
       - name: Import and validate against Home Assistant ${{ matrix.homeassistant }}
         run: python tests/ha_smoke.py
 
+  pytest-ha:
+    name: pytest (config/options flow, diagnostics snapshots) on HA 2026.10.3
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.14"
+      - name: Install Home Assistant 2026.10.3 and the pytest harness
+        run: |
+          python -m pip install --disable-pip-version-check \
+            "homeassistant==2026.10.3" \
+            beautifulsoup4==4.13.3 \
+            lxml==6.1.1 \
+            pyserial==3.5 \
+            pytest==9.0.3 \
+            pytest-asyncio==1.4.0 \
+            pytest-homeassistant-custom-component==0.13.373 \
+            pytest-cov==7.1.0 \
+            pytest-freezer==0.4.9 \
+            syrupy==6.1.1 \
+            aiousbwatcher \
+            serialx
+          python -m pip check
+      # Deliberately partial (M9): this suite covers config/options flow and
+      # diagnostics through the real Home Assistant flow manager and
+      # registries; it is additive to, not a replacement for, the much
+      # larger stdlib unittest suite the job above already runs.
+      - name: Run the pytest-homeassistant-custom-component suite
+        run: python -m pytest
+
   hacs:
     name: HACS validation
     runs-on: ubuntu-latest
