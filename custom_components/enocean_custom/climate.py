@@ -7,6 +7,7 @@ import inspect
 import math
 import random
 from collections.abc import Callable
+from dataclasses import asdict
 from datetime import timedelta
 from time import monotonic
 from typing import Any, override
@@ -62,6 +63,13 @@ from .entity import EnOceanEntity, build_radio_optional
 from .identity import climate_unique_id
 from .learn import register_known_id
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devices
+from .valve_a5_20 import (
+    bidirectional_teach_in_response,
+    decode_a5_20_01,
+    decode_a5_20_06,
+    encode_a5_20_01_command,
+    encode_a5_20_06_command,
+)
 from .yaml_import import track_yaml_device
 
 # Control runs on the entity's own timers and pushed telegrams; nothing polls.
@@ -69,7 +77,19 @@ PARALLEL_UPDATES = 0
 
 PROFILE_SRC_D08 = "SRC-D08"
 PROFILE_A5_20_04 = "A5-20-04"
-DEVICE_SUPPORTED_LIST = [PROFILE_SRC_D08, PROFILE_A5_20_04]
+# EXPERIMENTAL -- needs hardware validation. YAML-only (not offered by the
+# options-flow "add device" step) and gated behind an explicit
+# experimental_valve_ack: true in schema.py. Unlike A5-20-04, these two are
+# polled by the valve and must be answered within one second from the
+# dispatcher callback itself (see valve_a5_20.py and value_changed below).
+PROFILE_A5_20_01 = "A5-20-01"
+PROFILE_A5_20_06 = "A5-20-06"
+EXPERIMENTAL_VALVE_PROFILES = (PROFILE_A5_20_01, PROFILE_A5_20_06)
+DEVICE_SUPPORTED_LIST = [
+    PROFILE_SRC_D08,
+    PROFILE_A5_20_04,
+    *EXPERIMENTAL_VALVE_PROFILES,
+]
 
 DEFAULT_NAME: str = "EnOcean Climate"
 (
@@ -97,6 +117,7 @@ DEFAULT_NAME: str = "EnOcean Climate"
     "pi_control_Kp",
     "pi_control_Tn",
 )
+CONF_EXPERIMENTAL_VALVE_ACK = "experimental_valve_ack"
 
 (
     ATTR_PI_CONTROL_OUTPUT,
@@ -142,46 +163,71 @@ def _finite_time_period(value: object) -> timedelta:
 FINITE_FLOAT = vol.All(_finite_float)
 FINITE_INT = exact_finite_int
 
-PLATFORM_SCHEMA = CLIMATE_PLATFORM_SCHEMA.extend(
-    {
-        vol.Required(CONF_ID): ENOCEAN_ID,
-        vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
-        vol.Required(CONF_SENDER_ID_SWITCH): ENOCEAN_ID,
-        vol.Required(CONF_DEVICE_TYPE): vol.In(DEVICE_SUPPORTED_LIST),
-        vol.Required(CONF_SENSOR_ENTITY_ID): cv.entity_id,
-        vol.Optional(CONF_SENSOR_TARGET_TEMP_FROST_PROTECTION, default=8.0): vol.All(
-            FINITE_FLOAT,
-            vol.Range(min=0, max=20),
-        ),
-        vol.Optional(CONF_SENSOR_TARGET_TEMP_RANGE, default=5): vol.All(
-            FINITE_INT,
-            vol.Range(min=0, max=20),
-        ),
-        vol.Optional(CONF_SENSOR_TARGET_TEMP_TOLERANCE, default=0.5): vol.All(
-            FINITE_FLOAT,
-            vol.Range(min=0, max=10),
-        ),
-        vol.Optional(CONF_TARGET_TEMP_BASE, default=21.0): vol.All(
-            FINITE_FLOAT,
-            vol.Range(min=5, max=35),
-        ),
-        vol.Optional(CONF_TARGET_TEMP_NIGHT_REDUCTION, default=4.0): vol.All(
-            FINITE_FLOAT,
-            vol.Range(min=0, max=20),
-        ),
-        vol.Optional(CONF_COMMAND_FREQUENCY, default="00:17:00"): vol.All(
-            _finite_time_period,
-            vol.Range(min=timedelta(seconds=1)),
-        ),
-        vol.Optional(CONF_PI_CONTROL_KP, default=5.0): vol.All(
-            FINITE_FLOAT,
-            vol.Range(min=0.001, max=100),
-        ),
-        vol.Optional(CONF_PI_CONTROL_TN, default=240.0): vol.All(
-            FINITE_FLOAT,
-            vol.Range(min=0.001, max=1440),
-        ),
-    }
+
+def _validate_experimental_valve_ack(config: dict) -> dict:
+    """Require an explicit, typo-proof opt-in for A5-20-01/06.
+
+    Both are experimental and need hardware validation (see
+    docs/device-intelligence.md): a config written before reading that
+    warning must not be accepted silently.
+    """
+    if config[CONF_DEVICE_TYPE] in EXPERIMENTAL_VALVE_PROFILES and not config.get(
+        CONF_EXPERIMENTAL_VALVE_ACK
+    ):
+        raise vol.Invalid(
+            f"device_type {config[CONF_DEVICE_TYPE]} is experimental and needs "
+            "hardware validation; set experimental_valve_ack: true to confirm "
+            "you have read docs/device-intelligence.md"
+        )
+    return config
+
+
+PLATFORM_SCHEMA = vol.All(
+    CLIMATE_PLATFORM_SCHEMA.extend(
+        {
+            vol.Required(CONF_ID): ENOCEAN_ID,
+            vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
+            vol.Required(CONF_SENDER_ID_SWITCH): ENOCEAN_ID,
+            vol.Required(CONF_DEVICE_TYPE): vol.In(DEVICE_SUPPORTED_LIST),
+            vol.Optional(CONF_EXPERIMENTAL_VALVE_ACK, default=False): cv.boolean,
+            vol.Required(CONF_SENSOR_ENTITY_ID): cv.entity_id,
+            vol.Optional(
+                CONF_SENSOR_TARGET_TEMP_FROST_PROTECTION, default=8.0
+            ): vol.All(
+                FINITE_FLOAT,
+                vol.Range(min=0, max=20),
+            ),
+            vol.Optional(CONF_SENSOR_TARGET_TEMP_RANGE, default=5): vol.All(
+                FINITE_INT,
+                vol.Range(min=0, max=20),
+            ),
+            vol.Optional(CONF_SENSOR_TARGET_TEMP_TOLERANCE, default=0.5): vol.All(
+                FINITE_FLOAT,
+                vol.Range(min=0, max=10),
+            ),
+            vol.Optional(CONF_TARGET_TEMP_BASE, default=21.0): vol.All(
+                FINITE_FLOAT,
+                vol.Range(min=5, max=35),
+            ),
+            vol.Optional(CONF_TARGET_TEMP_NIGHT_REDUCTION, default=4.0): vol.All(
+                FINITE_FLOAT,
+                vol.Range(min=0, max=20),
+            ),
+            vol.Optional(CONF_COMMAND_FREQUENCY, default="00:17:00"): vol.All(
+                _finite_time_period,
+                vol.Range(min=timedelta(seconds=1)),
+            ),
+            vol.Optional(CONF_PI_CONTROL_KP, default=5.0): vol.All(
+                FINITE_FLOAT,
+                vol.Range(min=0.001, max=100),
+            ),
+            vol.Optional(CONF_PI_CONTROL_TN, default=240.0): vol.All(
+                FINITE_FLOAT,
+                vol.Range(min=0.001, max=1440),
+            ),
+        }
+    ),
+    _validate_experimental_valve_ack,
 )
 
 
@@ -394,6 +440,9 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
         self._control_lock = asyncio.Lock()
         self._attr_valve_position: int | None = None
         self._attr_valve_failure: int | None = None
+        # A5-20-01/06 only: the latest decoded diagnostic flags, exposed
+        # verbatim as extra_state_attributes. Empty for every other profile.
+        self._valve_diagnostics: dict[str, Any] = {}
 
     async def _async_create_timer(self, _time=None) -> None:
         """Install the periodic refresh and bind its cancellation to the entity."""
@@ -517,6 +566,7 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
             ATTR_VALVE_POSITION: self._attr_valve_position,
             ATTR_VALVE_FAILURE: self._attr_valve_failure,
             "sender_id": to_hex_string(self._sender_id_switch),
+            **self._valve_diagnostics,
         }
 
     @property
@@ -609,7 +659,7 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
                 raise ValueError("sensor state is not finite")
             self._attr_current_temperature = current
 
-            if self._profile == PROFILE_A5_20_04:
+            if self._profile in (PROFILE_A5_20_04, *EXPERIMENTAL_VALVE_PROFILES):
                 return True
 
             raw_setpoint = state.attributes[_SENSOR_ATTR_SETPOINT]
@@ -703,6 +753,17 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
         event_time=None,
     ) -> None:
         """Commit staged state only if every queued ESP3 command returns OK."""
+        if getattr(self, "_profile", PROFILE_SRC_D08) in EXPERIMENTAL_VALVE_PROFILES:
+            # A5-20-01/06 are polled, never pushed: there is no ESP3 command
+            # to send or wait on when the operator changes a setpoint here.
+            # The change is applied locally; the valve learns it on its own
+            # next direction-1 poll (see value_changed / _reply_to_valve).
+            change_result = apply_change()
+            if inspect.isawaitable(change_result):
+                change_result = await change_result
+            if change_result is not False:
+                self.async_write_ha_state()
+            return
         async with self._control_lock:
             previous_state = self._control_state()
             change_result = apply_change()
@@ -892,8 +953,12 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
         """Teach the configured thermostat/valve actor."""
         if self._profile == PROFILE_A5_20_04:
             # 4BS bidirectional variation 3 response: A5-20-04, manufacturer 0,
-            # EEP accepted, sender stored, response, and LRN=0.
-            sent = self._send_a5_20_04([0x80, 0x20, 0x00, 0xF0])
+            # EEP accepted, sender stored, response, and LRN=0. Verified
+            # byte-for-byte equal to the historical [0x80, 0x20, 0x00, 0xF0].
+            sent = self._send_a5_20_04(bidirectional_teach_in_response(0x20, 0x04))
+        elif self._profile in EXPERIMENTAL_VALVE_PROFILES:
+            type_ = 0x06 if self._profile == PROFILE_A5_20_06 else 0x01
+            sent = self._send_a5_20_04(bidirectional_teach_in_response(0x20, type_))
         else:
             sent = self.sendPacket([0x40, 0x30, 0x02, 0x86])
         if not sent:
@@ -970,7 +1035,17 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
 
     @override
     def value_changed(self, packet) -> None:
-        """Decode A5-20-04 valve position, temperature, and failure feedback."""
+        """Decode valve/thermostat feedback; A5-20-01/06 reply within the loop."""
+        if self._profile == PROFILE_A5_20_01:
+            self._handle_experimental_valve(
+                packet, decode_a5_20_01, encode_a5_20_01_command
+            )
+            return
+        if self._profile == PROFILE_A5_20_06:
+            self._handle_experimental_valve(
+                packet, decode_a5_20_06, encode_a5_20_06_command
+            )
+            return
         if (
             self._profile != PROFILE_A5_20_04
             or packet.rorg != RORG.BS4
@@ -986,4 +1061,43 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
             self._attr_current_temperature = round(10 + db1 * 20 / 255, 1)
         if db0 & 0x02:
             self._attr_target_temp = round(10 + db2 * 20 / 255, 1)
+        self.schedule_update_ha_state()
+
+    def _handle_experimental_valve(self, packet, decode, encode) -> None:
+        """Decode one A5-20-01/06 status telegram and reply within the loop.
+
+        Every step below runs synchronously inside the dispatcher callback:
+        decode the status telegram, update local/diagnostic state, and queue
+        the direction-2 reply immediately through the always-synchronous
+        ``send_command`` -> ``gateway.send`` path -- no ``await``, no
+        executor hop, so the reply leaves within the EEP's one-second budget
+        regardless of what else Home Assistant's event loop is doing.
+        """
+        status = decode(getattr(packet, "data", None))
+        if status is None:
+            return
+        self._attr_valve_position = status.valve_position
+        self._valve_diagnostics = {
+            key: value
+            for key, value in asdict(status).items()
+            if key != "valve_position"
+        }
+        room_temperature = self._attr_current_temperature
+        target = (
+            self._target_temp_frost_protection
+            if self._attr_hvac_mode == HVACMode.OFF
+            else self._attr_target_temp
+        )
+        # Both come from Home Assistant state (the linked sensor, the
+        # entity's own target): neither is guaranteed yet right after
+        # startup. Skip this one reply rather than compute against a
+        # missing value; the valve simply gets answered on its next poll.
+        if room_temperature is not None and target is not None:
+            self._update_pi_controller(target)
+            position = (
+                0
+                if self._attr_hvac_mode == HVACMode.OFF
+                else round(self._attr_pi_control_output or 0)
+            )
+            self._send_a5_20_04(encode(position, room_temperature))
         self.schedule_update_ha_state()

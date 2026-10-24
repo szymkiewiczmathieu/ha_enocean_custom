@@ -184,7 +184,7 @@ own four-byte sender ID.
 | --- | --- | --- | --- |
 | `enocean_custom.learn` | `timeout` (15–300 s, default 60) | Opens one teach-in window; the first unknown sender fires `enocean_custom_device_learned` with its ID, hex form and safe radio evidence. Refused while another window is open or the dongle is not loaded. | none |
 | `enocean_custom.send_teach_in` | one or more `light` entities | Sends the A5-38-08 4BS teach-in telegram with the light's configured sender ID. | yes, on request |
-| `enocean_custom.climate_teach_in_actor` | one or more `climate` entities | Sends the configured profile's teach-in telegram (SRC-D08 panel or A5-20-04 variation 3). | yes, on request |
+| `enocean_custom.climate_teach_in_actor` | one or more `climate` entities | Sends the configured profile's 4BS Variation-3 teach-in response (SRC-D08 panel, A5-20-04, or the experimental A5-20-01/A5-20-06). | yes, on request |
 | `enocean_custom.climate_teach_in_actor_switch` | one or more `climate` entities | Sends the legacy RPS rocker teach-in of an SRC-D08; refused on other profiles. | yes, on request |
 | `enocean_custom.reload` | — | Reloads YAML-configured platforms. | none |
 
@@ -274,8 +274,12 @@ configuration mode and support level is maintained in
 [docs/device-intelligence.md](docs/device-intelligence.md#implementation-matrix).
 In short: F6-02-01/02 rockers, F6-05-02 smoke detectors, F6-10-00 handles,
 D5-00-01 contacts, A5-14-01 window sensors, A5-12-01 meters, 8-bit A5
-temperature/humidity profiles with a manual scale, A5-38-08 dimmer commands,
-A5-20-04 valves (YAML), and D2-01 actuators (D2-01-0A/0B/08/12).
+temperature/humidity profiles with a manual scale, D2-14-30/41 multi-sensors,
+the generic EEP.xml sensor decoder, A5-38-08 dimmer commands, A5-20-04 valves
+(YAML), and D2-01 actuators (D2-01-0A/0B/08/12). A5-20-01 and A5-20-06 valves
+are also implemented but **experimental and not validated on real
+hardware**: YAML-only, refused without an explicit `experimental_valve_ack:
+true`, see [docs/device-intelligence.md](docs/device-intelligence.md#experimental-valve-strategies-a5-20-01-and-a5-20-06).
 
 ## Known limitations
 
@@ -290,6 +294,10 @@ A5-20-04 valves (YAML), and D2-01 actuators (D2-01-0A/0B/08/12).
   nothing is inferred from an ID.
 - **8-bit A5 sensors need a manual scale** (`min_temp`, `max_temp`,
   `range_from`, `range_to`) in this release.
+- **A5-20-01 and A5-20-06 valves are experimental and unvalidated on real
+  hardware.** They reply to the valve's own status telegram from inside the
+  dispatcher callback to respect the EEP's one-second budget; the actual
+  round-trip latency has never been measured against a real dongle or valve.
 - **ESP3 `OK` only proves the dongle transmitted.** It never proves that a
   relay switched or that a device retained a pairing.
 - **Adding or removing a UI device reloads the whole entry.** Entities are

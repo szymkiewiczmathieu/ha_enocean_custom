@@ -334,6 +334,58 @@ too, with no configuration change.
 ID is exactly cataloged and free of manufacturer conflict. A declared EEP alone
 never produces a model string: grouping happens without inventing identity.
 
+## Experimental valve strategies: A5-20-01 and A5-20-06
+
+**Experimental — needs hardware validation.** Disabled by default in the
+sense that nothing offers them: YAML only (not in
+`schema.UI_CLIMATE_DEVICE_TYPES`, so the options flow never lists them,
+exactly like A5-20-04 before it), and even in YAML a row is refused unless
+`experimental_valve_ack: true` is set, a typo-proof confirmation that the
+operator has read this section.
+
+Unlike A5-20-04 (which this repository drives from its own periodic
+PI-loop send, `_async_control_heating`), A5-20-01 and A5-20-06 are
+*polled by the valve*: the actuator contacts the controller every radio
+cycle with a direction-1 status telegram and expects a direction-2 reply
+inside one second, or it falls back to running its internal thermostat
+autonomously and stops listening to Home Assistant
+(EEP.xml A5-20-01; the official A5-20-06 EEP proposal, EH4/Micropelt,
+V0.6, 2018-02-28, "Maximum response time must be less than 1 second").
+That budget rules out the existing async commit machinery (a lock, a
+`Future`, potentially other awaits mid-transaction): `valve_a5_20.py`'s
+decode/encode functions are pure, and `climate.py` calls them directly
+inside the dispatcher callback that already decodes the status telegram
+— no `await`, no executor hop, so the reply is queued the moment the
+status telegram is parsed, through the same always-synchronous
+`send_command` → `gateway.send` path every other command in this
+integration already uses.
+
+Both profiles are only ever driven in **valve-position mode** (0..100 %,
+not the alternative 0..40 °C temperature-setpoint mode each profile also
+defines): simpler, and consistent with how this repository already drives
+A5-20-04. Window-open, obstruction, energy and (for A5-20-06) local-offset
+bits are decoded and exposed as diagnostic `extra_state_attributes`, never
+acted on automatically. The 4BS Variation-3 bidirectional teach-in
+response is computed by a single general formula
+(`valve_a5_20.bidirectional_teach_in_response`), cross-checked bit for bit
+against this repository's own, already field-verified A5-20-04 response —
+see the module's own docstring for the derivation and the regression test
+that pins it.
+
+**Must be validated on real hardware before relying on it**:
+- The actual round-trip latency of `send_command` → `gateway.send` →
+  the serial worker's write, end to end, against the one-second budget —
+  this environment has no real dongle or valve to measure it against.
+- The exact byte layout against a real A5-20-01 actuator (Kieback & Peter
+  MD15, Thermokon) and a real A5-20-06 actuator (Micropelt MVA005): the
+  former comes from the vendored `EEP.xml`, the latter from the official
+  but still-DRAFT EEP proposal PDF, neither captured from a real frame by
+  this repository.
+- Whether skipping the reply outright (rather than sending a defined
+  fallback command) is the right behavior when the linked sensor or the
+  target temperature is not yet available — the valve's own documented
+  autonomous fallback may or may not be the best outcome in practice.
+
 ## Sender ID pool
 
 `sender_pool.py` computes offsets inside the dongle's own Base ID
