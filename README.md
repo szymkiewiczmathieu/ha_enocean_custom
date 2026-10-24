@@ -1,6 +1,6 @@
 # EnOcean Custom
 
-[![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
+[![HACS](https://img.shields.io/badge/HACS-Default-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/default)
 [![Validation](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml)
 
 Local-first Home Assistant integration for ESP3 EnOcean USB dongles (USB 300
@@ -8,7 +8,7 @@ and compatible). It provides configuration-entry and YAML setup, guided device
 learning, diagnostics, native rocker triggers, automation blueprints and
 bounded actuator control without cloud services or telemetry.
 
-**Current release:** [v2.10.0](CHANGELOG.md) · Apache-2.0 · HACS custom repository
+**Current release:** [v2.10.0](CHANGELOG.md) · Apache-2.0 · available in the HACS default store
 
 ## Contents
 
@@ -30,10 +30,9 @@ bounded actuator control without cloud services or telemetry.
 ## Install
 
 1. [Install HACS](https://hacs.xyz/docs/setup/download/).
-2. In HACS, add
-   `https://github.com/szymkiewiczmathieu/ha_enocean_custom` as an
-   **Integration** custom repository.
-3. Install **EnOcean Custom**, then restart Home Assistant.
+2. In HACS, search for **EnOcean Custom** (it is listed in the HACS default
+   store, no custom repository needed) and install it.
+3. Restart Home Assistant.
 4. Open **Settings → Devices & services**, add **EnOcean Custom**, and select a
    persistent serial path such as `/dev/serial/by-id/...`. A USB 300 plugged in
    is also discovered automatically and offered for confirmation.
