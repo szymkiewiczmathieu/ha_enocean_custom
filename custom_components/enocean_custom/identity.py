@@ -195,6 +195,24 @@ def device_names_by_sender(rows: Any) -> dict[int, str]:
     return names
 
 
+def row_names_the_device(
+    row: Mapping[str, Any], names_by_sender: dict[int, str]
+) -> bool:
+    """Return whether this row's own name is also its sender's device name.
+
+    Used to decide ``has_entity_name``/``name=None`` (2.10.0, Bronze
+    ``has-entity-name``) without ever changing a displayed name: true for a
+    row that is alone on its sender, or that happens to be the first one,
+    in which case Home Assistant renders the device's own name for this
+    entity -- the exact string already shown today. False for a later row
+    sharing a sender with a differently named earlier one (e.g. a second
+    relay channel): that row keeps its own explicit name untouched, because
+    collapsing it to the shared device name would make two different rows
+    show the same text and erase the distinction between them.
+    """
+    return names_by_sender.get(combine_hex(row["id"])) == row.get("name")
+
+
 def generic_field_key(slug: str) -> str:
     """Return the description key of one generic field (``eep_<shortcut slug>``)."""
     return f"{GENERIC_KEY_PREFIX}{slug}"

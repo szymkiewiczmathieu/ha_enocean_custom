@@ -401,6 +401,21 @@
       }
     },
     "sensor": {
+      "temperature": {
+        "name": "Température"
+      },
+      "humidity": {
+        "name": "Humidité"
+      },
+      "power": {
+        "name": "Puissance"
+      },
+      "energy": {
+        "name": "Énergie"
+      },
+      "supply_voltage": {
+        "name": "Tension d'alimentation"
+      },
       "window_handle": {
         "name": "Position de la poignée",
         "state": {

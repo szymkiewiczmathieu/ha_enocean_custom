@@ -37,7 +37,9 @@ from .identity import (
     SMOKE_EEP,
     a514_contact_unique_id,
     binary_sensor_unique_id,
+    device_names_by_sender,
     generic_field_key,
+    row_names_the_device,
     sensor_unique_id,
     smoke_battery_low_unique_id,
 )
@@ -94,12 +96,22 @@ async def async_setup_entry(
 ) -> None:
     """Create rocker sensors stored in the entry options."""
     settings = availability_settings(getattr(entry, "options", {}))
+    rows = valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
+    names_by_sender = device_names_by_sender(rows)
     configured = []
-    for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, [])):
+    for row in rows:
         if row["platform"] == "sensor":
             entities = _generic_binary_entities(row)
         elif row["platform"] == "binary_sensor":
             entities = _entities_for_row(row)
+            if entities and row_names_the_device(row, names_by_sender):
+                # Bronze has-entity-name: the primary entity's name becomes
+                # the device's own name, the exact string already shown
+                # today for a sender with a single row. Companions (battery
+                # low, D2-14-30 problem flags...) already use their own
+                # translation_key and are left untouched.
+                entities[0]._attr_has_entity_name = True
+                entities[0]._attr_name = None
         else:
             continue
         category = silence_category(row)

@@ -26,7 +26,7 @@ from .enocean_library.protocol.constants import RORG
 from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
 from .enocean_library.utils import combine_hex, to_hex_string
 from .entity import EnOceanEntity, build_radio_optional, get_gateway_base_id
-from .identity import switch_unique_id
+from .identity import device_names_by_sender, row_names_the_device, switch_unique_id
 from .learn import register_known_id
 from .runtime import get_gateway
 from .schema import CONF_UI_DEVICES, ENOCEAN_ID, exact_finite_int, valid_ui_devices
@@ -141,8 +141,13 @@ async def async_setup_entry(
     ``switch_type``: rows that relied on the pre-2.10 RPS inference were
     migrated once to carry the profile explicitly (``migration.py``).
     """
-    entities = [
-        EnOceanSwitch(
+    rows = valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
+    names_by_sender = device_names_by_sender(rows)
+    entities = []
+    for row in rows:
+        if row["platform"] != "switch":
+            continue
+        entity = EnOceanSwitch(
             row["id"],
             row["name"],
             row["channel"],
@@ -150,9 +155,13 @@ async def async_setup_entry(
             (row.get("radio_metadata") or {}).get("eep"),
             row.get(CONF_ACTUATOR_PROFILE),
         ).set_radio_metadata(row.get("radio_metadata"))
-        for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
-        if row["platform"] == "switch"
-    ]
+        if row_names_the_device(row, names_by_sender):
+            # Bronze has-entity-name: Home Assistant then renders this
+            # entity's name as the device's own name, the exact string
+            # already shown today for a sender with a single row.
+            entity._attr_has_entity_name = True
+            entity._attr_name = None
+        entities.append(entity)
     async_add_entities(entities)
 
 

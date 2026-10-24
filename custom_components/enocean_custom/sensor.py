@@ -107,6 +107,7 @@ class EnOceanSensorEntityDescription(SensorEntityDescription):
 SENSOR_DESC_TEMPERATURE = EnOceanSensorEntityDescription(
     key=SENSOR_KEY_TEMPERATURE,
     name="Temperature",
+    translation_key="temperature",
     native_unit_of_measurement=UnitOfTemperature.CELSIUS,
     device_class=SensorDeviceClass.TEMPERATURE,
     state_class=SensorStateClass.MEASUREMENT,
@@ -114,6 +115,7 @@ SENSOR_DESC_TEMPERATURE = EnOceanSensorEntityDescription(
 SENSOR_DESC_HUMIDITY = EnOceanSensorEntityDescription(
     key=SENSOR_KEY_HUMIDITY,
     name="Humidity",
+    translation_key="humidity",
     native_unit_of_measurement=PERCENTAGE,
     device_class=SensorDeviceClass.HUMIDITY,
     state_class=SensorStateClass.MEASUREMENT,
@@ -121,6 +123,7 @@ SENSOR_DESC_HUMIDITY = EnOceanSensorEntityDescription(
 SENSOR_DESC_POWER = EnOceanSensorEntityDescription(
     key=SENSOR_KEY_POWER,
     name="Power",
+    translation_key="power",
     native_unit_of_measurement=UnitOfPower.WATT,
     device_class=SensorDeviceClass.POWER,
     state_class=SensorStateClass.MEASUREMENT,
@@ -128,6 +131,7 @@ SENSOR_DESC_POWER = EnOceanSensorEntityDescription(
 SENSOR_DESC_ENERGY = EnOceanSensorEntityDescription(
     key=SENSOR_KEY_ENERGY,
     name="Energy",
+    translation_key="energy",
     native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
     device_class=SensorDeviceClass.ENERGY,
     state_class=SensorStateClass.TOTAL_INCREASING,
@@ -135,6 +139,7 @@ SENSOR_DESC_ENERGY = EnOceanSensorEntityDescription(
 SENSOR_DESC_SUPPLY_VOLTAGE = EnOceanSensorEntityDescription(
     key=SENSOR_KEY_A514_SUPPLY_VOLTAGE,
     name="Supply voltage",
+    translation_key="supply_voltage",
     native_unit_of_measurement=UnitOfElectricPotential.VOLT,
     device_class=SensorDeviceClass.VOLTAGE,
     state_class=SensorStateClass.MEASUREMENT,
@@ -711,7 +716,19 @@ def _entities_from_config(config: ConfigType) -> list[EnOceanSensor]:
 
 
 class EnOceanSensor(EnOceanEntity, RestoreSensor):
-    """Base entity for an EnOcean measurement."""
+    """Base entity for an EnOcean measurement.
+
+    ``has_entity_name`` lets Home Assistant render "{device name} {this
+    entity's own name}" (Quality Scale Bronze ``has-entity-name``); the own
+    name comes from ``entity_description.translation_key`` when set, else
+    its plain-English ``name``. The displayed string changes for devices
+    that were shown as "{description} {device name}" before (word order,
+    and now translatable into French); entity_id and unique_id are both
+    untouched, and the registry's own custom name (if the operator set
+    one) still wins over either.
+    """
+
+    _attr_has_entity_name = True
 
     def __init__(
         self,
@@ -722,7 +739,6 @@ class EnOceanSensor(EnOceanEntity, RestoreSensor):
         """Initialize a sensor with a device-class-aware identity."""
         super().__init__(dev_id, dev_name)
         self.entity_description = description
-        self._attr_name = f"{description.name} {dev_name}"
         self._attr_unique_id = sensor_unique_id(dev_id, description.key)
 
     @override

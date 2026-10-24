@@ -401,6 +401,21 @@
       }
     },
     "sensor": {
+      "temperature": {
+        "name": "Temperature"
+      },
+      "humidity": {
+        "name": "Humidity"
+      },
+      "power": {
+        "name": "Power"
+      },
+      "energy": {
+        "name": "Energy"
+      },
+      "supply_voltage": {
+        "name": "Supply voltage"
+      },
       "window_handle": {
         "name": "Handle position",
         "state": {

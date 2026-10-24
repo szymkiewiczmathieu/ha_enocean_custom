@@ -31,7 +31,7 @@ from .enocean_library.protocol.constants import RORG
 from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
 from .enocean_library.utils import to_hex_string
 from .entity import EnOceanEntity, build_radio_optional
-from .identity import light_unique_id
+from .identity import device_names_by_sender, light_unique_id, row_names_the_device
 from .learn import register_known_id
 from .schema import (
     CONF_UI_DEVICES,
@@ -80,6 +80,10 @@ async def async_setup_platform(
         config[CONF_NAME],
         config.get(CONF_CHANNEL, 0),
     )
+    # A YAML light is always the sole entity of its device: has_entity_name
+    # renders the exact same string already shown today.
+    entity._attr_has_entity_name = True
+    entity._attr_name = None
 
     if not device_id:
         registry = er.async_get(hass)
@@ -106,16 +110,22 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Create dimmers stored in the entry options."""
-    entities = [
-        EnOceanLight(
+    rows = valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
+    names_by_sender = device_names_by_sender(rows)
+    entities = []
+    for row in rows:
+        if row["platform"] != "light":
+            continue
+        entity = EnOceanLight(
             row["sender_id"],
             row["id"],
             row["name"],
             row.get("channel", 0),
         ).set_radio_metadata(row.get("radio_metadata"))
-        for row in valid_ui_devices(entry.options.get(CONF_UI_DEVICES, []))
-        if row["platform"] == "light"
-    ]
+        if row_names_the_device(row, names_by_sender):
+            entity._attr_has_entity_name = True
+            entity._attr_name = None
+        entities.append(entity)
     async_add_entities(entities)
     _async_register_send_teach_in_service()
 

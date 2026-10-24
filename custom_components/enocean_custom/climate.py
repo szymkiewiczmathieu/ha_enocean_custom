@@ -262,8 +262,13 @@ def _migrate_to_new_unique_id(
 
 
 def _entity_from_config(config: ConfigType) -> EnOceanClimate:
-    """Construct one climate entity from validated YAML-compatible data."""
-    return EnOceanClimate(
+    """Construct one climate entity from validated YAML-compatible data.
+
+    A climate row is always the sole entity of its device (there is no
+    multi-channel climate concept in this integration): has_entity_name
+    renders the exact same string already shown today.
+    """
+    entity = EnOceanClimate(
         config[CONF_ID],
         config.get(CONF_NAME, DEFAULT_NAME),
         config.get(
@@ -281,6 +286,9 @@ def _entity_from_config(config: ConfigType) -> EnOceanClimate:
         config.get(CONF_PI_CONTROL_TN, 240.0),
         device_type=config.get(CONF_DEVICE_TYPE, PROFILE_SRC_D08),
     )
+    entity._attr_has_entity_name = True
+    entity._attr_name = None
+    return entity
 
 
 async def async_setup_platform(
