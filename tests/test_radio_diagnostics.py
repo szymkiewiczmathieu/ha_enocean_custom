@@ -88,7 +88,12 @@ class IconCatalogTests(unittest.TestCase):
             sensors = json.loads((COMPONENT / name).read_text(encoding="utf-8"))[
                 "entity"
             ]["sensor"]
-            for key in ("radio_rssi", "radio_last_seen", "radio_repeater_count"):
+            for key in (
+                "radio_rssi",
+                "radio_last_seen",
+                "radio_repeater_count",
+                "signal_energy",
+            ):
                 self.assertTrue(sensors[key]["name"], f"{name}: {key}")
 
 
@@ -103,6 +108,7 @@ class IdentityTests(unittest.TestCase):
                 ("sensor", f"{DECIMAL}-radio_rssi"),
                 ("sensor", f"{DECIMAL}-radio_last_seen"),
                 ("sensor", f"{DECIMAL}-radio_repeater_count"),
+                ("sensor", f"{DECIMAL}-signal_energy"),
             ),
         )
         row = UI_DEVICE_SCHEMA(
@@ -165,7 +171,7 @@ class DiagnosticEntityTests(unittest.IsolatedAsyncioTestCase):
             for entity in created
             if isinstance(entity, sensor.EnOceanRadioDiagnosticSensor)
         ]
-        self.assertEqual(len(diagnostics), 6)
+        self.assertEqual(len(diagnostics), 8)
         stairs = [e for e in diagnostics if e.dev_id == SENDER]
         self.assertEqual(
             sorted(e.unique_id for e in stairs),
@@ -185,37 +191,54 @@ class DiagnosticEntityTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_values_come_from_the_radio_envelope_of_real_frames(self):
         rows = [{"id": SENDER, "platform": "binary_sensor", "name": "Rocker"}]
-        rssi, last_seen, repeater = [
+        rssi, last_seen, repeater, energy = [
             entity
             for entity in await self._entities(rows)
             if isinstance(entity, sensor.EnOceanRadioDiagnosticSensor)
         ]
-        for entity in (rssi, last_seen, repeater):
+        for entity in (rssi, last_seen, repeater, energy):
             entity.schedule_update_ha_state = lambda: None
         self.assertEqual(rssi.device_class, SensorDeviceClass.SIGNAL_STRENGTH)
         self.assertEqual(rssi.native_unit_of_measurement, "dBm")
         self.assertEqual(last_seen.device_class, SensorDeviceClass.TIMESTAMP)
+        self.assertEqual(energy.device_class, SensorDeviceClass.BATTERY)
+        self.assertEqual(energy.native_unit_of_measurement, "%")
 
         # RPS press, RSSI -61 dBm, status 0x32: N-message with 2 repeater hops.
         rps = _parse([RORG.RPS, 0x50, *SENDER, 0x32], dbm=61)
         before = datetime.now(UTC)
-        for entity in (rssi, last_seen, repeater):
+        for entity in (rssi, last_seen, repeater, energy):
             entity.value_changed(rps)
         self.assertEqual(rssi.native_value, -61)
         self.assertEqual(repeater.native_value, 2)
         self.assertGreaterEqual(last_seen.native_value, before)
+        self.assertIsNone(energy.native_value, "RPS carries no SIGNAL payload")
 
         # A VLD telegram carries RSSI and a timestamp but no repeater nibble.
         vld = _parse([RORG.VLD, 0x04, 0x00, 0x64, *SENDER, 0x00], dbm=80)
-        for entity in (rssi, last_seen, repeater):
+        for entity in (rssi, last_seen, repeater, energy):
             entity.value_changed(vld)
         self.assertEqual(rssi.native_value, -80)
         self.assertEqual(repeater.native_value, 2, "kept: VLD has no hop count")
 
+        # SIGNAL telegram, MID 0x06, energy status 42 %; it still carries an
+        # RSSI envelope like any other telegram.
+        signal = _parse([RORG.SIGNAL, 0x06, 42, *SENDER, 0x00], dbm=70)
+        for entity in (rssi, last_seen, repeater, energy):
+            entity.value_changed(signal)
+        self.assertEqual(rssi.native_value, -70)
+        self.assertEqual(energy.native_value, 42)
+        self.assertEqual(repeater.native_value, 2, "kept: SIGNAL has no hop count")
+
+        # Reserved energy values (101..255) are dropped, not guessed at.
+        reserved = _parse([RORG.SIGNAL, 0x06, 255, *SENDER, 0x00], dbm=70)
+        energy.value_changed(reserved)
+        self.assertEqual(energy.native_value, 42, "kept: reserved value ignored")
+
         # Telegrams from another sender are filtered by the base entity.
         other = _parse([RORG.RPS, 0x70, 1, 2, 3, 4, 0x30], dbm=40)
         rssi._message_received_callback(other)
-        self.assertEqual(rssi.native_value, -80)
+        self.assertEqual(rssi.native_value, -70)
 
 
 @unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
@@ -294,7 +317,7 @@ class DeletionTests(unittest.IsolatedAsyncioTestCase):
         result = await flow.async_step_delete_confirm({"confirm": True})
         self.assertEqual(result["type"], FlowResultType.CREATE_ENTRY)
         self.assertEqual(len(result["data"][CONF_UI_DEVICES]), 1)
-        self.assertEqual(self._diagnostics_present(), [True, True, True])
+        self.assertEqual(self._diagnostics_present(), [True, True, True, True])
 
     async def test_diagnostics_go_with_the_last_row_of_the_sender(self):
         rows = [
@@ -316,7 +339,7 @@ class DeletionTests(unittest.IsolatedAsyncioTestCase):
         await flow.async_step_manage({"device": "0"})
         result = await flow.async_step_delete_confirm({"confirm": True})
         self.assertEqual(result["type"], FlowResultType.CREATE_ENTRY)
-        self.assertEqual(self._diagnostics_present(), [False, False, False])
+        self.assertEqual(self._diagnostics_present(), [False, False, False, False])
         # The other sender's row is untouched.
         self.assertIsNotNone(
             self.registry.async_get_entity_id("binary_sensor", DOMAIN, "16909060-None")

@@ -140,9 +140,15 @@ own four-byte sender ID.
 - **Radio health is observable.** The dongle appears as its own device
   (firmware and chip version read with `CO_RD_VERSION`, received-telegram
   counter, last telegram, connectivity, Base ID). Every radio device carries
-  three diagnostic sensors, disabled by default: signal strength (dBm, icon by
-  range), last telegram and repeater hops. Enable them from the device page to
-  build a coverage dashboard; they cost nothing while disabled.
+  four diagnostic sensors, disabled by default: signal strength (dBm, icon by
+  range), last telegram, repeater hops, and remaining energy as self-reported
+  by a SIGNAL telegram (RORG `0xD0`, MID `0x06`) on the rare devices that send
+  one. Enable them from the device page to build a coverage dashboard; they
+  cost nothing while disabled. A device that also sends other SIGNAL MIDs
+  (firmware revision, heartbeat, RX-channel quality, Product ID) shows the
+  latest one in its diagnostics download; this integration only ever listens
+  for them, never triggers them — see
+  [`docs/device-intelligence.md`](docs/device-intelligence.md).
 
 ## Actions
 

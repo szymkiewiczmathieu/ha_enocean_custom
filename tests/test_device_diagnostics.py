@@ -181,11 +181,50 @@ class DeviceDiagnosticsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(radio["last_rssi_dbm"], -61)
         self.assertEqual(radio["rorgs"], ["0xD2"])
         self.assertEqual(radio["last_telegram"], "D2 04 00 64 00 00 00 00 00")
+        self.assertIsNone(radio["last_signal"], "no SIGNAL telegram observed yet")
         entities = {entity["unique_id_suffix"]: entity for entity in export["entities"]}
         self.assertEqual(set(entities), {"-0", "-radio_rssi"})
         self.assertEqual(entities["-radio_rssi"]["disabled_by"], "integration")
         self.assertEqual(entities["-radio_rssi"]["translation_key"], "radio_rssi")
         self.assertTrue(export["availability"]["enabled"])
+
+    async def test_sender_device_export_includes_signal_facts(self):
+        # MID 0x12 Product ID: manufacturer 0x046D, product reference 0xDEADBEEF.
+        self.inbox.observe(
+            packet_observation(
+                _parsed(
+                    [
+                        RORG.SIGNAL,
+                        0x12,
+                        0x04,
+                        0x6D,
+                        0xDE,
+                        0xAD,
+                        0xBE,
+                        0xEF,
+                        *SENDER,
+                        0x00,
+                    ]
+                )
+            )
+        )
+        export = await async_get_device_diagnostics(self.hass, self.entry, self.device)
+        self.assertNotIn("1133", repr(export), "manufacturer_id must be redacted")
+        signal = export["radio"]["last_signal"]
+        self.assertEqual(signal["mid"], "0x12")
+        self.assertEqual(signal["product_id"], "**REDACTED**")
+        self.assertIsNone(signal["energy_status_percent"])
+        self.assertFalse(signal["heartbeat"])
+
+        # "Last signal", not an accumulation: a later MID replaces the shape.
+        self.inbox.observe(
+            packet_observation(_parsed([RORG.SIGNAL, 0x06, 55, *SENDER, 0x00]))
+        )
+        export = await async_get_device_diagnostics(self.hass, self.entry, self.device)
+        signal = export["radio"]["last_signal"]
+        self.assertEqual(signal["mid"], "0x06")
+        self.assertEqual(signal["energy_status_percent"], 55)
+        self.assertIsNone(signal["product_id"])
 
     async def test_gateway_device_exports_the_dongle_diagnostics(self):
         export = await async_get_device_diagnostics(self.hass, self.entry, self.gateway)

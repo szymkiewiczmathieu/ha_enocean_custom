@@ -404,6 +404,9 @@
       "radio_repeater_count": {
         "name": "Repeater hops"
       },
+      "signal_energy": {
+        "name": "Signal energy status"
+      },
       "gateway_received_telegrams": {
         "name": "Received telegrams"
       },

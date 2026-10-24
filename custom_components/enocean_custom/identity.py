@@ -87,10 +87,14 @@ GENERIC_KEY_PREFIX: Final = "eep_"
 SENSOR_KEY_RADIO_RSSI: Final = "radio_rssi"
 SENSOR_KEY_RADIO_LAST_SEEN: Final = "radio_last_seen"
 SENSOR_KEY_RADIO_REPEATER_COUNT: Final = "radio_repeater_count"
+# MID 0x06 of a RORG 0xD0 SIGNAL telegram the sender transmits on its own
+# initiative (signal_telegram.py); never requested by this integration.
+SENSOR_KEY_SIGNAL_ENERGY: Final = "signal_energy"
 RADIO_DIAGNOSTIC_KEYS: Final = (
     SENSOR_KEY_RADIO_RSSI,
     SENSOR_KEY_RADIO_LAST_SEEN,
     SENSOR_KEY_RADIO_REPEATER_COUNT,
+    SENSOR_KEY_SIGNAL_ENERGY,
 )
 
 # Gateway (dongle) entities, added in 2.10.0. They hang off the config entry,

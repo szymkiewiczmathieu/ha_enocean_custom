@@ -66,6 +66,7 @@ from .identity import (
     SENSOR_KEY_RADIO_REPEATER_COUNT,
     SENSOR_KEY_RADIO_RSSI,
     SENSOR_KEY_SHUTTERCONTACT,
+    SENSOR_KEY_SIGNAL_ENERGY,
     SENSOR_KEY_TEMPERATURE,
     SENSOR_KEY_WINDOWHANDLE,
     device_names_by_sender,
@@ -564,6 +565,7 @@ def _radio_diagnostic_entities(rows: list[dict]) -> list[EnOceanRadioDiagnosticS
             EnOceanRssiSensor,
             EnOceanLastSeenSensor,
             EnOceanRepeaterCountSensor,
+            EnOceanSignalEnergySensor,
         ):
             entities.append(
                 sensor_class(row["id"], names[sender]).set_radio_metadata(
@@ -650,6 +652,28 @@ class EnOceanRepeaterCountSensor(EnOceanRadioDiagnosticSensor):
     def _apply(self, observation: PacketObservation) -> None:
         if observation.repeater_count is not None:
             self._attr_native_value = observation.repeater_count
+
+
+class EnOceanSignalEnergySensor(EnOceanRadioDiagnosticSensor):
+    """Remaining energy self-reported by a SIGNAL telegram (RORG 0xD0, MID 0x06).
+
+    Only a device that implements the EnOcean "Signal Telegram" specification
+    sends this, entirely on its own initiative; this integration never
+    requests or triggers it (see ``signal_telegram.py``).
+    """
+
+    _key = SENSOR_KEY_SIGNAL_ENERGY
+    _attr_device_class = SensorDeviceClass.BATTERY
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    @override
+    def _apply(self, observation: PacketObservation) -> None:
+        if (
+            observation.signal is not None
+            and observation.signal.energy_status is not None
+        ):
+            self._attr_native_value = observation.signal.energy_status.percent
 
 
 def _entities_from_config(config: ConfigType) -> list[EnOceanSensor]:

@@ -112,6 +112,49 @@ def _entity_shape(entity: er.RegistryEntry, sender_decimal: str) -> dict[str, An
     }
 
 
+def _signal_shape(signal: Any) -> dict[str, Any] | None:
+    """Describe the last decoded SIGNAL (RORG 0xD0) telegram, or None.
+
+    Display-only: a Product ID or revision observed here is never written
+    back into a row's declared profile.
+    """
+    if signal is None:
+        return None
+    return {
+        "mid": f"0x{signal.mid:02X}",
+        "energy_status_percent": (
+            signal.energy_status.percent if signal.energy_status else None
+        ),
+        "revision": (
+            {
+                "sw_version": signal.revision.sw_version,
+                "hw_version": signal.revision.hw_version,
+            }
+            if signal.revision
+            else None
+        ),
+        "heartbeat": signal.heartbeat,
+        "rx_channel_quality": (
+            {
+                "dbm_worst": signal.rx_channel_quality.dbm_worst,
+                "dbm_best": signal.rx_channel_quality.dbm_best,
+                "subtelegram_count": signal.rx_channel_quality.subtelegram_count,
+                "max_repeater_level": signal.rx_channel_quality.max_repeater_level,
+            }
+            if signal.rx_channel_quality
+            else None
+        ),
+        "product_id": (
+            {
+                "manufacturer_id": signal.product_id.manufacturer_id,
+                "product_reference": signal.product_id.product_reference,
+            }
+            if signal.product_id
+            else None
+        ),
+    }
+
+
 async def async_get_device_diagnostics(
     hass: HomeAssistant, entry: ConfigEntry[EnOceanDongle], device: dr.DeviceEntry
 ) -> dict[str, Any]:
@@ -150,6 +193,7 @@ async def async_get_device_diagnostics(
                 if observation.last_payload is not None
                 else None
             ),
+            "last_signal": _signal_shape(observation.last_signal),
         }
     sender_decimal = str(sender_int)
     entities = [

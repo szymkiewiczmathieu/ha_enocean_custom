@@ -1,5 +1,3 @@
-# -*- encoding: utf-8 -*-
-from __future__ import print_function, unicode_literals, division, absolute_import
 from enum import IntEnum
 
 
@@ -52,6 +50,7 @@ class RORG(IntEnum):
     BS4 = 0xA5
     VLD = 0xD2
     MSC = 0xD1
+    SIGNAL = 0xD0
     ADT = 0xA6
     SM_LRN_REQ = 0xC6
     SM_LRN_ANS = 0xC7
@@ -71,7 +70,7 @@ class PARSE_RESULT(IntEnum):
 
 # Data byte indexing
 # Starts from the end, so works on messages of all length.
-class DB0(object):
+class DB0:
     BIT_0 = -1
     BIT_1 = -2
     BIT_2 = -3
@@ -82,7 +81,7 @@ class DB0(object):
     BIT_7 = -8
 
 
-class DB1(object):
+class DB1:
     BIT_0 = -9
     BIT_1 = -10
     BIT_2 = -11
@@ -93,7 +92,7 @@ class DB1(object):
     BIT_7 = -16
 
 
-class DB2(object):
+class DB2:
     BIT_0 = -17
     BIT_1 = -18
     BIT_2 = -19
@@ -104,7 +103,7 @@ class DB2(object):
     BIT_7 = -24
 
 
-class DB3(object):
+class DB3:
     BIT_0 = -25
     BIT_1 = -26
     BIT_2 = -27
@@ -115,7 +114,7 @@ class DB3(object):
     BIT_7 = -32
 
 
-class DB4(object):
+class DB4:
     BIT_0 = -33
     BIT_1 = -34
     BIT_2 = -35
@@ -126,7 +125,7 @@ class DB4(object):
     BIT_7 = -40
 
 
-class DB5(object):
+class DB5:
     BIT_0 = -41
     BIT_1 = -42
     BIT_2 = -43
@@ -137,7 +136,7 @@ class DB5(object):
     BIT_7 = -48
 
 
-class DB6(object):
+class DB6:
     BIT_0 = -49
     BIT_1 = -50
     BIT_2 = -51

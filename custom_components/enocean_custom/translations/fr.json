@@ -404,6 +404,9 @@
       "radio_repeater_count": {
         "name": "Sauts de répéteur"
       },
+      "signal_energy": {
+        "name": "État d'énergie (télégramme Signal)"
+      },
       "gateway_received_telegrams": {
         "name": "Télégrammes reçus"
       },

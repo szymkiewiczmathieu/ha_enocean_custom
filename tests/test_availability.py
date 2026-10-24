@@ -259,7 +259,12 @@ class EntitySilenceTests(unittest.IsolatedAsyncioTestCase):
             entity.dev_name: entity
             for entity in (*binaries, *sensors)
             if not entity.unique_id.endswith(
-                ("radio_rssi", "radio_last_seen", "radio_repeater_count")
+                (
+                    "radio_rssi",
+                    "radio_last_seen",
+                    "radio_repeater_count",
+                    "signal_energy",
+                )
             )
         }
         self.assertEqual(by_name["Smoke"]._silence_timeout, timedelta(minutes=60))

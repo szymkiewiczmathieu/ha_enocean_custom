@@ -236,6 +236,41 @@ unlisted ID shows the `not_registered` token, and an ID that was never observed
 shows `—`. The distinction matters because "not registered" is an assertion
 about the registry, which cannot be made without having read an ID.
 
+### SIGNAL telegrams (RORG 0xD0)
+
+Independently of its main EEP, a device may send a SIGNAL telegram (RORG
+`0xD0`) to report a generic system condition, identified by a one-byte MID
+that follows the RORG. `signal_telegram.py` decodes the five MIDs in scope
+for this release, straight from the EnOcean Alliance "Signal Telegram"
+system specification V3.6 (<https://www.enocean-alliance.org/st/>):
+
+| MID    | Content                       | Surfaced as                                             |
+| ------ | ------------------------------ | -------------------------------------------------------- |
+| `0x06` | Energy status (remaining energy, 1..100 %, 0 = "gasp of death") | a disabled-by-default per-sender diagnostic sensor (`signal_energy`), alongside the existing RSSI/last-seen/repeater-hops set |
+| `0x07` | Revision (SW version, then HW version, each `A.B.C.D`) | per-device diagnostics export only |
+| `0x08` | Heartbeat ("still alive", no payload)                   | per-device diagnostics export only; also resets the silence timer like any other telegram from that sender |
+| `0x0A` | RX-channel quality (debug link quality)                 | per-device diagnostics export only |
+| `0x12` | Product ID (manufacturer ID + product reference)        | per-device diagnostics export only, redacted the same way the UTE-derived Product ID already is |
+
+Every decoded fact is **display-only**: it is read from the inbox's
+"latest telegram observed" slot and shown in `async_get_device_diagnostics`,
+never written into a row's `radio_metadata`. A SIGNAL telegram never changes
+a declared profile, the same way an RPS or 1BS telegram never does.
+
+MID `0x0A` deserves a caveat: on EnOcean TCM 515/615 modules it is normally
+only produced once a transmitter's debug "RSSI test mode" has been turned on
+with a dedicated ESP3 write command, which the module's own user manual
+warns "significantly increases the radio traffic" and "shall not be used in
+production devices". This integration never sends that command, or any
+other command that would make a device start emitting SIGNAL telegrams it
+would not send on its own; a MID `0x0A` telegram is only decoded here if it
+already arrived on the air. MID `0x07` (Revision) is 15 ERP1 data bytes,
+one more than the 14-byte broadcast limit the same manual documents; on
+real hardware it may need ERP2 chaining the vendored library does not
+reassemble, in which case the integration simply never decodes it rather
+than guessing — **needs hardware validation** before anyone should expect
+to see it in practice.
+
 ## Privacy and integrity boundaries
 
 - **Persisted fields.** `radio_metadata` stores only `sender_id`, `eep`,

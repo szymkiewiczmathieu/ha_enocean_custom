@@ -9,6 +9,7 @@ from typing import Any
 
 from .enocean_library.protocol.constants import RORG
 from .runtime import get_inbox
+from .signal_telegram import SignalSnapshot, decode_signal_telegram
 
 MAX_UNCONFIGURED_SENDERS = 64
 _REPEATER_RORGS = frozenset((int(RORG.RPS), int(RORG.BS1), int(RORG.BS4)))
@@ -31,6 +32,7 @@ class PacketObservation:
     rssi_dbm: int | None
     repeater_count: int | None
     payload: tuple[int, ...] | None = None
+    signal: SignalSnapshot | None = None
 
 
 @dataclass(slots=True)
@@ -43,6 +45,7 @@ class InboxEntry:
     last_repeater_count: int | None = None
     rorgs: set[int] = field(default_factory=set)
     last_payload: tuple[int, ...] | None = None
+    last_signal: SignalSnapshot | None = None
 
 
 def _anonymized_payload(data: Any) -> tuple[int, ...] | None:
@@ -85,7 +88,8 @@ def packet_observation(packet: Any) -> PacketObservation | None:
         # ERP1 status bits 0..3 are the repeater counter for RPS/1BS/4BS.
         repeater_count = status & 0x0F
     payload = _anonymized_payload(getattr(packet, "data", None))
-    return PacketObservation(sender_id, rorg, rssi_dbm, repeater_count, payload)
+    signal = decode_signal_telegram(getattr(packet, "data", None))
+    return PacketObservation(sender_id, rorg, rssi_dbm, repeater_count, payload, signal)
 
 
 class DeviceInbox:
@@ -110,6 +114,8 @@ class DeviceInbox:
         entry.rorgs.add(observation.rorg)
         if observation.payload is not None:
             entry.last_payload = observation.payload
+        if observation.signal is not None:
+            entry.last_signal = observation.signal
         self._entries[observation.sender_id] = entry
         self._evict_unknown_lru()
 
