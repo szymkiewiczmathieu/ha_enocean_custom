@@ -369,6 +369,22 @@
         "name": "Pluie"
       }
     },
+    "event": {
+      "rocker_event": {
+        "name": "Bouton bascule",
+        "state": {
+          "channel_0_pressed": "Canal 0 appuyé",
+          "channel_0_released": "Canal 0 relâché",
+          "channel_0_long_pressed": "Canal 0 appui long",
+          "channel_1_pressed": "Canal 1 appuyé",
+          "channel_1_released": "Canal 1 relâché",
+          "channel_1_long_pressed": "Canal 1 appui long",
+          "both_pressed": "Les deux canaux appuyés",
+          "both_released": "Les deux canaux relâchés",
+          "both_long_pressed": "Les deux canaux appui long"
+        }
+      }
+    },
     "select": {
       "gateway_repeater": {
         "name": "Répéteur",

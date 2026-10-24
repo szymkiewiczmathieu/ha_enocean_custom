@@ -369,6 +369,22 @@
         "name": "Rain"
       }
     },
+    "event": {
+      "rocker_event": {
+        "name": "Rocker",
+        "state": {
+          "channel_0_pressed": "Channel 0 pressed",
+          "channel_0_released": "Channel 0 released",
+          "channel_0_long_pressed": "Channel 0 long press",
+          "channel_1_pressed": "Channel 1 pressed",
+          "channel_1_released": "Channel 1 released",
+          "channel_1_long_pressed": "Channel 1 long press",
+          "both_pressed": "Both channels pressed",
+          "both_released": "Both channels released",
+          "both_long_pressed": "Both channels long press"
+        }
+      }
+    },
     "select": {
       "gateway_repeater": {
         "name": "Repeater",

@@ -47,9 +47,10 @@ LOGGER = logging.getLogger(__package__)
 # UI row names one of them as its ``platform``.
 UI_DEVICE_PLATFORMS = ("binary_sensor", "climate", "light", "sensor", "switch")
 
-# Every platform the config entry forwards: the row platforms plus ``select``,
-# which only carries the dongle's own repeater setting (never a UI row).
+# Every platform the config entry forwards: the row platforms, ``select``
+# (the dongle's own repeater setting, never a UI row) and ``event`` (one
+# companion entity per rocker sender, never a UI row either).
 PLATFORMS: tuple[Platform, ...] = tuple(
-    Platform(name) for name in (*UI_DEVICE_PLATFORMS, "select")
+    Platform(name) for name in (*UI_DEVICE_PLATFORMS, "select", "event")
 )
 FORWARDED_PLATFORMS = tuple(platform.value for platform in PLATFORMS)

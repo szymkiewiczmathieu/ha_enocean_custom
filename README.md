@@ -195,6 +195,20 @@ data:
 learn window (`id`, `hex`, `evidence`, `support`, and the declared `eep` when a
 UTE or 4BS teach-in carried one).
 
+Every rocker device also gets a companion `event` entity, enabled by default,
+next to the existing triggers above (nothing above changes or stops working).
+It gives the same facts a typed, translatable shape with its own history
+timeline in the UI, with no custom trigger needed to react to a specific
+button: `channel_0_pressed`/`released`, `channel_1_pressed`/`released`, and
+`both_pressed`/`released` for the bitfield telegram some rockers send when
+both halves are pressed together. A rocker has no telegram of its own for a
+long press, so `channel_0_long_pressed`, `channel_1_long_pressed` and
+`both_long_pressed` are computed locally: held for one full second between
+the press and the release telegrams, fired right after the matching
+`_released` event. The entity only ever listens to the same `button_pressed`
+bus event above; it never parses a radio telegram itself, so the two can
+never disagree.
+
 ## Automation blueprints
 
 Three ready-made automations live in

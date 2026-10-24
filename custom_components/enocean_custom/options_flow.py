@@ -84,6 +84,7 @@ from .enocean_library.utils import combine_hex, to_hex_string
 from .entity import build_radio_optional, get_gateway_base_id
 from .identity import (
     GENERIC_SENSOR_DEVICE_CLASS,
+    rocker_event_unique_id,
     sender_diagnostic_identities,
     ui_device_entity_identities,
 )
@@ -2465,7 +2466,10 @@ class EnOceanOptionsFlow(OptionsFlow):
         # The radio diagnostics belong to the device, not to the row: they go
         # when the last row of that sender goes.
         if not any(row["id"] == device["id"] for row in valid_ui_devices(raw_devices)):
-            for platform, unique_id in sender_diagnostic_identities(device["id"]):
+            for platform, unique_id in (
+                *sender_diagnostic_identities(device["id"]),
+                ("event", rocker_event_unique_id(device["id"])),
+            ):
                 entity_id = registry.async_get_entity_id(platform, DOMAIN, unique_id)
                 if entity_id is not None:
                     registry.async_remove(entity_id)

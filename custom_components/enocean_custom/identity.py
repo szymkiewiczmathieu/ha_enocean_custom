@@ -177,6 +177,11 @@ def sender_diagnostic_identities(dev_id: list[int]) -> tuple[tuple[str, str], ..
     )
 
 
+def rocker_event_unique_id(dev_id: list[int]) -> str:
+    """Return the identity of the rocker's companion ``event`` entity (2.10.0)."""
+    return f"{combine_hex(dev_id)}-rocker-event"
+
+
 def device_names_by_sender(rows: Any) -> dict[int, str]:
     """Return the device name of each sender: the name of its first valid row.
 
