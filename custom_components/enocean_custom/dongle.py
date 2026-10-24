@@ -15,9 +15,16 @@ from time import monotonic
 from typing import Any
 
 import serial
+
+# Aliased: EnOceanDongle already has its own packet-receive method named
+# ``callback``, which would otherwise shadow this decorator inside the
+# class body (a name bound earlier in a class body wins over the module
+# global for any later bare reference in that same body).
+from homeassistant.core import callback as ha_callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.dispatcher import async_dispatcher_send, dispatcher_send
+from homeassistant.helpers.event import async_call_later
 
 from .const import (
     DOMAIN,
@@ -38,6 +45,17 @@ _LOGGER = logging.getLogger(__name__)
 CO_RD_VERSION = 0x03
 CO_WR_REPEATER = 0x09
 CO_RD_REPEATER = 0x0A
+
+# serial.serial_for_url schemes for a remote dongle (ser2net, ESPHome
+# stream_server, esp-ha-usb-gateway): these are the only paths bounded
+# reconnection ever applies to. A plain device path keeps today's behavior
+# unchanged -- an unexpected stop still requires a manual reload.
+NETWORK_URL_SCHEMES = ("socket://", "rfc2217://")
+
+
+def is_network_url(path: object) -> bool:
+    """Return whether ``path`` is a remote-dongle URL, not a local device."""
+    return isinstance(path, str) and path.lower().startswith(NETWORK_URL_SCHEMES)
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,6 +131,15 @@ class EnOceanDongle:
     BASE_ID_RETRY_LIMIT = 3
     BASE_ID_RETRY_BACKOFF_SECONDS = (5.0, 30.0, 120.0)
 
+    # Bounded reconnection: only for a socket:// / rfc2217:// remote dongle,
+    # whose link can drop for reasons a local USB cable never has (a ser2net
+    # restart, a brief network blip). A plain device path never reconnects
+    # on its own; an unexpected stop there still requires a manual reload,
+    # exactly as before this item. Growing backoff, a hard ceiling, then
+    # give up: never a tight retry loop, never forever.
+    RECONNECT_LIMIT = 5
+    RECONNECT_BACKOFF_SECONDS = (2.0, 5.0, 15.0, 30.0, 60.0)
+
     def __init__(self, hass, serial_path: str, entry_id: str | None = None) -> None:
         """Initialize the EnOcean dongle and open its serial descriptor."""
         self.serial_path = serial_path
@@ -130,6 +157,8 @@ class EnOceanDongle:
         self._base_id_retry_count = 0
         self._base_id_retry_not_before = 0.0
         self._base_id_retry_lock = Lock()
+        self._reconnect_attempts = 0
+        self._reconnect_unsub: Callable[[], None] | None = None
         self._started_at: datetime | None = None
         self._last_packet_at: datetime | None = None
         self._last_error: str | None = None
@@ -374,6 +403,9 @@ class EnOceanDongle:
         """Stop the sole serial owner before allowing config-entry reload."""
         self._stopping = True
         self._available = False
+        if self._reconnect_unsub is not None:
+            self._reconnect_unsub()
+            self._reconnect_unsub = None
         dispatcher_send(self.hass, SIGNAL_DONGLE_STATUS, False)
         self._communicator.stop()
         # Keep the join off the event loop and bounded. If it fails, unloading
@@ -511,8 +543,78 @@ class EnOceanDongle:
             for response_callback in callbacks:
                 self.hass.loop.call_soon_threadsafe(response_callback, False)
             self.hass.loop.call_soon_threadsafe(self._notify_status)
+            if not self._stopping and is_network_url(self.serial_path):
+                self.hass.loop.call_soon_threadsafe(self._schedule_reconnect)
         except RuntimeError:
             _LOGGER.debug("Home Assistant loop closed before serial stop notification")
+
+    @ha_callback
+    def _schedule_reconnect(self) -> None:
+        """Arm one bounded, backed-off reconnection attempt.
+
+        Runs on Home Assistant's event loop, scheduled from the worker
+        thread via call_soon_threadsafe. A pending attempt or a deliberate
+        unload in the meantime is left alone.
+        """
+        if self._stopping or self._reconnect_unsub is not None:
+            return
+        if self._reconnect_attempts >= self.RECONNECT_LIMIT:
+            _LOGGER.error(
+                "Giving up reconnecting to the network dongle after %d attempts; "
+                "reload the integration once the link is back",
+                self._reconnect_attempts,
+            )
+            return
+        delay = self.RECONNECT_BACKOFF_SECONDS[
+            min(self._reconnect_attempts, len(self.RECONNECT_BACKOFF_SECONDS) - 1)
+        ]
+        self._reconnect_attempts += 1
+        _LOGGER.warning(
+            "Network dongle link lost; retrying in %.0fs (attempt %d of %d)",
+            delay,
+            self._reconnect_attempts,
+            self.RECONNECT_LIMIT,
+        )
+        self._reconnect_unsub = async_call_later(
+            self.hass, delay, self._attempt_reconnect
+        )
+
+    def _build_communicator(self) -> SerialCommunicator:
+        """Open the network link; blocking, so only ever run in the executor."""
+        return SerialCommunicator(
+            port=self.serial_path,
+            callback=self.callback,
+            stopped_callback=self._communicator_stopped,
+            written_callback=self._packet_written,
+            teach_in=False,
+        )
+
+    async def _attempt_reconnect(self, _now: datetime) -> None:
+        """Rebuild and restart the worker; failure re-arms its own retry."""
+        self._reconnect_unsub = None
+        if self._stopping:
+            return
+        try:
+            communicator = await self.hass.async_add_executor_job(
+                self._build_communicator
+            )
+        except serial.SerialException:
+            _LOGGER.warning("Reconnection attempt failed; the link is still down")
+            self._schedule_reconnect()
+            return
+        self._communicator = communicator
+        self._available = True
+        self._last_error = None
+        self._started_at = datetime.now(UTC)
+        self._communicator.start()
+        self._communicator.request_base_id()
+        self.request_version()
+        self.request_repeater()
+        # A successful reopen is real progress: the next outage gets a fresh
+        # budget of attempts rather than inheriting this one's count.
+        self._reconnect_attempts = 0
+        ir.async_delete_issue(self.hass, DOMAIN, ISSUE_SERIAL_STOPPED)
+        self._notify_status()
 
     def _notify_status(self) -> None:
         """Publish availability and create a Repair for unexpected termination."""
@@ -554,6 +656,9 @@ class EnOceanDongle:
             "stopping": self._stopping,
             "base_id_resolved": self.base_id is not None,
             "base_id_retries": self._base_id_retry_count,
+            "network_url": is_network_url(self.serial_path),
+            "reconnect_attempts": self._reconnect_attempts,
+            "reconnect_pending": self._reconnect_unsub is not None,
             # The chip ID is an EnOcean identifier and stays out of exports.
             "gateway_info": (
                 {

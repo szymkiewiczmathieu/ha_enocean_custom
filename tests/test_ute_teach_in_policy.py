@@ -148,15 +148,20 @@ class AutomaticTeachInIsNeverEnabledTests(unittest.TestCase):
         self.assertIn("super().__init__(callback, teach_in=teach_in)", source)
 
     def test_runtime_dongle_builds_its_worker_without_teach_in(self):
+        # Two legitimate construction sites: __init__, and bounded
+        # reconnection (_build_communicator) for a socket:// / rfc2217://
+        # remote dongle. Both must independently refuse to default into
+        # automatic teach-in.
         runtime_calls = [
             call
             for call in _calls_to(DONGLE_PATH, "SerialCommunicator")
             if _keyword(call, "callback") is not None
         ]
-        self.assertEqual(len(runtime_calls), 1)
-        teach_in = _keyword(runtime_calls[0], "teach_in")
-        self.assertIsInstance(teach_in, ast.Constant)
-        self.assertIs(teach_in.value, False)
+        self.assertEqual(len(runtime_calls), 2)
+        for call in runtime_calls:
+            teach_in = _keyword(call, "teach_in")
+            self.assertIsInstance(teach_in, ast.Constant)
+            self.assertIs(teach_in.value, False)
 
     def test_no_integration_module_requests_automatic_teach_in(self):
         offenders = []
@@ -326,6 +331,9 @@ class SerialWorkerTests(unittest.TestCase):
             def __init__(self, *_args, **_kwargs):
                 self._frames = [bytes(UTE_FRAME)]
                 self.closed = False
+
+            def open(self):
+                """serial_for_url opens separately; this fake is pre-opened."""
 
             def read(self, _size):
                 return self._frames.pop() if self._frames else b""

@@ -10,7 +10,7 @@
           "device": "USB dongle path"
         },
         "data_description": {
-          "device": "Path to your EnOcean USB dongle."
+          "device": "Path to your EnOcean USB dongle, or a socket://host:port / rfc2217://host:port URL for a dongle shared over the network (ser2net, ESPHome stream_server, esp-ha-usb-gateway)."
         }
       },
       "manual": {
@@ -20,7 +20,7 @@
           "device": "USB dongle path"
         },
         "data_description": {
-          "device": "Path to your EnOcean USB dongle."
+          "device": "Path to your EnOcean USB dongle, or a socket://host:port / rfc2217://host:port URL for a dongle shared over the network (ser2net, ESPHome stream_server, esp-ha-usb-gateway). A network link reconnects on its own, a bounded number of times, after an unexpected drop; a local path does not."
         }
       },
       "reconfigure": {
@@ -30,7 +30,7 @@
           "device": "USB dongle path"
         },
         "data_description": {
-          "device": "Path to your EnOcean USB dongle."
+          "device": "Path to your EnOcean USB dongle, or a socket://host:port / rfc2217://host:port URL for a dongle shared over the network."
         }
       },
       "usb_confirm": {

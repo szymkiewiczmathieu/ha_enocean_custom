@@ -42,7 +42,13 @@ The only installation parameter is the serial device:
 
 | Parameter | Meaning |
 | --- | --- |
-| `device` | Path of the ESP3 serial port, preferably the stable `/dev/serial/by-id/usb-EnOcean_GmbH_EnOcean_USB_300_...` alias. |
+| `device` | Path of the ESP3 serial port, preferably the stable `/dev/serial/by-id/usb-EnOcean_GmbH_EnOcean_USB_300_...` alias. A `socket://host:port` or `rfc2217://host:port` URL also works, for a dongle shared over the network through ser2net, ESPHome's `stream_server`, or esp-ha-usb-gateway. |
+
+A network link reconnects on its own after an unexpected drop: a growing
+backoff (2s, 5s, 15s, 30s, 60s), then it gives up and waits for a manual
+reload, so a flaky link never retries forever. A local device path never
+reconnects on its own — this is unchanged and matches how a lost USB
+connection has always behaved.
 
 A dongle must have one reader. Do not configure `enocean` and `enocean_custom`
 against the same serial device. If the port changes, use **Reconfigure** on the

@@ -38,8 +38,12 @@ class SerialCommunicator(Communicator):
         self._response_pending_packet = None
         self._response_deadline = None
         self._last_buffer_progress_at = None
-        # Initialize serial port
-        self.__ser = serial.Serial(port, 57600, timeout=0.1, write_timeout=0.5)
+        # Initialize serial port. serial_for_url is a transparent superset of
+        # serial.Serial: a plain path (/dev/ttyUSB0, COM3, ...) opens exactly
+        # as before, while a socket:// or rfc2217:// URL opens a TCP link to
+        # a remote dongle (ser2net, ESPHome stream_server, esp-ha-usb-gateway)
+        # instead -- both raise the same serial.SerialException on failure.
+        self.__ser = serial.serial_for_url(port, 57600, timeout=0.1, write_timeout=0.5)
 
     def stop(self):
         """Stop the worker and actively interrupt pending serial I/O."""

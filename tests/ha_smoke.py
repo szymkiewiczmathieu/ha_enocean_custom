@@ -687,6 +687,9 @@ def _assert_generic_frame_timeout_resyncs_following_frame() -> None:
             self._chunks = deque([stream])
             self.closed = False
 
+        def open(self):
+            """serial_for_url opens separately; this fake is pre-opened."""
+
         def read(self, _size):
             return self._chunks.popleft() if self._chunks else b""
 

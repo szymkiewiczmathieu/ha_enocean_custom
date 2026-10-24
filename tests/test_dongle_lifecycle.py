@@ -47,8 +47,15 @@ def _load_dongle_members(*names):
     class_members: list[ast.stmt] = []
     for node in dongle_class.body:
         if (
-            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and node.name in names
+            (
+                isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and node.name in names
+            )
+            or isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id in names
+                for target in node.targets
+            )
         ):
             class_members.append(node)
     top_level: list[ast.stmt] = []
@@ -76,6 +83,12 @@ def _load_dongle_members(*names):
         "SerialCommunicator": Mock(),
         "SIGNAL_DONGLE_STATUS": "dongle_status",
         "SIGNAL_RECEIVE_MESSAGE": "receive_message",
+        "NETWORK_URL_SCHEMES": ("socket://", "rfc2217://"),
+        "ha_callback": lambda function: function,
+        "async_call_later": Mock(return_value=Mock(name="cancel_reconnect")),
+        "DOMAIN": "enocean_custom",
+        "ISSUE_SERIAL_STOPPED": "serial_stopped",
+        "ir": Mock(),
         "dispatcher_send": Mock(),
         "samefile": Mock(),
         "serial": serial,
@@ -169,6 +182,7 @@ def _load_serial_class(serial_port=None):
 
     serial = SimpleNamespace(
         Serial=lambda *args, **kwargs: serial_port or Mock(),
+        serial_for_url=lambda *args, **kwargs: serial_port or Mock(),
         SerialException=OSError,
     )
     namespace = {
@@ -187,6 +201,7 @@ class DongleLifecycleTests(unittest.IsolatedAsyncioTestCase):
         dongle = namespace["EnOceanDongle"]()
         dongle._stopping = False
         dongle._available = True
+        dongle._reconnect_unsub = None
         dongle._communicator = Mock()
         dongle._communicator.is_alive.return_value = False
         dongle.hass = Mock()
@@ -211,6 +226,7 @@ class DongleLifecycleTests(unittest.IsolatedAsyncioTestCase):
         dongle = namespace["EnOceanDongle"]()
         dongle._stopping = False
         dongle._available = True
+        dongle._reconnect_unsub = None
         dongle._notify_status = Mock()
         dongle._communicator = Mock()
         dongle._communicator.is_alive.return_value = True
@@ -227,7 +243,7 @@ class DongleLifecycleTests(unittest.IsolatedAsyncioTestCase):
         namespace["_LOGGER"].warning.assert_called_once()
 
     def test_serial_error_redacts_device_path(self):
-        namespace = _load_dongle_members("_communicator_stopped")
+        namespace = _load_dongle_members("_communicator_stopped", "is_network_url")
         dongle = namespace["EnOceanDongle"]()
         dongle.serial_path = "/dev/serial/by-id/private-serial"
         dongle._available = True
@@ -285,13 +301,17 @@ class DongleLifecycleTests(unittest.IsolatedAsyncioTestCase):
         )
 
     def test_diagnostics_redact_path_from_thread_name(self):
-        namespace = _load_dongle_members("available", "base_id", "diagnostics")
+        namespace = _load_dongle_members(
+            "available", "base_id", "diagnostics", "is_network_url"
+        )
         dongle = namespace["EnOceanDongle"]()
         dongle.serial_path = "/dev/serial/by-id/private-hardware-serial"
         dongle.identifier = "configured EnOcean dongle"
         dongle._available = True
         dongle._stopping = False
         dongle._base_id_retry_count = 0
+        dongle._reconnect_attempts = 0
+        dongle._reconnect_unsub = None
         dongle._started_at = None
         dongle._last_packet_at = None
         dongle._last_error = None
@@ -324,13 +344,17 @@ class DongleLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(diagnostics["base_id_retries"], 0)
 
     def test_diagnostics_survives_an_unavailable_queue_depth(self):
-        namespace = _load_dongle_members("available", "base_id", "diagnostics")
+        namespace = _load_dongle_members(
+            "available", "base_id", "diagnostics", "is_network_url"
+        )
         dongle = namespace["EnOceanDongle"]()
         dongle.serial_path = "/dev/test"
         dongle.identifier = "configured EnOcean dongle"
         dongle._available = True
         dongle._stopping = False
         dongle._base_id_retry_count = 2
+        dongle._reconnect_attempts = 0
+        dongle._reconnect_unsub = None
         dongle._started_at = None
         dongle._last_packet_at = None
         dongle._last_error = None
@@ -927,6 +951,255 @@ class ReleaseHardeningTests(unittest.TestCase):
         self.assertNotIn('"Received radio packet: %s", packet', runtime_sources)
         self.assertNotIn('"parse_msg called with buf=%s", buf', runtime_sources)
         self.assertNotIn('"Message incomplete, buf: %s", buf', runtime_sources)
+
+
+class NetworkUrlTests(unittest.TestCase):
+    """socket:// / rfc2217:// support (M13): source-level and pure-function."""
+
+    def test_serial_communicator_opens_via_serial_for_url(self):
+        source = SERIAL_PATH.read_text()
+        self.assertIn("serial.serial_for_url(port,", source)
+        self.assertNotIn("serial.Serial(port,", source)
+
+    def test_is_network_url(self):
+        namespace = _load_dongle_members("is_network_url")
+        is_network_url = namespace["is_network_url"]
+        self.assertTrue(is_network_url("socket://host:5000"))
+        self.assertTrue(is_network_url("rfc2217://host:5000"))
+        self.assertTrue(is_network_url("SOCKET://HOST:5000"))
+        self.assertFalse(is_network_url("/dev/ttyUSB0"))
+        self.assertFalse(is_network_url("/dev/serial/by-id/usb-EnOcean"))
+        self.assertFalse(is_network_url(None))
+        self.assertFalse(is_network_url(123))
+
+
+class NetworkReconnectionTests(unittest.IsolatedAsyncioTestCase):
+    """Bounded reconnection (M13): only for a network URL, never forever."""
+
+    def _stopped_namespace(self):
+        return _load_dongle_members(
+            "_communicator_stopped", "_schedule_reconnect", "is_network_url"
+        )
+
+    def _dongle(self, namespace, *, serial_path, stopping=False):
+        dongle = namespace["EnOceanDongle"]()
+        dongle.serial_path = serial_path
+        dongle._available = True
+        dongle._stopping = stopping
+        dongle._reconnect_attempts = 0
+        dongle._reconnect_unsub = None
+        dongle._attempt_reconnect = Mock()
+        dongle.hass = Mock()
+        dongle._notify_status = Mock()
+        dongle._response_lock = threading.Lock()
+        dongle._queued_response_callbacks = {}
+        dongle._pending_response_callbacks = deque()
+        return dongle
+
+    def test_network_path_schedules_a_reconnect_when_not_stopping(self):
+        namespace = self._stopped_namespace()
+        dongle = self._dongle(namespace, serial_path="socket://host:5000")
+        dongle._communicator_stopped(None)
+        dongle.hass.loop.call_soon_threadsafe.assert_any_call(dongle._notify_status)
+        dongle.hass.loop.call_soon_threadsafe.assert_any_call(
+            dongle._schedule_reconnect
+        )
+
+    def test_plain_path_never_schedules_a_reconnect(self):
+        namespace = self._stopped_namespace()
+        dongle = self._dongle(namespace, serial_path="/dev/serial/by-id/private")
+        dongle._communicator_stopped(None)
+        calls = dongle.hass.loop.call_soon_threadsafe.call_args_list
+        self.assertEqual(calls, [((dongle._notify_status,), {})])
+
+    def test_a_deliberate_stop_never_schedules_a_reconnect(self):
+        namespace = self._stopped_namespace()
+        dongle = self._dongle(
+            namespace, serial_path="socket://host:5000", stopping=True
+        )
+        dongle._communicator_stopped(None)
+        calls = dongle.hass.loop.call_soon_threadsafe.call_args_list
+        self.assertEqual(calls, [((dongle._notify_status,), {})])
+
+    def _schedule_namespace(self):
+        return _load_dongle_members(
+            "_schedule_reconnect", "RECONNECT_LIMIT", "RECONNECT_BACKOFF_SECONDS"
+        )
+
+    def test_backoff_grows_and_the_attempt_counter_advances(self):
+        namespace = self._schedule_namespace()
+        async_call_later = namespace["async_call_later"]
+        dongle = namespace["EnOceanDongle"]()
+        dongle._stopping = False
+        dongle._reconnect_unsub = None
+        dongle._reconnect_attempts = 0
+        dongle._attempt_reconnect = Mock()
+        dongle.hass = Mock()
+        for expected_delay in dongle.RECONNECT_BACKOFF_SECONDS:
+            async_call_later.reset_mock()
+            dongle._reconnect_unsub = None  # the prior attempt "fired"
+            dongle._schedule_reconnect()
+            async_call_later.assert_called_once_with(
+                dongle.hass, expected_delay, dongle._attempt_reconnect
+            )
+        self.assertEqual(
+            dongle._reconnect_attempts, len(dongle.RECONNECT_BACKOFF_SECONDS)
+        )
+
+    def test_gives_up_once_the_limit_is_reached(self):
+        namespace = self._schedule_namespace()
+        async_call_later = namespace["async_call_later"]
+        dongle = namespace["EnOceanDongle"]()
+        dongle._stopping = False
+        dongle._reconnect_unsub = None
+        dongle._reconnect_attempts = dongle.RECONNECT_LIMIT
+        dongle.hass = Mock()
+        async_call_later.reset_mock()
+
+        dongle._schedule_reconnect()
+
+        async_call_later.assert_not_called()
+        self.assertEqual(dongle._reconnect_attempts, dongle.RECONNECT_LIMIT)
+
+    def test_an_attempt_already_pending_is_not_duplicated(self):
+        namespace = self._schedule_namespace()
+        async_call_later = namespace["async_call_later"]
+        dongle = namespace["EnOceanDongle"]()
+        dongle._stopping = False
+        dongle._reconnect_unsub = Mock()  # already armed
+        dongle._reconnect_attempts = 0
+        dongle.hass = Mock()
+        async_call_later.reset_mock()
+
+        dongle._schedule_reconnect()
+
+        async_call_later.assert_not_called()
+        self.assertEqual(dongle._reconnect_attempts, 0)
+
+    async def test_a_successful_reopen_restarts_the_worker_and_resets_the_count(self):
+        namespace = _load_dongle_members(
+            "_attempt_reconnect", "_build_communicator", "_schedule_reconnect"
+        )
+        dongle = namespace["EnOceanDongle"]()
+        dongle._stopping = False
+        dongle._reconnect_unsub = Mock()
+        dongle._reconnect_attempts = 3
+        new_communicator = Mock()
+        dongle._build_communicator = Mock(return_value=new_communicator)
+        dongle.request_version = Mock()
+        dongle.request_repeater = Mock()
+        dongle._notify_status = Mock()
+        dongle.hass = Mock()
+        dongle.hass.async_add_executor_job.side_effect = lambda function, *args: (
+            asyncio.to_thread(function, *args)
+        )
+
+        await dongle._attempt_reconnect(None)
+
+        self.assertIsNone(dongle._reconnect_unsub)
+        self.assertTrue(dongle._available)
+        self.assertIsNone(dongle._last_error)
+        self.assertEqual(dongle._reconnect_attempts, 0)
+        self.assertIs(dongle._communicator, new_communicator)
+        new_communicator.start.assert_called_once_with()
+        new_communicator.request_base_id.assert_called_once_with()
+        dongle.request_version.assert_called_once_with()
+        dongle.request_repeater.assert_called_once_with()
+        dongle._notify_status.assert_called_once_with()
+        namespace["ir"].async_delete_issue.assert_called_once_with(
+            dongle.hass, "enocean_custom", "serial_stopped"
+        )
+
+    async def test_a_failed_reopen_reschedules_instead_of_giving_up_silently(self):
+        namespace = _load_dongle_members(
+            "_attempt_reconnect", "_build_communicator", "_schedule_reconnect"
+        )
+        dongle = namespace["EnOceanDongle"]()
+        dongle._stopping = False
+        dongle._reconnect_unsub = Mock()
+        dongle._reconnect_attempts = 1
+        dongle._build_communicator = Mock(
+            side_effect=namespace["serial"].SerialException("still down")
+        )
+        dongle._schedule_reconnect = Mock()
+        dongle.hass = Mock()
+        dongle.hass.async_add_executor_job.side_effect = lambda function, *args: (
+            asyncio.to_thread(function, *args)
+        )
+
+        await dongle._attempt_reconnect(None)
+
+        self.assertIsNone(dongle._reconnect_unsub)
+        dongle._schedule_reconnect.assert_called_once_with()
+
+    async def test_a_deliberate_stop_is_never_undone_by_a_pending_attempt(self):
+        namespace = _load_dongle_members("_attempt_reconnect", "_build_communicator")
+        dongle = namespace["EnOceanDongle"]()
+        dongle._stopping = True
+        dongle._reconnect_unsub = Mock()
+        dongle._build_communicator = Mock()
+        dongle.hass = Mock()
+
+        await dongle._attempt_reconnect(None)
+
+        self.assertIsNone(dongle._reconnect_unsub)
+        dongle._build_communicator.assert_not_called()
+
+    async def test_async_unload_cancels_a_pending_reconnect(self):
+        namespace = _load_dongle_members("async_unload")
+        dongle = namespace["EnOceanDongle"]()
+        dongle._stopping = False
+        dongle._available = True
+        cancel = Mock()
+        dongle._reconnect_unsub = cancel
+        dongle._communicator = Mock()
+        dongle._communicator.is_alive.return_value = False
+        dongle.hass = Mock()
+        dongle.hass.async_add_executor_job.side_effect = lambda function, *args: (
+            asyncio.to_thread(function, *args)
+        )
+
+        await dongle.async_unload()
+
+        cancel.assert_called_once_with()
+        self.assertIsNone(dongle._reconnect_unsub)
+
+    def test_diagnostics_expose_network_and_reconnect_state(self):
+        namespace = _load_dongle_members(
+            "available", "base_id", "diagnostics", "is_network_url"
+        )
+        dongle = namespace["EnOceanDongle"]()
+        dongle.serial_path = "socket://host:5000"
+        dongle.identifier = "configured EnOcean dongle"
+        dongle._available = True
+        dongle._stopping = False
+        dongle._base_id_retry_count = 0
+        dongle._reconnect_attempts = 2
+        dongle._reconnect_unsub = Mock()
+        dongle._started_at = None
+        dongle._last_packet_at = None
+        dongle._last_error = None
+        dongle._received_packets = 0
+        dongle._transmit_attempts = 0
+        dongle._transmit_queued = 0
+        dongle._transmit_rejected = 0
+        dongle._response_packets = 0
+        dongle._response_errors = 0
+        dongle._last_response_at = None
+        dongle._last_response_code = None
+        dongle._response_lock = threading.Lock()
+        dongle._pending_response_callbacks = deque()
+        dongle._communicator = Mock()
+        dongle._communicator.is_alive.return_value = True
+        dongle._communicator.name = "EnOceanSerialCommunicator"
+        dongle._communicator.transmit = None
+        dongle._communicator.current_base_id = None
+
+        diagnostics = dongle.diagnostics()
+
+        self.assertTrue(diagnostics["network_url"])
+        self.assertEqual(diagnostics["reconnect_attempts"], 2)
+        self.assertTrue(diagnostics["reconnect_pending"])
 
 
 if __name__ == "__main__":

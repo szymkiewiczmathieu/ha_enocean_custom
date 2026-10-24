@@ -10,7 +10,7 @@
           "device": "Chemin du dongle USB"
         },
         "data_description": {
-          "device": "Chemin d'accès à votre dongle USB EnOcean."
+          "device": "Chemin d'accès à votre dongle USB EnOcean, ou une URL socket://hôte:port / rfc2217://hôte:port pour un dongle partagé sur le réseau (ser2net, ESPHome stream_server, esp-ha-usb-gateway)."
         }
       },
       "manual": {
@@ -20,7 +20,7 @@
           "device": "Chemin du dongle USB"
         },
         "data_description": {
-          "device": "Chemin d'accès à votre dongle USB EnOcean."
+          "device": "Chemin d'accès à votre dongle USB EnOcean, ou une URL socket://hôte:port / rfc2217://hôte:port pour un dongle partagé sur le réseau (ser2net, ESPHome stream_server, esp-ha-usb-gateway). Une liaison réseau se reconnecte seule, un nombre borné de fois, après une coupure inattendue ; un chemin local ne le fait pas."
         }
       },
       "reconfigure": {
@@ -30,7 +30,7 @@
           "device": "Chemin du dongle USB"
         },
         "data_description": {
-          "device": "Chemin d'accès à votre dongle USB EnOcean."
+          "device": "Chemin d'accès à votre dongle USB EnOcean, ou une URL socket://hôte:port / rfc2217://hôte:port pour un dongle partagé sur le réseau."
         }
       },
       "usb_confirm": {
