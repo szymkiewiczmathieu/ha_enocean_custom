@@ -57,7 +57,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, LOGGER
 from .enocean_library.protocol.constants import RORG
-from .enocean_library.utils import combine_hex
+from .enocean_library.utils import combine_hex, to_hex_string
 from .entity import EnOceanEntity, build_radio_optional
 from .identity import climate_unique_id
 from .learn import register_known_id
@@ -516,6 +516,7 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
             ATTR_TEMPERATURE_AWAY: getattr(self, "_attr_target_temp_away", None),
             ATTR_VALVE_POSITION: self._attr_valve_position,
             ATTR_VALVE_FAILURE: self._attr_valve_failure,
+            "sender_id": to_hex_string(self._sender_id_switch),
         }
 
     @property

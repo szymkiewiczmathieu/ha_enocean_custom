@@ -297,6 +297,7 @@
       "invalid_channel_rps": "Un interrupteur RPS n'accepte que le canal 0 ou 1.",
       "invalid_channel": "Le canal doit être un entier exact entre 0 et 31.",
       "invalid_sender_id": "L'ID émetteur doit être 4 octets hex, ex. 05:9F:89:34.",
+      "sender_id_collision": "Cet ID émetteur est déjà utilisé par une autre lumière, un autre acteur climatique ou un interrupteur émulé RPS. Chacun a besoin d'une identité virtuelle distincte ; la valeur suggérée ci-dessus est libre.",
       "invalid_qr_code": "La valeur n'est ni un QR de commissioning EnOcean Alliance pris en charge, ni un ID au format AA:BB:CC:DD.",
       "invalid_ute_target": "Saisissez l'EURID exact à quatre octets au format AA:BB:CC:DD ou une étiquette de commissioning prise en charge.",
       "ute_not_ready": "Confirmez que l’écoute est armée avant de démarrer la séquence PRESS locale.",

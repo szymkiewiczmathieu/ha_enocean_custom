@@ -297,6 +297,7 @@
       "invalid_channel_rps": "RPS switches only support channel 0 or 1.",
       "invalid_channel": "Channel must be an exact integer between 0 and 31.",
       "invalid_sender_id": "Sender ID must be 4 hex bytes, e.g. 05:9F:89:34.",
+      "sender_id_collision": "This sender ID is already used by another light, climate actor or RPS-emulated switch. Each one needs a distinct virtual identity; the suggested value above is free.",
       "invalid_qr_code": "The value is neither a supported EnOcean Alliance commissioning QR payload nor an ID formatted as AA:BB:CC:DD.",
       "invalid_ute_target": "Enter the exact four-byte module EURID as AA:BB:CC:DD or a supported commissioning label.",
       "ute_not_ready": "Confirm that the listener is armed before starting the local PRESS sequence.",

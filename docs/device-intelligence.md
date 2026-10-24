@@ -334,6 +334,31 @@ too, with no configuration change.
 ID is exactly cataloged and free of manufacturer conflict. A declared EEP alone
 never produces a model string: grouping happens without inventing identity.
 
+## Sender ID pool
+
+`sender_pool.py` computes offsets inside the dongle's own Base ID
+(`1..127`, read once at startup by the existing, radio-silent `CO_RD_IDBASE`
+command) for the three kinds of row that need a *virtual* transmitter
+identity: A5-38-08 dimmer teach-in (`light.py`), the SRC-D08 climate panel
+(`climate.py`), and an RPS-emulated switch (`switch.py`, `switch_type:
+RPS`). It never writes `CO_WR_IDBASE` — the Base ID itself can only be
+changed ten times in the module's life, with no way back — and it never
+proposes an ID outside what the dongle has already claimed. `schema.py`'s
+`used_sender_ids` scans every existing row for the field it actually
+*transmits from* (a light's `sender_id`, a climate row's `id_switch`, an
+RPS switch's own `id`; a `default`/D2 switch row transmits as the dongle's
+own Base ID instead, via `get_gateway_base_id`, so its `id` — the receiving
+actuator's real address — is excluded), and the options flow's *add device*
+form pre-fills the lowest free one. This is a one-time suggestion at
+creation time only, always still editable: an RPS-emulated switch in
+particular is often deliberately re-using an ID a receiver already learned
+from a device it replaces, which auto-allocation must never override.
+Nothing here retroactively touches an existing row's sender ID.
+
+**Needs hardware validation**: that a real dongle actually refuses an
+out-of-range self-ID (the prerequisite this item was built against) has not
+been exercised against real hardware in this environment.
+
 ## Existing installations
 
 The v2.1 upgrade groups entities by sender immediately, but it never

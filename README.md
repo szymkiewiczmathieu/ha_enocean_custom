@@ -89,6 +89,17 @@ The integration supports binary sensors, switches, lights, sensors, and climate
 entities. Platform-specific schemas, migration boundaries, and the local
 identity model are in [Device Intelligence](docs/device-intelligence.md).
 
+**Adding a light or climate actor suggests a sender ID instead of asking you
+to invent one.** A5-38-08 dimmer teach-in and the SRC-D08 climate panel each
+need their own virtual transmitter identity, distinct from every other one
+and from the dongle itself. The *Add device* form now pre-fills the Sender
+ID field with the dongle's own Base ID plus the lowest free offset (1..127,
+computed in software — never `CO_WR_IDBASE`), still free to override, for
+instance to re-use the exact ID a receiver was already taught by a device
+this one replaces. A sender ID already in use by another light, climate
+actor or RPS-emulated switch is refused rather than silently shared. Every
+existing row keeps the sender ID it already has.
+
 ### Configuration and radio boundaries
 
 - **Learn and QR are different operations.** A learn session captures an unknown

@@ -24,7 +24,7 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from .const import DOMAIN, LOGGER
 from .enocean_library.protocol.constants import RORG
 from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
-from .enocean_library.utils import combine_hex
+from .enocean_library.utils import combine_hex, to_hex_string
 from .entity import EnOceanEntity, build_radio_optional, get_gateway_base_id
 from .identity import switch_unique_id
 from .learn import register_known_id
@@ -197,6 +197,10 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
             attributes["last_command_esp3_accepted"] = self._last_command_esp3_accepted
         if self._actuator_profile is not None:
             attributes["configured_actuator_profile"] = self._actuator_profile
+        if self._profile == "RPS":
+            # The dongle's own Base ID is what a "default" (D2) row transmits
+            # as instead; that one already has its own diagnostic sensor.
+            attributes["sender_id"] = to_hex_string(self.dev_id)
         return attributes
 
     @override

@@ -253,6 +253,27 @@ UI_DEVICE_SCHEMA = vol.Schema(
 UI_DEVICES_SCHEMA = vol.All(cv.ensure_list, [UI_DEVICE_SCHEMA])
 
 
+def used_sender_ids(rows: Any) -> list[list[int]]:
+    """Return every sender ID an existing row actually transmits as.
+
+    Only the fields a row *transmits from* count, never a row's own receive
+    address: a switch's ``id`` only counts for ``switch_type: RPS``, since a
+    ``default`` (D2) row transmits as the dongle's own Base ID instead
+    (``get_gateway_base_id``), and a light's ``id`` is its optional D2-01-12
+    feedback address, not what it sends teach-in/dim commands as.
+    """
+    ids: list[list[int]] = []
+    for row in valid_ui_devices(rows):
+        platform = row.get("platform")
+        if platform == "light" and row.get("sender_id"):
+            ids.append(list(row["sender_id"]))
+        elif platform == "climate" and row.get("id_switch"):
+            ids.append(list(row["id_switch"]))
+        elif platform == "switch" and row.get("switch_type") == "RPS":
+            ids.append(list(row["id"]))
+    return ids
+
+
 def valid_ui_devices(value: Any) -> list[dict]:
     """Return only the well-formed UI devices from a raw options value.
 

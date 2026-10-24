@@ -29,6 +29,7 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from .const import DOMAIN, SERVICE_SEND_TEACH_IN
 from .enocean_library.protocol.constants import RORG
 from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
+from .enocean_library.utils import to_hex_string
 from .entity import EnOceanEntity, build_radio_optional
 from .identity import light_unique_id
 from .learn import register_known_id
@@ -158,8 +159,12 @@ class EnOceanLight(EnOceanEntity, LightEntity):
 
     @property
     def extra_state_attributes(self) -> dict:
-        """Expose D2 feedback metadata after a status telegram."""
-        return self.d2_status_attributes
+        """Expose D2 feedback metadata and the sender ID teach-in commands use."""
+        attributes = dict(self.d2_status_attributes)
+        attributes["sender_id"] = (
+            to_hex_string(self._sender_id) if self._sender_id else None
+        )
+        return attributes
 
     @override
     def turn_on(self, **kwargs: Any) -> None:

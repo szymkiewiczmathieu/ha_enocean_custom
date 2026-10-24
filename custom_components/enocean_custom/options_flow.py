@@ -95,13 +95,16 @@ from .identity import (
 from .inbox import get_device_inbox
 from .learn import get_known_ids, get_learn_manager
 from .light import CONF_SENDER_ID
+from .runtime import get_gateway
 from .schema import (
     CONF_RADIO_METADATA,
     CONF_UI_DEVICES,
     UI_CLIMATE_DEVICE_TYPES,
     UI_DEVICE_SCHEMA,
+    used_sender_ids,
     valid_ui_devices,
 )
+from .sender_pool import allocate_sender_id
 from .sensor import (
     CONF_MAX_TEMP,
     CONF_MIN_TEMP,
@@ -2063,6 +2066,26 @@ class EnOceanOptionsFlow(OptionsFlow):
         self._radio_metadata = apply_manual_eep(self._radio_metadata, manual_eep)
         return await self.async_step_device_details()
 
+    def _suggested_sender_id(self) -> str:
+        """Return a free Base ID + offset (1..127) as a default, or "".
+
+        A convenience pre-fill only, never a requirement: the operator can
+        still type any sender_id, for instance to re-use the exact ID a
+        receiver was already taught by a device this one replaces. Falls
+        back to an empty field -- today's behavior -- when the dongle's Base
+        ID has not resolved yet or the 127-entry pool is exhausted.
+        """
+        try:
+            base_id = get_gateway_base_id(get_gateway(self.hass))
+            options = self.config_entry.options
+        except (AttributeError, ValueError):
+            # No flow context yet (e.g. a bare schema-shape check): nothing to
+            # suggest, same as an unresolved Base ID.
+            return ""
+        used = used_sender_ids(options.get(CONF_UI_DEVICES, []))
+        allocated = allocate_sender_id(base_id, used)
+        return to_hex_string(allocated) if allocated is not None else ""
+
     def _device_details_schema(self, platform: str) -> vol.Schema:
         """Build the platform form with websocket-serializable selectors only.
 
@@ -2090,7 +2113,9 @@ class EnOceanOptionsFlow(OptionsFlow):
                 )
             )
         elif platform == "light":
-            schema_dict[vol.Required(CONF_SENDER_ID)] = selector.TextSelector(
+            schema_dict[
+                vol.Required(CONF_SENDER_ID, default=self._suggested_sender_id())
+            ] = selector.TextSelector(
                 selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
             )
             # D2-01-12 multi-gang actuators report every channel; pick which
@@ -2148,7 +2173,9 @@ class EnOceanOptionsFlow(OptionsFlow):
                     )
                 )
         elif platform == "climate":
-            schema_dict[vol.Required(CONF_SENDER_ID_SWITCH)] = selector.TextSelector(
+            schema_dict[
+                vol.Required(CONF_SENDER_ID_SWITCH, default=self._suggested_sender_id())
+            ] = selector.TextSelector(
                 selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
             )
             schema_dict[vol.Required(CONF_DEVICE_TYPE)] = selector.SelectSelector(
@@ -2234,11 +2261,23 @@ class EnOceanOptionsFlow(OptionsFlow):
                 return self._show_details_form(
                     platform, errors={CONF_SENDER_ID: "invalid_sender_id"}
                 )
+            if sender_id in used_sender_ids(
+                self.config_entry.options.get(CONF_UI_DEVICES, [])
+            ):
+                return self._show_details_form(
+                    platform, errors={CONF_SENDER_ID: "sender_id_collision"}
+                )
         elif platform == "climate":
             id_switch = _parse_sender_id(user_input.get(CONF_SENDER_ID_SWITCH))
             if id_switch is None:
                 return self._show_details_form(
                     platform, errors={CONF_SENDER_ID_SWITCH: "invalid_sender_id"}
+                )
+            if id_switch in used_sender_ids(
+                self.config_entry.options.get(CONF_UI_DEVICES, [])
+            ):
+                return self._show_details_form(
+                    platform, errors={CONF_SENDER_ID_SWITCH: "sender_id_collision"}
                 )
 
         if platform == "sensor":
