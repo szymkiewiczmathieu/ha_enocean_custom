@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.10.1 - 2026-10-24
+
+First published release of the 2.10 line; it ships everything listed under
+2.10.0 below (the `v2.10.0` tag exists but was never released).
+
+- CI: pin the pytest-homeassistant-custom-component job to Home Assistant
+  2026.10.2, the exact version `pytest-homeassistant-custom-component`
+  0.13.373 requires; the unittest/Ruff/smoke matrix still runs 2026.7.3 and
+  2026.10.3. No runtime change.
+- README: EnOcean Custom is listed in the HACS default store; the badge and
+  install steps no longer describe a custom repository.
+
 ## 2.10.0 - 2026-10-24
 
 - Move the shared base entity from `device.py` to `entity.py`, register the

@@ -77,7 +77,7 @@ jobs:
         run: python tests/ha_smoke.py
 
   pytest-ha:
-    name: pytest (config/options flow, diagnostics snapshots) on HA 2026.10.3
+    name: pytest (config/options flow, diagnostics snapshots) on HA 2026.10.2
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -87,10 +87,10 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.14"
-      - name: Install Home Assistant 2026.10.3 and the pytest harness
+      - name: Install Home Assistant 2026.10.2 and the pytest harness
         run: |
           python -m pip install --disable-pip-version-check \
-            "homeassistant==2026.10.3" \
+            "homeassistant==2026.10.2" \
             beautifulsoup4==4.13.3 \
             lxml==6.1.1 \
             pyserial==3.5 \
