@@ -77,7 +77,7 @@ class Communicator(threading.Thread):
             return True
         if not retry:
             self._base_id_retry_count = 0
-        packet = Packet(PACKET.COMMON_COMMAND, data=[0x08])
+        packet = Packet(PACKET.COMMON_COMMAND, data=[0x08], optional=[])
         self._base_id_requested = True
         self._base_id_request_packet = packet
         if self.send(packet):
@@ -99,7 +99,7 @@ class Communicator(threading.Thread):
         timed out, or the worker stopped. Returns whether the command was
         accepted into the transmit queue.
         """
-        packet = Packet(PACKET.COMMON_COMMAND, data=list(data))
+        packet = Packet(PACKET.COMMON_COMMAND, data=list(data), optional=[])
         entry = (packet, handler)
         self._common_requests.append(entry)
         if self.send(packet):

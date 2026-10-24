@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.10.2 - 2026-10-24
+
+Fixes found on a live HA 2026.10.2 + USB 300 (firmware GATEWAYCTRL 2.15.0.0)
+right after installing 2.10.1:
+
+- The gateway device never received the firmware facts read by
+  `CO_RD_VERSION`: the `SIGNAL_GATEWAY_UPDATE` dispatcher target was a lambda,
+  which Home Assistant runs in the executor, so the device registry refused the
+  update ("calls device_registry._async_update_device from a thread") and
+  logged an error. The target is now an `@callback`; a new AST test rejects any
+  lambda or non-callback dispatcher target, including learn-window handlers.
+- Local ESP3 commands (`CO_RD_IDBASE`, `CO_RD_VERSION`, `CO_RD_REPEATER`,
+  `CO_WR_REPEATER`) are built with an explicit empty `optional`, so the
+  vendored packet class no longer logs "Replacing Packet.optional with default
+  value." at WARNING level on every start.
+
 ## 2.10.1 - 2026-10-24
 
 First published release of the 2.10 line; it ships everything listed under

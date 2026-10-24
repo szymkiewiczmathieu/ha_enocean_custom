@@ -271,6 +271,15 @@ class DongleGatewayFactsTests(unittest.TestCase):
         ]
         self.assertEqual(len(signals), 2)
 
+    def test_local_commands_build_packets_without_warnings(self):
+        # 2.10.2: COMMON_COMMAND packets were built without ``optional`` and
+        # the vendored Packet logged "Replacing Packet.optional with default
+        # value." at WARNING level for every Base ID / version / repeater read.
+        logger = "custom_components.enocean_custom.enocean_library.protocol.packet"
+        with self.assertNoLogs(logger, level="WARNING"):
+            self.assertTrue(self.dongle.request_version())
+            self.assertTrue(self.dongle.request_repeater())
+
     def test_refusals_leave_the_facts_unknown(self):
         self.dongle.request_version()
         self._answer(RETURN_CODE.NOT_SUPPORTED, [])

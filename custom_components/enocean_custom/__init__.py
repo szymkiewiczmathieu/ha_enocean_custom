@@ -125,12 +125,16 @@ async def async_setup_entry(
     # The gateway device must exist before the radio devices reference it
     # through ``via_device``; its firmware facts arrive asynchronously.
     async_register_gateway_device(hass, entry, gateway)
+
+    @callback
+    def _async_gateway_updated() -> None:
+        # Must be a @callback: Home Assistant runs a plain function (or a
+        # lambda) dispatcher target in the executor, and the device registry
+        # refuses updates from a thread.
+        async_register_gateway_device(hass, entry, gateway)
+
     entry.async_on_unload(
-        async_dispatcher_connect(
-            hass,
-            SIGNAL_GATEWAY_UPDATE,
-            lambda: async_register_gateway_device(hass, entry, gateway),
-        )
+        async_dispatcher_connect(hass, SIGNAL_GATEWAY_UPDATE, _async_gateway_updated)
     )
     async_remove_stale_devices(hass, entry)
     await gateway.async_setup()
