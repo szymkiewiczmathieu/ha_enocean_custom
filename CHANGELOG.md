@@ -9,6 +9,9 @@ First published release of the 2.10 line; it ships everything listed under
   2026.10.2, the exact version `pytest-homeassistant-custom-component`
   0.13.373 requires; the unittest/Ruff/smoke matrix still runs 2026.7.3 and
   2026.10.3. No runtime change.
+- Tests: the pytest diagnostics snapshots are committed JSON files instead
+  of syrupy `.ambr` (syrupy did not find the committed file on GitHub
+  runners). Same pinned shape.
 - README: EnOcean Custom is listed in the HACS default store; the badge and
   install steps no longer describe a custom repository.
 

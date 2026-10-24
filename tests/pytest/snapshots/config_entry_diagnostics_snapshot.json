@@ -1,0 +1,33 @@
+{
+  "availability": {
+    "contact_minutes": 1440,
+    "enabled": true,
+    "handle_minutes": 0,
+    "sensor_minutes": 180,
+    "smoke_minutes": 0
+  },
+  "config_entry": {
+    "device": "**REDACTED**"
+  },
+  "dongle": {
+    "base_id_resolved": true,
+    "health": "ok",
+    "network_url": false
+  },
+  "inbox": {
+    "observed_senders_count": 1
+  },
+  "ubiwizz_repeater": {
+    "candidate_eep_profiles": [
+      "D2-01-01",
+      "D2-01-12"
+    ],
+    "documented_default": "not_documented",
+    "radio_command": "not_implemented",
+    "requested_levels": [
+      1,
+      2
+    ],
+    "runtime_state": "unknown"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "dongle": {
+    "base_id_resolved": true,
+    "health": "ok",
+    "network_url": false
+  },
+  "kind": "gateway"
+}

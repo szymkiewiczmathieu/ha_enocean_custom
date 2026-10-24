@@ -1,4 +1,4 @@
-"""Diagnostics exports, pinned with syrupy snapshots (M9).
+"""Diagnostics exports, pinned against committed JSON snapshots (M9).
 
 Complements tests/test_device_diagnostics.py (stdlib unittest, asserts
 specific keys and redaction). This file instead freezes the *whole*
@@ -9,12 +9,14 @@ snapshot diff even if no individual assertion was written for it.
 
 from __future__ import annotations
 
+import json
+import os
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from homeassistant.helpers import device_registry as dr
 from pytest_homeassistant_custom_component.common import MockConfigEntry
-from syrupy.assertion import SnapshotAssertion
 
 from custom_components.enocean_custom.const import DOMAIN
 from custom_components.enocean_custom.diagnostics import (
@@ -29,6 +31,28 @@ from custom_components.enocean_custom.enocean_library.protocol.packet import Pac
 from custom_components.enocean_custom.identity import gateway_device_identifier
 from custom_components.enocean_custom.inbox import DeviceInbox, packet_observation
 from custom_components.enocean_custom.schema import CONF_UI_DEVICES
+
+SNAPSHOT_DIR = Path(__file__).parent / "snapshots"
+
+
+def _assert_matches_snapshot(name: str, export: object) -> None:
+    """Compare an export with ``snapshots/<name>.json``.
+
+    Plain JSON instead of syrupy: syrupy failed to locate a committed
+    ``.ambr`` file on GitHub runners only (same versions, same file), so the
+    pinned shape now lives in a reviewable JSON file. Regenerate with
+    ``ENOCEAN_UPDATE_SNAPSHOTS=1 python -m pytest``.
+    """
+    received = json.loads(json.dumps(export, sort_keys=True, default=str))
+    path = SNAPSHOT_DIR / f"{name}.json"
+    if os.environ.get("ENOCEAN_UPDATE_SNAPSHOTS") == "1":
+        path.write_text(
+            json.dumps(received, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+    assert path.is_file(), f"missing snapshot {path}"
+    assert received == json.loads(path.read_text(encoding="utf-8"))
+
 
 SENDER = [0x05, 0x8F, 0x22, 0x33]
 NAME = "Living room rocker"
@@ -84,23 +108,19 @@ async def _entry_with_one_sender(hass) -> tuple[MockConfigEntry, object]:
     return entry, device
 
 
-async def test_config_entry_diagnostics_snapshot(
-    hass, snapshot: SnapshotAssertion
-) -> None:
+async def test_config_entry_diagnostics_snapshot(hass) -> None:
     entry, _device = await _entry_with_one_sender(hass)
     export = await async_get_config_entry_diagnostics(hass, entry)
-    assert export == snapshot
+    _assert_matches_snapshot("config_entry_diagnostics_snapshot", export)
 
 
-async def test_device_diagnostics_snapshot(hass, snapshot: SnapshotAssertion) -> None:
+async def test_device_diagnostics_snapshot(hass) -> None:
     entry, device = await _entry_with_one_sender(hass)
     export = await async_get_device_diagnostics(hass, entry, device)
-    assert export == snapshot
+    _assert_matches_snapshot("device_diagnostics_snapshot", export)
 
 
-async def test_gateway_device_diagnostics_snapshot(
-    hass, snapshot: SnapshotAssertion
-) -> None:
+async def test_gateway_device_diagnostics_snapshot(hass) -> None:
     entry, _sender_device = await _entry_with_one_sender(hass)
     device_registry = dr.async_get(hass)
     gateway_device = device_registry.async_get_or_create(
@@ -108,4 +128,4 @@ async def test_gateway_device_diagnostics_snapshot(
         identifiers={(DOMAIN, gateway_device_identifier(entry.entry_id))},
     )
     export = await async_get_device_diagnostics(hass, entry, gateway_device)
-    assert export == snapshot
+    _assert_matches_snapshot("gateway_device_diagnostics_snapshot", export)

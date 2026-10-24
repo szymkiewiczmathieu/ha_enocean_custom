@@ -1,0 +1,33 @@
+{
+  "availability": {
+    "contact_minutes": 1440,
+    "enabled": true,
+    "handle_minutes": 0,
+    "sensor_minutes": 180,
+    "smoke_minutes": 0
+  },
+  "entities": [],
+  "kind": "radio_sender",
+  "radio": {
+    "last_repeater_count": null,
+    "last_rssi_dbm": -61,
+    "last_seen": "2026-01-01T00:00:00+00:00",
+    "last_signal": null,
+    "last_telegram": "D2 04 00 64 00 00 00 00 00",
+    "packet_count": 1,
+    "rorgs": [
+      "0xD2"
+    ]
+  },
+  "rows": [
+    {
+      "actuator_profile": null,
+      "channel": 0,
+      "device_class": null,
+      "platform": "switch",
+      "profile": {},
+      "silence_category": null,
+      "switch_type": "RPS"
+    }
+  ]
+}
