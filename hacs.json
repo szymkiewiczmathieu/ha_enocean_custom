@@ -1,5 +1,7 @@
 {
   "name": "EnOcean Custom",
   "homeassistant": "2026.7.3",
-  "render_readme": true
+  "render_readme": true,
+  "zip_release": true,
+  "filename": "enocean_custom.zip"
 }

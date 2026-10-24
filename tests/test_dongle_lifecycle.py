@@ -915,12 +915,21 @@ class ReleaseHardeningTests(unittest.TestCase):
 
     def test_hacs_metadata_has_only_supported_keys(self):
         metadata = json.loads(HACS_PATH.read_text())
-        self.assertEqual(set(metadata), {"name", "render_readme", "homeassistant"})
+        self.assertEqual(
+            set(metadata),
+            {"name", "render_readme", "homeassistant", "zip_release", "filename"},
+        )
         # The minimum Home Assistant version HACS enforces is the oldest
         # release the CI matrix still validates against.
         self.assertEqual(metadata["homeassistant"], "2026.7.3")
         workflow = (ROOT / ".github/workflows/validate.yml").read_text()
         self.assertIn('"2026.7.3"', workflow)
+        # HACS installs each release from this asset (hacs/integration 2.0.5,
+        # repositories/base.py: zip_release requires filename, which must end
+        # in ".zip" for should_try_releases). The archive is built and checked
+        # by scripts/build_release_zip.py; tests/test_release_zip.py covers it.
+        self.assertIs(metadata["zip_release"], True)
+        self.assertEqual(metadata["filename"], "enocean_custom.zip")
 
     def test_hacs_brand_icon_is_valid_square_png(self):
         """Ship the local brand icon required by current HACS."""
