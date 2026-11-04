@@ -16,6 +16,8 @@ from types import SimpleNamespace
 
 import pytest
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.entity import EntityCategory
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.enocean_custom.const import DOMAIN
@@ -129,3 +131,61 @@ async def test_gateway_device_diagnostics_snapshot(hass) -> None:
     )
     export = await async_get_device_diagnostics(hass, entry, gateway_device)
     _assert_matches_snapshot("gateway_device_diagnostics_snapshot", export)
+
+
+async def test_device_diagnostics_entity_signal_and_unknown_branches(hass) -> None:
+    entry, device = await _entry_with_one_sender(hass)
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        "93266483-radio_rssi",
+        device_id=device.id,
+        translation_key="radio_rssi",
+        original_device_class="signal_strength",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        disabled_by=er.RegistryEntryDisabler.INTEGRATION,
+    )
+    wire = Packet(
+        PACKET.RADIO_ERP1,
+        data=[
+            RORG.SIGNAL,
+            0x12,
+            0x04,
+            0x6D,
+            0xDE,
+            0xAD,
+            0xBE,
+            0xEF,
+            *SENDER,
+            0x00,
+        ],
+        optional=[0x03, 0xFF, 0xFF, 0xFF, 0xFF, 61, 0x00],
+    ).build()
+    entry.runtime_data.inbox.observe(
+        packet_observation(Packet.parse_msg(bytearray(wire))[2])
+    )
+
+    export = await async_get_device_diagnostics(hass, entry, device)
+    assert export["radio"]["last_signal"]["mid"] == "0x12"
+    assert export["radio"]["last_signal"]["product_id"] == "**REDACTED**"
+    assert export["radio"]["last_telegram"] == (
+        "D0 12 00 00 00 00 00 00 00 00 00 00 00"
+    )
+    assert export["entities"] == [
+        {
+            "domain": "sensor",
+            "unique_id_suffix": "-radio_rssi",
+            "translation_key": "radio_rssi",
+            "original_device_class": "signal_strength",
+            "disabled_by": "integration",
+            "entity_category": "diagnostic",
+        }
+    ]
+
+    foreign = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, "0046DEADBEEF")},
+    )
+    unknown = await async_get_device_diagnostics(hass, entry, foreign)
+    assert unknown == {"kind": "unknown", "identifiers": ["**REDACTED**"]}

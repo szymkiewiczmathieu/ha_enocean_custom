@@ -8,6 +8,17 @@
         }
       }
     },
+    "button": {
+      "light_teach_in": {
+        "default": "mdi:radio-tower"
+      },
+      "climate_teach_in_actor": {
+        "default": "mdi:radiator"
+      },
+      "climate_teach_in_actor_switch": {
+        "default": "mdi:toggle-switch"
+      }
+    },
     "select": {
       "gateway_repeater": {
         "default": "mdi:repeat-off",

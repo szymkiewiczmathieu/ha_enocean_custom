@@ -1,19 +1,78 @@
 # Changelog
 
-## Unreleased
+## 2.12.0 - 2026-11-04
 
-- **A transient transmit-queue rejection no longer makes the commanding entity
-  unavailable.** The command still returns `False`, logs a warning and keeps
-  the existing scheduled state write used for rejection telemetry, but it no
-  longer overwrites transport-derived availability. A genuinely stopped dongle
-  still propagates `SIGNAL_DONGLE_STATUS`; silence detection and the existing
-  missing-gateway path are unchanged.
-- **The proposed `connectivity` manifest key is deliberately not declared.**
-  The installed Home Assistant 2026.10.2 `loader.Manifest` schema, official
-  `enocean` manifest and generated integration metadata do not define that key,
-  and `generated/integration_connectivity.json` is absent. Adding it would be
-  unvalidated against the supported core rather than evidence of Serial
-  connectivity-panel support.
+Reliability and privacy release. It fixes a false "unavailable" state that a busy
+dongle could cause, lets a failing heating valve tell you about it, puts teach-in on
+the device page, closes two diagnostics leaks and removes two lifecycle races.
+
+**Nothing to migrate.** No entity id, unique id, name, state, option or stored
+schema of an existing device changes, and a config entry written by 2.12.0 is still
+readable by 2.11.2, so a plain code rollback stays possible. The only new entities
+are the teach-in buttons below, created for devices you already have.
+
+### Your devices stay available when the dongle is merely busy
+
+- **A command that the dongle refuses for a moment no longer turns the entity
+  `unavailable`.** When the transmit queue is full the dongle is healthy, yet the
+  previous release marked the commanding light or switch unavailable until the next
+  telegram. The command now returns `False`, logs a warning, and leaves availability
+  to what really measures it: the dongle health signal and silence detection. A
+  stopped dongle still makes every entity unavailable, and a missing gateway is
+  handled exactly as before.
+
+### A failing valve now tells you
+
+- **A5-20-04 valve failures raise a Repair issue.** A non-zero failure code in the
+  valve feedback creates a translated issue naming the valve and showing the code;
+  code `0x00` or a normal status telegram clears it by itself. The `valve_failure`
+  attribute is unchanged. The issue is not persisted across a Home Assistant restart:
+  the next failing telegram raises it again.
+
+### Teach-in is one click from the device page
+
+- **Teach-in buttons for UI-managed dimmers and climate devices.** Each one calls the
+  existing `send_teach_in`, `climate_teach_in_actor` or
+  `climate_teach_in_actor_switch` action, with the same validation and the same
+  translated errors. A button contains no radio code of its own. Dimmer rows get one
+  button, climate rows get an actuator button and a rocker-input button, all in the
+  device's configuration section. Deleting a device removes its buttons. Devices
+  declared in YAML keep using the actions directly.
+
+### Privacy: two diagnostics leaks closed
+
+- **SIGNAL telegrams no longer export embedded identifiers.** The Product ID carried
+  by a SIGNAL telegram (MID `0x12`) and the second sender reported by an RX quality
+  telegram (MID `0x0A`) were returned as raw bytes in the last-telegram dump even
+  though the structured fields were redacted. They are now zeroed like the ERP1
+  sender.
+- **Unknown registry identifiers are redacted.** An identifier that is not a radio
+  sender (a Product ID, or any free text) was returned verbatim by the device
+  diagnostics. It is now `**REDACTED**`; the shape of the report is unchanged.
+
+### Lifecycle
+
+- **Unloading during a network reconnection no longer brings the serial worker back
+  up.** If the unload won the race while the connection was being opened, the freshly
+  opened descriptor is now closed instead of starting a worker on an integration that
+  is going away.
+- **A cancelled repeater read-back releases its waiter.** Cancelling the wait
+  (entity removal, unload) left a dead future registered; the waiter is now released
+  on success, timeout and cancellation alike.
+- **Action buttons and rocker event entities no longer listen to raw radio.** They
+  never decoded it. Each one used to subscribe to every telegram for nothing; they now
+  keep only the dongle availability signal. Their real triggers are unchanged.
+
+### Tests and compatibility
+
+- The suite grows from 588 to 598 tests, and the real-Home-Assistant suite from 13 to
+  23. It now covers every statement of `config_flow.py` and `diagnostics.py`, and
+  presses the new buttons through the real entity services and device registry.
+- Every fix above was first reproduced by a failing test. The 598 tests and the smoke
+  test pass on Home Assistant 2026.7.3 and 2026.10.2.
+- Not covered here: no physical dongle or A5-20-04 valve was used for this release;
+  the valve Repair and the buttons are proven by tests on the exact telegram bytes and
+  actions, not by a new field test.
 
 ## 2.11.2 - 2026-10-24
 

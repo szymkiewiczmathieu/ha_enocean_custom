@@ -324,6 +324,60 @@ async def test_options_flow_style_write_adds_a_device_without_a_reload(
     assert entry.state is config_entries.ConfigEntryState.NOT_LOADED
 
 
+async def test_teach_in_buttons_use_the_real_entity_services_on_the_same_device(
+    hass: HomeAssistant, fake_dongle, setup_calls
+) -> None:
+    sender_id = [0xFF, 0x87, 0xCA, 0x01]
+    rocker_sender_id = [0xFF, 0x87, 0xCA, 0x02]
+    rows = [
+        {
+            "id": SENDER,
+            "platform": "light",
+            "name": "Dimmer",
+            "sender_id": sender_id,
+        },
+        {
+            "id": SENDER,
+            "platform": "climate",
+            "name": "Panel",
+            "id_switch": rocker_sender_id,
+            "device_type": "SRC-D08",
+            "sensor_entity_id": "sensor.room",
+        },
+    ]
+    entry = await _load(hass, rows, minor_version=3)
+    registry = er.async_get(hass)
+    light_button = registry.async_get_entity_id("button", DOMAIN, "93266483-teach-in")
+    climate_button = registry.async_get_entity_id(
+        "button", DOMAIN, "93266483-0-teach-in"
+    )
+    rocker_button = registry.async_get_entity_id(
+        "button", DOMAIN, "93266483-0-teach-in-rocker"
+    )
+    light = registry.async_get_entity_id("light", DOMAIN, "93266483")
+    climate = registry.async_get_entity_id("climate", DOMAIN, "93266483-0")
+    assert all((light_button, climate_button, rocker_button, light, climate))
+    for button_id, target_id in (
+        (light_button, light),
+        (climate_button, climate),
+        (rocker_button, climate),
+    ):
+        button_entry = registry.async_get(button_id)
+        target_entry = registry.async_get(target_id)
+        assert button_entry.device_id == target_entry.device_id
+        assert button_entry.config_subentry_id == target_entry.config_subentry_id
+        await hass.services.async_call(
+            "button", "press", {"entity_id": button_id}, blocking=True
+        )
+
+    assert [packet.data for packet in entry.runtime_data.sent] == [
+        [0xA5, 0xE0, 0x40, 0x0D, 0x80, *sender_id, 0x00],
+        [0xA5, 0x40, 0x30, 0x02, 0x86, *SENDER, 0x00],
+        [0xF6, 0x70, *rocker_sender_id, 0x30],
+    ]
+    assert setup_calls == [entry.entry_id]
+
+
 async def test_radio_devices_link_to_the_gateway_without_deprecated_via_device(
     hass: HomeAssistant, fake_dongle, setup_calls, caplog: pytest.LogCaptureFixture
 ) -> None:

@@ -60,6 +60,50 @@ class InboxPayloadTests(unittest.TestCase):
         inbox.observe(observation)
         self.assertEqual(inbox.get(0x058F2233).last_payload, observation.payload)
 
+    def test_signal_payload_blanks_identifiers_embedded_in_the_data(self):
+        product = packet_observation(
+            _parsed(
+                [
+                    RORG.SIGNAL,
+                    0x12,
+                    0x04,
+                    0x6D,
+                    0xDE,
+                    0xAD,
+                    0xBE,
+                    0xEF,
+                    *SENDER,
+                    0x00,
+                ]
+            )
+        )
+        self.assertEqual(
+            product.payload,
+            (RORG.SIGNAL, 0x12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        )
+
+        quality = packet_observation(
+            _parsed(
+                [
+                    RORG.SIGNAL,
+                    0x0A,
+                    0x01,
+                    0x02,
+                    0x03,
+                    0x04,
+                    167,
+                    137,
+                    0x41,
+                    *SENDER,
+                    0x00,
+                ]
+            )
+        )
+        self.assertEqual(
+            quality.payload,
+            (RORG.SIGNAL, 0x0A, 0, 0, 0, 0, 167, 137, 0x41, 0, 0, 0, 0, 0),
+        )
+
     def test_odd_data_yields_no_payload(self):
         for data in (None, [0xF6, 0x50], list(range(40)), [0xF6, 1.5, 0, 0, 0, 0, 0]):
             with self.subTest(data=data):
@@ -213,6 +257,11 @@ class DeviceDiagnosticsTests(unittest.IsolatedAsyncioTestCase):
         signal = export["radio"]["last_signal"]
         self.assertEqual(signal["mid"], "0x12")
         self.assertEqual(signal["product_id"], "**REDACTED**")
+        self.assertEqual(
+            export["radio"]["last_telegram"],
+            "D0 12 00 00 00 00 00 00 00 00 00 00 00",
+        )
+        self.assertNotIn("DE AD BE EF", repr(export))
         self.assertIsNone(signal["energy_status_percent"])
         self.assertFalse(signal["heartbeat"])
 
@@ -232,10 +281,12 @@ class DeviceDiagnosticsTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_unknown_device_and_entry_export(self):
         foreign = dr.async_get(self.hass).async_get_or_create(
-            config_entry_id=self.entry.entry_id, identifiers={(DOMAIN, "weird")}
+            config_entry_id=self.entry.entry_id,
+            identifiers={(DOMAIN, "0046DEADBEEF")},
         )
         export = await async_get_device_diagnostics(self.hass, self.entry, foreign)
-        self.assertEqual(export, {"kind": "unknown", "identifiers": ["weird"]})
+        self.assertNotIn("0046DEADBEEF", repr(export))
+        self.assertEqual(export, {"kind": "unknown", "identifiers": ["**REDACTED**"]})
         entry_export = await async_get_config_entry_diagnostics(self.hass, self.entry)
         self.assertNotIn("private", repr(entry_export))
         self.assertEqual(entry_export["inbox"], {"observed_senders_count": 1})

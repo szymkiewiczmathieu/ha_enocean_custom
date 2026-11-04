@@ -325,8 +325,6 @@ class EnOceanDongle:
                 read_back, self.REPEATER_COMMAND_TIMEOUT_SECONDS
             )
         except TimeoutError:
-            if read_back in self._repeater_waiters:
-                self._repeater_waiters.remove(read_back)
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="repeater_readback_timeout",
@@ -334,6 +332,11 @@ class EnOceanDongle:
                     "seconds": str(int(self.REPEATER_COMMAND_TIMEOUT_SECONDS))
                 },
             ) from None
+        finally:
+            # Timeout and task cancellation (entity removal/unload) must both
+            # release the waiter; only a real read-back consumes it earlier.
+            if read_back in self._repeater_waiters:
+                self._repeater_waiters.remove(read_back)
 
     def _notify_gateway_update(self) -> None:
         """Publish a gateway fact change on Home Assistant's event loop."""
@@ -601,6 +604,11 @@ class EnOceanDongle:
         except serial.SerialException:
             _LOGGER.warning("Reconnection attempt failed; the link is still down")
             self._schedule_reconnect()
+            return
+        if self._stopping:
+            # Unload may have won while serial_for_url was blocked in the
+            # executor. Never resurrect a worker or leak that new descriptor.
+            await self.hass.async_add_executor_job(communicator.close)
             return
         self._communicator = communicator
         self._available = True

@@ -474,6 +474,15 @@
     "button": {
       "d2_01_refresh": {
         "name": "Refresh state (channel {channel})"
+      },
+      "light_teach_in": {
+        "name": "Teach in dimmer"
+      },
+      "climate_teach_in_actor": {
+        "name": "Teach in climate actuator"
+      },
+      "climate_teach_in_actor_switch": {
+        "name": "Teach in climate rocker input"
       }
     },
     "event": {
@@ -693,6 +702,9 @@
     "teach_in_rejected": {
       "message": "The teach-in telegram for {name} was rejected by the dongle."
     },
+    "teach_in_target_unavailable": {
+      "message": "The teach-in target entity for {name} is no longer registered. Reload the integration, then try again."
+    },
     "rocker_teach_in_not_supported": {
       "message": "{name} uses the {profile} profile, which has no rocker (RPS) teach-in telegram. Use the actuator teach-in action instead."
     },
@@ -717,6 +729,10 @@
     "silent_device": {
       "title": "{name} has gone silent",
       "description": "No telegram has been received from {name} for {minutes} minutes, so its entities are unavailable. Check its battery or energy harvesting, its mounting and its radio range (the signal strength diagnostic sensor helps). This issue clears itself when the next telegram arrives. Adjust or disable the timeout under Configure → Availability and silent devices."
+    },
+    "valve_failure": {
+      "title": "{name} reports a valve failure",
+      "description": "A5-20-04 valve {name} reported failure code {code}. Check the actuator and its mechanical valve before relying on heating control. This issue clears itself when the valve reports code 0x00 or a normal status telegram."
     },
     "user_profiles_invalid": {
       "title": "User EEP profile definitions are invalid",

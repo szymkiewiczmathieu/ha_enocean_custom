@@ -474,6 +474,15 @@
     "button": {
       "d2_01_refresh": {
         "name": "Status vernieuwen (kanaal {channel})"
+      },
+      "light_teach_in": {
+        "name": "Dimmer inleren"
+      },
+      "climate_teach_in_actor": {
+        "name": "Klimaatactor inleren"
+      },
+      "climate_teach_in_actor_switch": {
+        "name": "Klimaat-drukknopingang inleren"
       }
     },
     "event": {
@@ -693,6 +702,9 @@
     "teach_in_rejected": {
       "message": "Het inleertelegram voor {name} is door de dongle geweigerd."
     },
+    "teach_in_target_unavailable": {
+      "message": "De doelentiteit voor inleren van {name} is niet meer geregistreerd. Herlaad de integratie en probeer het opnieuw."
+    },
     "rocker_teach_in_not_supported": {
       "message": "{name} gebruikt het profiel {profile}, dat geen drukknop-inleertelegram (RPS) heeft. Gebruik in plaats daarvan de actor-inleeractie."
     },
@@ -717,6 +729,10 @@
     "silent_device": {
       "title": "{name} is stil geworden",
       "description": "Er is al {minutes} minuten geen telegram van {name} ontvangen, dus zijn entiteiten zijn niet beschikbaar. Controleer de batterij of energieoogst, de montage en het radiobereik (de diagnosesensor signaalsterkte helpt). Deze melding verdwijnt vanzelf wanneer het volgende telegram aankomt. Pas de time-out aan of schakel hem uit onder Configureren → Beschikbaarheid en stille apparaten."
+    },
+    "valve_failure": {
+      "title": "{name} meldt een ventielstoring",
+      "description": "A5-20-04-ventiel {name} heeft storingscode {code} gemeld. Controleer de actor en het mechanische ventiel voordat u op de verwarmingsregeling vertrouwt. Deze melding verdwijnt vanzelf wanneer het ventiel code 0x00 of een normaal statustelegram meldt."
     },
     "user_profiles_invalid": {
       "title": "Gebruikersgedefinieerde EEP-profieldefinities zijn ongeldig",

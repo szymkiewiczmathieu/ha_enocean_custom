@@ -192,6 +192,31 @@ def d2_01_refresh_unique_id(dev_id: list[int], channel: int) -> str:
     return f"{combine_hex(dev_id)}-{channel}-d2-01-refresh"
 
 
+def teach_in_button_identities(
+    device: Mapping[str, Any],
+) -> tuple[tuple[str, str], ...]:
+    """Return the device-page buttons that call a row's existing teach-in actions.
+
+    These companion identities are additive. The target light/climate entity's
+    frozen unique_id is their prefix; no existing identity is changed.
+    """
+    dev_id = device["id"]
+    if device["platform"] == "light":
+        return (
+            (
+                "button",
+                f"{light_unique_id(dev_id, device.get('sender_id'))}-teach-in",
+            ),
+        )
+    if device["platform"] == "climate":
+        target = climate_unique_id(dev_id)
+        return (
+            ("button", f"{target}-teach-in"),
+            ("button", f"{target}-teach-in-rocker"),
+        )
+    return ()
+
+
 def device_names_by_sender(rows: Any) -> dict[int, str]:
     """Return the device name of each sender: the name of its first valid row.
 

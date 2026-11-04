@@ -474,6 +474,15 @@
     "button": {
       "d2_01_refresh": {
         "name": "Status aktualisieren (Kanal {channel})"
+      },
+      "light_teach_in": {
+        "name": "Dimmer einlernen"
+      },
+      "climate_teach_in_actor": {
+        "name": "Klimaaktor einlernen"
+      },
+      "climate_teach_in_actor_switch": {
+        "name": "Klima-Tastereingang einlernen"
       }
     },
     "event": {
@@ -693,6 +702,9 @@
     "teach_in_rejected": {
       "message": "Das Einlerntelegramm für {name} wurde vom Dongle abgelehnt."
     },
+    "teach_in_target_unavailable": {
+      "message": "Die Zielentität zum Einlernen für {name} ist nicht mehr registriert. Laden Sie die Integration neu und versuchen Sie es erneut."
+    },
     "rocker_teach_in_not_supported": {
       "message": "{name} verwendet das Profil {profile}, das kein Taster-Einlerntelegramm (RPS) hat. Verwenden Sie stattdessen die Aktor-Einlernaktion."
     },
@@ -717,6 +729,10 @@
     "silent_device": {
       "title": "{name} ist verstummt",
       "description": "Von {name} wurde seit {minutes} Minuten kein Telegramm empfangen, daher sind seine Entitäten nicht verfügbar. Prüfen Sie Batterie oder Energiegewinnung, Montage und Funkreichweite (der Diagnosesensor Signalstärke hilft). Dieses Problem erledigt sich von selbst, wenn das nächste Telegramm eintrifft. Passen Sie den Timeout unter Konfigurieren → Verfügbarkeit und stumme Geräte an oder deaktivieren Sie ihn."
+    },
+    "valve_failure": {
+      "title": "{name} meldet einen Ventilfehler",
+      "description": "Das A5-20-04-Ventil {name} hat den Fehlercode {code} gemeldet. Prüfen Sie Aktor und mechanisches Ventil, bevor Sie sich auf die Heizungssteuerung verlassen. Diese Meldung verschwindet von selbst, sobald das Ventil Code 0x00 oder ein normales Statustelegramm meldet."
     },
     "user_profiles_invalid": {
       "title": "Benutzerdefinierte EEP-Profildefinitionen sind ungültig",

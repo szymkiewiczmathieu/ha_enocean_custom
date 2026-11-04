@@ -88,6 +88,7 @@ from .identity import (
     d2_01_refresh_unique_id,
     rocker_event_unique_id,
     sender_diagnostic_identities,
+    teach_in_button_identities,
     ui_device_entity_identities,
 )
 from .inbox import get_device_inbox
@@ -2195,7 +2196,10 @@ class EnOceanOptionsFlow(OptionsFlow):
         # orphaned registry row survives the deletion. The D2-01 refresh
         # button (2.11.0) is keyed by sender and channel like the switch.
         registry = er.async_get(self.hass)
-        identities = list(ui_device_entity_identities(device))
+        identities = [
+            *ui_device_entity_identities(device),
+            *teach_in_button_identities(device),
+        ]
         if device["platform"] == "switch":
             identities.append(
                 ("button", d2_01_refresh_unique_id(device["id"], device["channel"]))

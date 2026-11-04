@@ -172,6 +172,20 @@ class RepeaterWriteReadBackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(raised.exception.translation_placeholders, {"seconds": "0"})
         self.assertFalse(self.dongle._repeater_waiters)
 
+    async def test_cancelling_the_read_back_wait_drops_its_waiter(self):
+        task = asyncio.ensure_future(self.dongle.async_set_repeater(True, 1))
+        await self._answer_next(RETURN_CODE.OK, [])
+        for _ in range(100):
+            if self.dongle._repeater_waiters:
+                break
+            await asyncio.sleep(0.001)
+        self.assertTrue(self.dongle._repeater_waiters)
+
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        self.assertFalse(self.dongle._repeater_waiters)
+
     async def test_unavailable_dongle_refuses_before_queueing(self):
         self.dongle._available = False
         with self.assertRaises(HomeAssistantError) as raised:

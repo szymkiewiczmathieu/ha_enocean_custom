@@ -35,6 +35,8 @@ EVENT_DEVICE_LEARNED = f"{DOMAIN}_device_learned"
 ISSUE_SERIAL_STOPPED = "serial_communicator_stopped"
 # Raised per silent sender when silence detection is enabled for its category.
 ISSUE_SILENT_DEVICE = "silent_device"
+# Raised per A5-20-04 valve while its reported failure code is non-zero.
+ISSUE_VALVE_FAILURE = "valve_failure"
 
 SERVICE_LEARN = "learn"
 SERVICE_SEND_TEACH_IN = "send_teach_in"

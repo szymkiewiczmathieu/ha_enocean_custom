@@ -44,6 +44,7 @@ from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import (
     EventStateChangedData,
@@ -56,7 +57,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, LOGGER
+from .const import DOMAIN, ISSUE_VALVE_FAILURE, LOGGER
 from .device_rows import (
     add_entities_for_group,
     async_connect_subentry_setup,
@@ -1057,6 +1058,30 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
             response_callback=response_callback,
         )
 
+    def _update_valve_failure(self, failure: int | None) -> None:
+        """Mirror A5-20-04 failure feedback in a self-clearing Repair issue."""
+        self._attr_valve_failure = failure
+        hass = getattr(self, "hass", None)
+        if hass is None:
+            return
+        issue_id = f"{ISSUE_VALVE_FAILURE}_{self._attr_unique_id}"
+        if not failure:
+            ir.async_delete_issue(hass, DOMAIN, issue_id)
+            return
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            is_persistent=False,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key=ISSUE_VALVE_FAILURE,
+            translation_placeholders={
+                "name": self.dev_name,
+                "code": f"0x{failure:02X}",
+            },
+        )
+
     @override
     def value_changed(self, packet) -> None:
         """Decode valve/thermostat feedback; A5-20-01/06 reply within the loop."""
@@ -1079,9 +1104,9 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
         db3, db2, db1, db0 = packet.data[1:5]
         self._attr_valve_position = min(db3, 100)
         if db0 & 0x01:
-            self._attr_valve_failure = db1
+            self._update_valve_failure(db1)
         else:
-            self._attr_valve_failure = None
+            self._update_valve_failure(None)
             self._attr_current_temperature = round(10 + db1 * 20 / 255, 1)
         if db0 & 0x02:
             self._attr_target_temp = round(10 + db2 * 20 / 255, 1)

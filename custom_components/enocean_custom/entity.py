@@ -77,6 +77,8 @@ class EnOceanEntity(Entity):
     """Base entity bound to one four-byte EnOcean sender identity."""
 
     _attr_should_poll = False
+    # Action-only subclasses opt out instead of receiving packets they never decode.
+    _tracks_radio = True
 
     def __init__(
         self,
@@ -183,13 +185,14 @@ class EnOceanEntity(Entity):
     async def async_added_to_hass(self) -> None:
         """Connect radio and serial-health dispatcher callbacks."""
         await super().async_added_to_hass()
-        self.async_on_remove(
-            async_dispatcher_connect(
-                self.hass,
-                SIGNAL_RECEIVE_MESSAGE,
-                self._message_received_callback,
+        if self._tracks_radio:
+            self.async_on_remove(
+                async_dispatcher_connect(
+                    self.hass,
+                    SIGNAL_RECEIVE_MESSAGE,
+                    self._message_received_callback,
+                )
             )
-        )
         self.async_on_remove(
             async_dispatcher_connect(
                 self.hass,

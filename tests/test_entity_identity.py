@@ -274,6 +274,29 @@ class PlatformParityAndRegistryTests(unittest.IsolatedAsyncioTestCase):
                 )
                 self.registry.async_remove(foreign.entity_id)
 
+    async def test_deleting_light_and_climate_removes_their_teach_in_buttons(self):
+        from custom_components.enocean_custom.identity import teach_in_button_identities
+
+        rows = _rows()
+        for name in ("light", "climate"):
+            with self.subTest(row=name):
+                row = rows[name]
+                _entry, flow = self._entry([row])
+                identities = teach_in_button_identities(row)
+                self.assertTrue(identities)
+                for platform, unique_id in identities:
+                    self.registry.async_get_or_create(platform, DOMAIN, unique_id)
+
+                await flow.async_step_manage({"device": "0"})
+                result = await flow.async_step_delete_confirm({"confirm": True})
+
+                self.assertEqual(result["type"], FlowResultType.CREATE_ENTRY)
+                for platform, unique_id in identities:
+                    self.assertIsNone(
+                        self.registry.async_get_entity_id(platform, DOMAIN, unique_id),
+                        f"orphaned teach-in button: {platform} {unique_id}",
+                    )
+
     async def test_collision_is_detected_on_the_real_registry_identities(self):
         rows = _rows()
         cases = {

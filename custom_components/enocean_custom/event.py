@@ -95,6 +95,8 @@ class EnOceanRockerEvent(EnOceanEntity, EventEntity):
     _attr_translation_key = "rocker_event"
     _attr_device_class = EventDeviceClass.BUTTON
     _attr_event_types: ClassVar[list[str]] = list(EVENT_TYPES)
+    # The button_pressed bus event is the sole source of truth, not raw radio.
+    _tracks_radio = False
 
     def __init__(self, dev_id: list[int], dev_name: str) -> None:
         """Bind the companion event entity to one rocker sender."""

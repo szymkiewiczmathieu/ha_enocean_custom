@@ -359,7 +359,10 @@ system specification V3.6 (<https://www.enocean-alliance.org/st/>):
 Every decoded fact is **display-only**: it is read from the inbox's
 "latest telegram observed" slot and shown in `async_get_device_diagnostics`,
 never written into a row's `radio_metadata`. A SIGNAL telegram never changes
-a declared profile, the same way an RPS or 1BS telegram never does.
+a declared profile, the same way an RPS or 1BS telegram never does. The raw
+`last_telegram` export zeroes the Product ID bytes of MID `0x12` and the
+reported sender bytes of MID `0x0A`, in addition to the ERP1 sender field;
+opaque non-radio registry identifiers are redacted as well.
 
 MID `0x0A` deserves a caveat: on EnOcean TCM 515/615 modules it is normally
 only produced once a transmitter's debug "RSSI test mode" has been turned on
@@ -407,6 +410,21 @@ too, with no configuration change.
 `manufacturer`, `model` and `model_id` are populated **only** when the Product
 ID is exactly cataloged and free of manufacturer conflict. A declared EEP alone
 never produces a model string: grouping happens without inventing identity.
+
+## A5-20-04 valve failure Repair and teach-in buttons
+
+A non-zero A5-20-04 failure code (`DB0.0 = 1`, code in `DB1`) raises a
+translated, non-persistent Repair issue on the climate entity. The issue clears
+itself when the valve reports code `0x00` or when a normal status telegram
+clears the failure flag. The existing `valve_failure` attribute keeps the same
+values as before.
+
+UI-managed A5-38-08 lights and climate rows additionally expose teach-in
+buttons under **Configuration** on the device page. They only resolve the
+existing target entity and call `send_teach_in`, `climate_teach_in_actor`, or
+`climate_teach_in_actor_switch`; no second packet encoder or less-strict radio
+path exists. The rocker-input button applies only to SRC-D08 rows. YAML-only
+entities continue to use those same actions directly.
 
 ## Experimental valve strategies: A5-20-01 and A5-20-06
 

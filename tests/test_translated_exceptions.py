@@ -79,6 +79,7 @@ class ExceptionCatalogTests(unittest.TestCase):
                 "command_rejected",
                 "light_sender_missing",
                 "teach_in_rejected",
+                "teach_in_target_unavailable",
                 "rocker_teach_in_not_supported",
                 "learn_in_progress",
                 "gateway_not_loaded",

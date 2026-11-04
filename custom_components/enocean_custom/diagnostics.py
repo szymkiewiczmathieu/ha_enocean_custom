@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from homeassistant.components.diagnostics import async_redact_data
+from homeassistant.components.diagnostics import REDACTED, async_redact_data
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_DEVICE
 from homeassistant.core import HomeAssistant
@@ -180,7 +180,9 @@ async def async_get_device_diagnostics(
         identifier for identifier in ours if _SENDER_IDENTIFIER.match(identifier)
     ]
     if not senders:
-        return {"kind": "unknown", "identifiers": sorted(ours)}
+        # An opaque/non-radio registry identifier is not a safe export either:
+        # it may be a Product ID or customer-chosen text, not just a weird tag.
+        return {"kind": "unknown", "identifiers": [REDACTED for _ in sorted(ours)]}
     sender_bytes = [int(senders[0][index : index + 2], 16) for index in range(0, 8, 2)]
     sender_int = combine_hex(sender_bytes)
 

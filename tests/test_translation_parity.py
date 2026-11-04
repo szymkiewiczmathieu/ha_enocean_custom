@@ -81,8 +81,16 @@ class TranslationParityTests(unittest.TestCase):
         self.assertEqual(set(device["initiate_flow"]), {"user", "reconfigure"})
         self.assertEqual(set(device["step"]), {"user", "details", "reconfigure"})
         self.assertIn("already_configured", device["abort"])
-        self.assertIn("d2_01_refresh", self.strings["entity"]["button"])
+        for key in (
+            "d2_01_refresh",
+            "light_teach_in",
+            "climate_teach_in_actor",
+            "climate_teach_in_actor_switch",
+        ):
+            self.assertIn(key, self.strings["entity"]["button"])
         self.assertIn("actuators", self.strings["options"]["step"])
+        self.assertIn("valve_failure", self.strings["issues"])
+        self.assertIn("teach_in_target_unavailable", self.strings["exceptions"])
 
 
 if __name__ == "__main__":

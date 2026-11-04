@@ -16,7 +16,7 @@ import unittest
 from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
@@ -289,6 +289,30 @@ class ClimateIntegrationTests(unittest.TestCase):
                 entity.teach_in_actor()
                 payload = captured[0][1:5]
                 self.assertEqual(payload, bidirectional_teach_in_response(0x20, type_))
+
+    def test_a5_20_04_failure_raises_and_clears_a_repair_issue(self):
+        entity = _climate(climate.PROFILE_A5_20_04)
+        entity.hass = SimpleNamespace()
+        with (
+            patch.object(climate.ir, "async_create_issue") as create_issue,
+            patch.object(climate.ir, "async_delete_issue") as delete_issue,
+        ):
+            # DB0.0 reports a valve failure; DB1 carries its code.
+            entity.value_changed(_frame(40, 0, 0x12, 0x09))
+            create_issue.assert_called_once()
+            self.assertEqual(entity._attr_valve_failure, 0x12)
+            issue_id = create_issue.call_args.args[2]
+            self.assertEqual(
+                create_issue.call_args.kwargs["translation_key"], "valve_failure"
+            )
+
+            # An explicit zero code clears it; a normal status frame does too.
+            entity.value_changed(_frame(40, 0, 0x00, 0x09))
+            delete_issue.assert_called_once_with(entity.hass, climate.DOMAIN, issue_id)
+            self.assertEqual(entity._attr_valve_failure, 0)
+            entity.value_changed(_frame(40, 0, 128, 0x08))
+            self.assertEqual(delete_issue.call_count, 2)
+            self.assertIsNone(entity._attr_valve_failure)
 
     def test_setting_temperature_commits_locally_without_a_dongle(self):
         """No ESP3 command exists for a setpoint change: it must still stick."""

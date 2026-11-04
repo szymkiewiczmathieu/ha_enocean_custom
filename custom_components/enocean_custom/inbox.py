@@ -9,7 +9,12 @@ from typing import Any
 
 from .enocean_library.protocol.constants import RORG
 from .runtime import get_inbox
-from .signal_telegram import SignalSnapshot, decode_signal_telegram
+from .signal_telegram import (
+    MID_PRODUCT_ID,
+    MID_RX_CHANNEL_QUALITY,
+    SignalSnapshot,
+    decode_signal_telegram,
+)
 
 MAX_UNCONFIGURED_SENDERS = 64
 _REPEATER_RORGS = frozenset((int(RORG.RPS), int(RORG.BS1), int(RORG.BS4)))
@@ -49,7 +54,7 @@ class InboxEntry:
 
 
 def _anonymized_payload(data: Any) -> tuple[int, ...] | None:
-    """Return the ERP1 data bytes with the sender address zeroed, or None."""
+    """Return ERP1 data with its own and any embedded identifiers zeroed."""
     if not isinstance(data, (list, tuple)) or not 6 <= len(data) <= MAX_PAYLOAD_BYTES:
         return None
     if any(
@@ -59,6 +64,13 @@ def _anonymized_payload(data: Any) -> tuple[int, ...] | None:
         return None
     masked = list(data)
     masked[-5:-1] = [0, 0, 0, 0]
+    if masked[0] == RORG.SIGNAL and len(masked) >= 2:
+        # SIGNAL carries identifiers beyond the ERP1 sender field: a Product ID
+        # (MID 0x12) and the *other* sender whose RX quality MID 0x0A reports.
+        if masked[1] == MID_PRODUCT_ID and len(masked) == 13:
+            masked[2:8] = [0] * 6
+        elif masked[1] == MID_RX_CHANNEL_QUALITY and len(masked) == 14:
+            masked[2:6] = [0] * 4
     return tuple(masked)
 
 

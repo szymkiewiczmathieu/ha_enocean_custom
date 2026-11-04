@@ -474,6 +474,15 @@
     "button": {
       "d2_01_refresh": {
         "name": "Actualiser l'état (canal {channel})"
+      },
+      "light_teach_in": {
+        "name": "Appairer le variateur"
+      },
+      "climate_teach_in_actor": {
+        "name": "Appairer l'actionneur climatique"
+      },
+      "climate_teach_in_actor_switch": {
+        "name": "Appairer l'entrée rocker climatique"
       }
     },
     "event": {
@@ -693,6 +702,9 @@
     "teach_in_rejected": {
       "message": "Le télégramme d'apprentissage pour {name} a été refusé par le dongle."
     },
+    "teach_in_target_unavailable": {
+      "message": "L'entité cible d'appairage de {name} n'est plus enregistrée. Rechargez l'intégration, puis réessayez."
+    },
     "rocker_teach_in_not_supported": {
       "message": "{name} utilise le profil {profile}, qui n'a pas de télégramme d'apprentissage interrupteur (RPS). Utilisez l'action d'apprentissage de l'actionneur."
     },
@@ -717,6 +729,10 @@
     "silent_device": {
       "title": "{name} est devenu silencieux",
       "description": "Aucun télégramme de {name} n'a été reçu depuis {minutes} minutes : ses entités sont indisponibles. Vérifiez sa pile ou sa récupération d'énergie, sa fixation et sa portée radio (le capteur de diagnostic « force du signal » aide). Cette réparation se ferme d'elle-même à la réception du prochain télégramme. Ajustez ou désactivez le délai dans Configurer → Disponibilité et équipements silencieux."
+    },
+    "valve_failure": {
+      "title": "{name} signale une panne de vanne",
+      "description": "La vanne A5-20-04 {name} a signalé le code de panne {code}. Vérifiez l'actionneur et la vanne mécanique avant de compter sur le chauffage. Cette réparation se ferme d'elle-même lorsque la vanne signale le code 0x00 ou un télégramme d'état normal."
     },
     "user_profiles_invalid": {
       "title": "Les définitions de profils EEP utilisateur sont invalides",

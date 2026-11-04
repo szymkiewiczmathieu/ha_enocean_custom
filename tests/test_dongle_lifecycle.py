@@ -1173,6 +1173,39 @@ class NetworkReconnectionTests(unittest.IsolatedAsyncioTestCase):
         cancel.assert_called_once_with()
         self.assertIsNone(dongle._reconnect_unsub)
 
+    async def test_unload_while_the_network_open_is_awaited_closes_the_new_socket(self):
+        namespace = _load_dongle_members("_attempt_reconnect", "_build_communicator")
+        dongle = namespace["EnOceanDongle"]()
+        dongle._stopping = False
+        dongle._available = False
+        dongle._reconnect_unsub = Mock()
+        dongle._reconnect_attempts = 1
+        new_communicator = Mock()
+        dongle._build_communicator = Mock(return_value=new_communicator)
+        dongle.request_version = Mock()
+        dongle.request_repeater = Mock()
+        dongle._notify_status = Mock()
+        dongle.hass = Mock()
+        build_started = asyncio.Event()
+        release_build = asyncio.Event()
+
+        async def open_in_executor(function, *args):
+            if function is dongle._build_communicator:
+                build_started.set()
+                await release_build.wait()
+            return function(*args)
+
+        dongle.hass.async_add_executor_job.side_effect = open_in_executor
+        attempt = asyncio.create_task(dongle._attempt_reconnect(None))
+        await asyncio.wait_for(build_started.wait(), 1)
+        dongle._stopping = True  # async_unload wins while serial_for_url is blocked.
+        release_build.set()
+        await asyncio.wait_for(attempt, 1)
+
+        new_communicator.close.assert_called_once_with()
+        new_communicator.start.assert_not_called()
+        self.assertFalse(dongle._available)
+
     def test_diagnostics_expose_network_and_reconnect_state(self):
         namespace = _load_dongle_members(
             "available", "base_id", "diagnostics", "is_network_url"
