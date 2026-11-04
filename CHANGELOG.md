@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- **A transient transmit-queue rejection no longer makes the commanding entity
+  unavailable.** The command still returns `False`, logs a warning and keeps
+  the existing scheduled state write used for rejection telemetry, but it no
+  longer overwrites transport-derived availability. A genuinely stopped dongle
+  still propagates `SIGNAL_DONGLE_STATUS`; silence detection and the existing
+  missing-gateway path are unchanged.
+- **The proposed `connectivity` manifest key is deliberately not declared.**
+  The installed Home Assistant 2026.10.2 `loader.Manifest` schema, official
+  `enocean` manifest and generated integration metadata do not define that key,
+  and `generated/integration_connectivity.json` is absent. Adding it would be
+  unvalidated against the supported core rather than evidence of Serial
+  connectivity-panel support.
+
 ## 2.11.2 - 2026-10-24
 
 - **No more `via_device` deprecation warning on Home Assistant 2026.10+.** Each

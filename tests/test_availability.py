@@ -14,6 +14,7 @@ from datetime import timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import MappingProxyType, SimpleNamespace
+from unittest.mock import Mock
 
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
@@ -26,6 +27,7 @@ try:  # The bare unit-test environment has no Home Assistant installed.
     from homeassistant.helpers import device_registry as dr
     from homeassistant.helpers import entity_registry as er
     from homeassistant.helpers import issue_registry as ir
+    from homeassistant.helpers.dispatcher import async_dispatcher_send
 
     from custom_components.enocean_custom import (
         async_remove_config_entry_device,
@@ -43,8 +45,9 @@ try:  # The bare unit-test environment has no Home Assistant installed.
         availability_settings,
         silence_category,
     )
-    from custom_components.enocean_custom.const import DOMAIN
+    from custom_components.enocean_custom.const import DOMAIN, SIGNAL_DONGLE_STATUS
     from custom_components.enocean_custom.enocean_library.protocol.constants import (
+        PACKET,
         RORG,
     )
     from custom_components.enocean_custom.identity import gateway_device_identifier
@@ -222,6 +225,50 @@ class EntitySilenceTests(unittest.IsolatedAsyncioTestCase):
         entity._silence_expired()
         self.assertTrue(entity.available)
         self.assertIsNone(self._issue())
+
+    async def test_transmit_queue_rejection_keeps_entity_available(self):
+        """A healthy dongle rejecting one full-queue send is still available."""
+        entry = self.hass.config_entries.async_entries(DOMAIN)[0]
+        gateway = SimpleNamespace(
+            available=True,
+            entry_id=entry.entry_id,
+            send=Mock(return_value=False),
+        )
+        entry.runtime_data = gateway
+        entity = await self._entity(None, repair=False)
+        entity.schedule_update_ha_state = Mock()
+
+        with self.assertLogs(
+            "custom_components.enocean_custom", level="WARNING"
+        ) as logs:
+            accepted = entity.send_command([RORG.BS1, 0x00], [], PACKET.RADIO)
+
+        self.assertFalse(accepted)
+        self.assertTrue(entity._attr_available)
+        self.assertTrue(entity.available)
+        entity.schedule_update_ha_state.assert_called_once_with()
+        gateway.send.assert_called_once()
+        self.assertIn("EnOcean command for Pantry was rejected", logs.output[0])
+
+    async def test_stopped_dongle_signal_still_makes_entity_unavailable(self):
+        """Real serial health loss, not a send rejection, owns availability."""
+        entry = self.hass.config_entries.async_entries(DOMAIN)[0]
+        gateway = SimpleNamespace(
+            available=True,
+            entry_id=entry.entry_id,
+            send=Mock(return_value=False),
+        )
+        entry.runtime_data = gateway
+        entity = await self._entity(None, repair=False)
+        entity.async_write_ha_state = Mock()
+        gateway.available = False
+
+        async_dispatcher_send(self.hass, SIGNAL_DONGLE_STATUS, False)
+
+        self.assertFalse(entity._attr_available)
+        self.assertFalse(entity.available)
+        entity.async_write_ha_state.assert_called_once_with()
+        gateway.send.assert_not_called()
 
     async def test_platforms_apply_the_entry_settings(self):
         rows = [

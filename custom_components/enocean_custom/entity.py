@@ -314,7 +314,6 @@ class EnOceanEntity(Entity):
             )
         if accepted:
             return True
-        self._attr_available = False
         self.schedule_update_ha_state()
         LOGGER.warning("EnOcean command for %s was rejected", self.dev_name)
         return False
