@@ -448,6 +448,8 @@ class EnOceanBinarySensor(EnOceanEntity, BinarySensorEntity):
             "onoff": int(self.onoff),
             "repeated_telegram": int(self.repeated_telegram),
         }
+        if getattr(packet, "simulated", False) is True:
+            event_data["simulated"] = True
         self.hass.bus.fire(EVENT_BUTTON_PRESSED, event_data)
 
 

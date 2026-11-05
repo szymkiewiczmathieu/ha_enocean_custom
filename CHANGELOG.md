@@ -1,5 +1,80 @@
 # Changelog
 
+## 2.13.0 - 2026-11-05
+
+Shutters, a hardware-free test bench and an admin side panel. Everything new is
+additive: nothing to migrate, and a plain code rollback to 2.12.0 stays possible.
+
+### Roller shutters
+
+- **D2-05-00 TYPE 0x00 covers can now be configured from the UI.** Open, close,
+  set an open percentage and stop a NodOn SIN-2-RS-01 or an equivalent
+  explicitly declared actuator. Position feedback is decoded from CMD 0x4,
+  with the specification's 0 % open convention inverted for Home Assistant.
+  A start-up query and one delayed post-stop query refresh the actual position;
+  the last known position is restored without pretending that a new command
+  already moved the shutter. Slat angle is preserved as a diagnostic attribute,
+  but no unsupported tilt entity is invented.
+- **No automatic UTE answer and no new migration.** Commissioning still uses
+  the existing explicit flows. Only channel `0` is accepted for this one-output
+  TYPE; CMD 0x5 motor/alarm parameter writes are deliberately not implemented.
+  The new cover identity is additive and existing identities, options and
+  config-entry versions are unchanged. Physical shutter validation is still
+  required before relying on the profile with an unfamiliar device.
+
+### ESP3 emulator
+
+- **The real serial gateway can now be tested without hardware.**
+  `scripts/fake_esp3_module.py` implements a CRC-checked ESP3 peer over a Linux
+  or macOS pseudo-terminal, or a loopback-only TCP socket. It answers the
+  version, Base ID and repeater requests made by the integration, acknowledges
+  outgoing radio frames, and injects RPS, 1BS, 4BS and VLD telegrams, including
+  D2-01, A5-20-04 and D2-05-00 examples.
+- Integration tests run the actual dongle and communicator against the
+  emulator for start-up identification, inbound and outbound traffic, link
+  loss, bounded reconnection and clean unload. This is protocol-level proof,
+  not a substitute for validation with a physical module.
+
+### D2-01 command feedback check
+
+- **An optional check detects actuators that never confirm a command.** Under
+  *Configure → D2-01 actuators*, enable *Verify state after D2-01 commands* to
+  wait 1.5 seconds for the requested state and make at most two retries. After
+  three total attempts, `enocean_custom_no_feedback` reports `entity_id`,
+  `device_id`, `command` and `attempts`. Matching feedback stops the check;
+  opposite feedback does not. The option is off by default, RPS-emulated
+  switches are unaffected, and displayed state remains feedback-only.
+
+### Admin diagnostics and simulation
+
+- **A new admin-only EnOcean side panel** groups configured devices, passive
+  nearby transmitters, a bounded live telegram view and gateway health. It uses
+  Home Assistant's authenticated websocket API and `panel_custom`; there is no
+  unauthenticated data endpoint. Sender IDs and the Base ID are masked by
+  default, with a session-only reveal control. Live recording starts only on
+  request, keeps the newest 100 records in memory and is cleared when the last
+  subscriber leaves. *Open commissioning* starts the existing learn flow. The
+  panel JavaScript has passed syntax validation, but has not been exercised in
+  a browser.
+- **`enocean_custom.simulate` is an admin-only, opt-in receive-chain test.**
+  Enable *Configure → Simulated telegrams*, then inject a window contact,
+  temperature, rocker, smoke or cover-position preset for an explicit sender.
+  Nothing is transmitted or persisted. Every request logs a warning and fires
+  `enocean_custom_simulated_telegram` with `simulated: true`; the rocker event
+  and panel records carry the same marker. There is no teach-in preset and no
+  automatic radio response.
+
+### Validation and compatibility
+
+- No existing `unique_id`, entity name, default state, option or stored schema
+  changes. `ConfigFlow.VERSION` remains `1`; the new option keys and cover rows
+  are ignored by 2.12.0 rather than causing a migration. No Python dependency
+  was added and the vendored `enocean_library` is unchanged.
+- The unit suite grows from 598 to 626 tests. Protocol emulation, cover bytes,
+  bounded feedback retries, simulation permissions and panel privacy are
+  covered by automated tests. No physical dongle, shutter, relay or smoke
+  detector was used for this release.
+
 ## 2.12.0 - 2026-11-04
 
 Reliability and privacy release. It fixes a false "unavailable" state that a busy

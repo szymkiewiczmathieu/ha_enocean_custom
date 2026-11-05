@@ -520,6 +520,17 @@ class EnOceanDongle:
         except RuntimeError:
             _LOGGER.debug("Home Assistant loop closed before packet dispatch")
 
+    def inject_simulated(self, packet: RadioPacket) -> None:
+        """Inject an explicitly simulated packet through ``callback`` unchanged.
+
+        This method performs no serial write and no radio transmission. It is
+        called only by the admin-gated simulator after its option check.
+        """
+        if not isinstance(packet, RadioPacket):
+            raise TypeError("simulated input must be a RadioPacket")
+        packet.simulated = True
+        self.callback(packet)
+
     def _communicator_stopped(self, error: str | None) -> None:
         """Record worker termination and hand notification to HA's event loop."""
         self._available = False

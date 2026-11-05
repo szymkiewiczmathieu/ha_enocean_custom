@@ -80,6 +80,7 @@
           "manage": "Gérer les équipements de l'interface",
           "settings": "Disponibilité et équipements silencieux",
           "actuators": "Actionneurs D2-01 : requête d'état au démarrage",
+          "simulation": "Télégrammes simulés (administrateur uniquement)",
           "import_yaml": "Importer les équipements YAML"
         }
       },
@@ -116,10 +117,19 @@
         "title": "Actionneurs D2-01",
         "description": "Optionnel, désactivé par défaut. Lorsque c'est activé, chacun des {count} canaux d'actionneur D2-01 configurés (relais pilotés par commandes D2 adressées ; les lignes Ubiwizz émulant un interrupteur ne sont pas concernées) reçoit une seule requête d'état (Actuator Status Query, CMD 0x3) après chaque démarrage ou rechargement, pour que les interrupteurs sortent de « inconnu » sans attendre le prochain télégramme. Les requêtes sont envoyées une par une, espacées d'au moins 250 ms, et jamais répétées ; l'actionneur doit répondre dans la fenêtre de 300 ms de la spécification EEP. Le bouton « Actualiser l'état » de chaque actionneur envoie la même requête à la demande, quel que soit ce réglage.",
         "data": {
-          "d2_01_query_on_start": "Interroger chaque actionneur D2-01 une fois après le démarrage"
+          "d2_01_query_on_start": "Interroger chaque actionneur D2-01 une fois après le démarrage",
+          "d2_01_feedback_check": "Vérifier l'état après les commandes D2-01"
         },
         "data_description": {
-          "d2_01_query_on_start": "Émet une requête radio par canal d'actionneur après chaque démarrage ou rechargement. Laissez désactivé si vous préférez que cette intégration n'émette jamais de sa propre initiative."
+          "d2_01_query_on_start": "Émet une requête radio par canal d'actionneur après chaque démarrage ou rechargement. Laissez désactivé si vous préférez que cette intégration n'émette jamais de sa propre initiative.",
+          "d2_01_feedback_check": "Désactivé par défaut. Après une commande ON/OFF adressée, attend 1,5 s le nouvel état demandé, essaie encore deux fois, puis émet enocean_custom_no_feedback. L'état affiché reste fondé uniquement sur le retour radio."
+        }
+      },
+      "simulation": {
+        "title": "Télégrammes simulés",
+        "description": "Désactivé par défaut. Autorise l'action enocean_custom.simulate, réservée aux administrateurs, à injecter un préréglage dans la chaîne de réception réelle. Chaque usage consigne un avertissement et émet enocean_custom_simulated_telegram avec simulated: true. Rien n'est persisté ni transmis par radio.",
+        "data": {
+          "allow_simulated_telegrams": "Autoriser les télégrammes simulés"
         }
       },
       "pair_actuator": {
@@ -511,6 +521,11 @@
         }
       }
     },
+    "cover": {
+      "d2_05_00": {
+        "name": "Volet roulant"
+      }
+    },
     "sensor": {
       "temperature": {
         "name": "Température"
@@ -672,6 +687,10 @@
       "name": "Démarrer le mode apprentissage EnOcean",
       "description": "Écoute le prochain expéditeur EnOcean inconnu et déclenche enocean_custom_device_learned une fois capturé."
     },
+    "simulate": {
+      "name": "Injecter un télégramme simulé",
+      "description": "Réservé aux administrateurs et désactivé par défaut. Injecte un préréglage marqué dans la chaîne de réception réelle, sans émission radio ni persistance."
+    },
     "send_teach_in": {
       "name": "Envoyer l'apprentissage du variateur",
       "description": "Envoie un télégramme d'apprentissage 4BS A5-38-08 avec l'ID émetteur de l'entité light sélectionnée."
@@ -713,6 +732,9 @@
     },
     "gateway_not_loaded": {
       "message": "Le dongle EnOcean n'est pas chargé : aucune fenêtre d'apprentissage ne peut être ouverte. Configurez ou rechargez d'abord l'intégration."
+    },
+    "simulation_disabled": {
+      "message": "Les télégrammes simulés sont désactivés. Activez d'abord Configurer → Télégrammes simulés. Cette action est réservée aux administrateurs et n'émet jamais de radio."
     },
     "repeater_write_rejected": {
       "message": "Le dongle a refusé le réglage du répéteur ; il est inchangé. Vérifiez que le dongle est connecté et que son firmware prend en charge CO_WR_REPEATER."

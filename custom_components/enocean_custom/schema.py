@@ -142,6 +142,12 @@ def _validate_platform_fields(device: dict) -> dict:
                 raise vol.Invalid(
                     f"{actuator_profile} requires the {profile_eep} EEP when set"
                 )
+    if device["platform"] == "cover":
+        if device["channel"] != 0:
+            raise vol.Invalid("D2-05-00 supports actuator channel 0 only")
+        eep = (device.get(CONF_RADIO_METADATA) or {}).get("eep")
+        if eep not in (None, "D2-05-00"):
+            raise vol.Invalid("cover rows require the D2-05-00 EEP")
     if device["platform"] == "light" and not device.get("sender_id"):
         raise vol.Invalid("sender_id is required for light devices")
     if device["platform"] == "climate":

@@ -147,6 +147,10 @@ class DeviceInbox:
         """Return current facts without changing LRU recency."""
         return self._entries.get(sender_id)
 
+    def observations(self) -> list[tuple[int, InboxEntry]]:
+        """Return a shallow copy of current sender observations for the admin panel."""
+        return list(self._entries.items())
+
     @property
     def observed_senders_count(self) -> int:
         """Return the sole privacy-safe diagnostic view."""

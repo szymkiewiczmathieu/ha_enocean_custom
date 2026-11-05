@@ -80,6 +80,7 @@
           "manage": "UI-Geräte verwalten",
           "settings": "Verfügbarkeit und stumme Geräte",
           "actuators": "D2-01-Aktoren: Statusabfrage beim Start",
+          "simulation": "Simulierte Telegramme (nur Administratoren)",
           "import_yaml": "YAML-Geräte importieren"
         }
       },
@@ -116,10 +117,19 @@
         "title": "D2-01-Aktoren",
         "description": "Optional, standardmäßig aus. Wenn aktiviert, wird jeder der {count} konfigurierten D2-01-Aktorkanäle (Relais, die mit gerichteten D2-Befehlen gesteuert werden; Ubiwizz-Zeilen, die einen Taster emulieren, sind nicht betroffen) nach jedem Start oder Neuladen einmal mit einer Actuator Status Query (CMD 0x3) nach seinem Status gefragt, damit Schalter „unbekannt“ verlassen, ohne auf das nächste Telegramm zu warten. Abfragen werden nacheinander gesendet, mindestens 250 ms auseinander, und nie wiederholt; der Aktor muss innerhalb des 300-ms-Fensters der EEP-Spezifikation antworten. Die Schaltfläche „Status aktualisieren“ jedes Aktors sendet dieselbe Abfrage auf Anforderung, unabhängig von dieser Einstellung.",
         "data": {
-          "d2_01_query_on_start": "Jeden D2-01-Aktor nach dem Start einmal abfragen"
+          "d2_01_query_on_start": "Jeden D2-01-Aktor nach dem Start einmal abfragen",
+          "d2_01_feedback_check": "Status nach D2-01-Befehlen prüfen"
         },
         "data_description": {
-          "d2_01_query_on_start": "Sendet nach jedem Start oder Neuladen eine Funkabfrage pro Aktorkanal. Lassen Sie es aus, wenn diese Integration nie von sich aus senden soll."
+          "d2_01_query_on_start": "Sendet nach jedem Start oder Neuladen eine Funkabfrage pro Aktorkanal. Lassen Sie es aus, wenn diese Integration nie von sich aus senden soll.",
+          "d2_01_feedback_check": "Standardmäßig aus. Nach einem gerichteten EIN/AUS-Befehl 1,5 Sekunden auf den gewünschten neuen Status warten, zweimal erneut senden und dann enocean_custom_no_feedback auslösen. Der angezeigte Status kommt weiterhin nur aus Rückmeldungen."
+        }
+      },
+      "simulation": {
+        "title": "Simulierte Telegramme",
+        "description": "Standardmäßig deaktiviert. Erlaubt der nur für Administratoren verfügbaren Aktion enocean_custom.simulate, eine Vorgabe in die echte Empfangskette einzuspeisen. Jede Verwendung schreibt eine Warnung und löst enocean_custom_simulated_telegram mit simulated: true aus. Nichts wird gespeichert oder per Funk gesendet.",
+        "data": {
+          "allow_simulated_telegrams": "Simulierte Telegramme erlauben"
         }
       },
       "pair_actuator": {
@@ -511,6 +521,11 @@
         }
       }
     },
+    "cover": {
+      "d2_05_00": {
+        "name": "Rollladen"
+      }
+    },
     "sensor": {
       "temperature": {
         "name": "Temperatur"
@@ -672,6 +687,10 @@
       "name": "EnOcean-Einlernen starten",
       "description": "Lauscht auf den nächsten unbekannten EnOcean-Sender und löst enocean_custom_device_learned aus, sobald einer erfasst wurde."
     },
+    "simulate": {
+      "name": "Simuliertes Telegramm einspeisen",
+      "description": "Nur für Administratoren und standardmäßig deaktiviert. Speist eine markierte Vorgabe ohne Funkübertragung oder Speicherung in die echte Empfangskette ein."
+    },
     "send_teach_in": {
       "name": "Dimmer-Einlernen senden",
       "description": "Sendet ein A5-38-08-4BS-Einlerntelegramm mit der Sender-ID der ausgewählten Licht-Entität."
@@ -713,6 +732,9 @@
     },
     "gateway_not_loaded": {
       "message": "Der EnOcean-Dongle ist nicht geladen, daher kann kein Einlernfenster geöffnet werden. Richten Sie die Integration zuerst ein oder laden Sie sie neu."
+    },
+    "simulation_disabled": {
+      "message": "Simulierte Telegramme sind deaktiviert. Aktivieren Sie zuerst Konfigurieren → Simulierte Telegramme. Diese Aktion ist Administratoren vorbehalten und sendet niemals Funk."
     },
     "repeater_write_rejected": {
       "message": "Der Dongle hat die Repeater-Einstellung abgelehnt; sie ist unverändert. Prüfen Sie, ob der Dongle verbunden ist und seine Firmware CO_WR_REPEATER unterstützt."

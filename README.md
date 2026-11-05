@@ -9,7 +9,7 @@ and compatible). It provides configuration-entry and YAML setup, guided device
 learning, diagnostics, native rocker triggers, automation blueprints and
 bounded actuator control without cloud services or telemetry.
 
-**Current release:** [v2.12.0](CHANGELOG.md) · Apache-2.0 · available in the HACS default store
+**Current release:** [v2.13.0](CHANGELOG.md) · Apache-2.0 · available in the HACS default store
 
 ## Contents
 
@@ -17,6 +17,7 @@ bounded actuator control without cloud services or telemetry.
 - [Configure devices](#configure-devices)
 - [How data is updated](#how-data-is-updated)
 - [Actions](#actions)
+- [Admin panel and simulated telegrams](#admin-panel-and-simulated-telegrams)
 - [Triggers and events](#triggers-and-events)
 - [Automation blueprints](#automation-blueprints)
 - [Use cases](#use-cases)
@@ -27,6 +28,7 @@ bounded actuator control without cloud services or telemetry.
 - [Removing devices or the integration](#removing-devices-or-the-integration)
 - [Troubleshooting](#troubleshooting)
 - [Diagnostics and support](#diagnostics-and-support)
+- [Hardware-free development](#hardware-free-development)
 - [Release and licensing](#release-and-licensing)
 
 ## Install
@@ -224,10 +226,49 @@ own four-byte sender ID.
 | `enocean_custom.climate_teach_in_actor` | one or more `climate` entities | Sends the configured profile's 4BS Variation-3 teach-in response (SRC-D08 panel, A5-20-04, or the experimental A5-20-01/A5-20-06). | yes, on request |
 | `enocean_custom.climate_teach_in_actor_switch` | one or more `climate` entities | Sends the legacy RPS rocker teach-in of an SRC-D08; refused on other profiles. | yes, on request |
 | `enocean_custom.reload` | — | Reloads YAML-configured platforms. | none |
+| `enocean_custom.simulate` | `preset`, explicit `sender_id`, optional `position` | Admin-only and disabled by default. Injects a marked test telegram into the real receive chain after the opt-in under *Configure → Simulated telegrams*. | none |
+
+The simulator supports `window_open`, `window_closed`, `temperature`, `button`,
+`smoke_alarm` and `cover_position`. It never creates a teach-in telegram, never
+persists a packet, and never bypasses the configured device's normal decoder.
 
 Every refusal (unknown Base ID, dongle unavailable, missing sender ID,
 rejected teach-in, unsupported profile) is reported as a translated error in
 the UI and in automation traces.
+
+## Admin panel and simulated telegrams
+
+Administrators get an **EnOcean** item in the Home Assistant sidebar. Its four
+views are deliberately local and read-mostly:
+
+- **Devices** lists configured names, entity state, declared profile, last-seen
+  time, packet count, RSSI and repeater hops. *Details* opens the normal Home
+  Assistant entity dialog.
+- **Nearby** shows the existing passive inbox. An unknown sender is only an
+  observation: it is not paired, assigned a product or given an inferred EEP.
+- **Telegrams** is stopped by default. *Start live stream* enables an admin
+  websocket subscription, keeps at most the newest 100 records in memory, and
+  clears the backlog when the last subscriber disconnects. Decoding uses only a
+  profile already declared on the configured row. Simulated records have a
+  visible `SIMULATED` badge.
+- **Gateway** shows application/API/chip versions, worker health, packet
+  counters and repeater state. The serial path and chip ID are omitted. Sender
+  IDs and Base ID are masked by default; *IDs visible* changes only the current
+  admin session and is never saved.
+
+**Open commissioning** starts the existing `enocean_custom.learn` action and
+opens the integration page so the captured device can be adopted through the
+existing flow. There is no new pairing protocol and no automatic UTE answer.
+All panel data uses admin-decorated websocket commands; the static JavaScript
+URL serves only the panel shell. The frontend requires no build step or remote
+asset.
+
+For a receive-chain drill, first enable **Configure → Simulated telegrams**.
+Every `enocean_custom.simulate` request logs a warning and fires
+`enocean_custom_simulated_telegram` with `simulated: true`, the preset and the
+explicit sender before the packet reaches entities. Rocker bus events also
+carry `simulated: true`. Treat the smoke preset as a test only: it can trigger
+existing automations, although its provenance event is always marked.
 
 ## Triggers and events
 
@@ -259,6 +300,15 @@ data:
 `enocean_custom_device_learned` is fired once per captured sender during a
 learn window (`id`, `hex`, `evidence`, `support`, and the declared `eep` when a
 UTE or 4BS teach-in carried one).
+
+When **Configure → D2-01 actuators → Verify state after D2-01 commands** is
+enabled, a directed switch command must receive matching CMD 0x4 feedback for
+the requested new state. After three total attempts (the initial command and
+two retries), `enocean_custom_no_feedback` fires with `entity_id`, `device_id`,
+`command` (`turn_on` or `turn_off`) and `attempts: 3`. The 1.5-second wait is a
+local choice because D2-01 CMD 0x1 has no response deadline in EEP 2.6.7
+p. 133. No event means only that the optional check did not exhaust its
+attempts; it is not a replacement for actual state feedback.
 
 Every rocker device also gets a companion `event` entity, enabled by default,
 next to the existing triggers above (nothing above changes or stops working).
@@ -303,6 +353,10 @@ automation from the blueprint and fill in the inputs.
   status telegram, so dashboards never show a state the relay did not confirm.
 - **Door and window contacts.** D5-00-01 contacts and A5-14-01 window sensors
   feed presence, security and ventilation automations.
+- **Roller shutters with position feedback.** Declare D2-05-00 TYPE 0x00 on a
+  compatible actuator such as a NodOn SIN-2-RS-01, then open, close, stop or
+  set its open percentage. Home Assistant follows CMD 0x4 position replies
+  rather than estimating movement from elapsed time.
 
 ## Supported devices
 
@@ -313,7 +367,8 @@ In short: F6-02-01/02 rockers, F6-05-02 smoke detectors, F6-10-00 handles,
 D5-00-01 contacts, A5-14-01 window sensors, A5-12-01 meters, 8-bit A5
 temperature/humidity profiles with a manual scale, D2-14-30/41 multi-sensors,
 the generic EEP.xml sensor decoder, A5-38-08 dimmer commands, A5-20-04 valves
-(YAML), and D2-01 actuators (D2-01-0A/0B/08/12). A5-20-01 and A5-20-06 valves
+(YAML), D2-01 actuators (D2-01-0A/0B/08/12), and D2-05-00 TYPE 0x00 roller
+shutters. A5-20-01 and A5-20-06 valves
 are also implemented but **experimental and not validated on real
 hardware**: YAML-only, refused without an explicit `experimental_valve_ack:
 true`, see [docs/device-intelligence.md](docs/device-intelligence.md#experimental-valve-strategies-a5-20-01-and-a5-20-06).
@@ -335,10 +390,15 @@ true`, see [docs/device-intelligence.md](docs/device-intelligence.md#experimenta
   hardware.** They reply to the valve's own status telegram from inside the
   dispatcher callback to respect the EEP's one-second budget; the actual
   round-trip latency has never been measured against a real dongle or valve.
+- **D2-05-00 cover support is protocol-tested, not hardware-validated.** Only
+  the one-output TYPE 0x00 and channel `0` are accepted. CMD 0x5 motor timing,
+  alarm and locking configuration is not written, and slat angle is not exposed
+  as a tilt control. Validate commissioning, direction and physical limits on
+  the exact shutter before automating it.
 - **ESP3 `OK` only proves the dongle transmitted.** It never proves that a
   relay switched or that a device retained a pairing.
-- **Changing the availability or D2-01 settings still reloads the whole
-  entry** (entities are unavailable for about a second while the serial worker
+- **Changing the availability, D2-01 or simulation settings still reloads the
+  whole entry** (entities are unavailable for about a second while the serial worker
   restarts). Adding, reconfiguring or removing a device no longer does.
 - **D2-01 local settings (CMD 0x2) and measurement settings (CMD 0x5) are not
   written.** CMD 0x2 rewrites every local setting at once (taught-in devices
@@ -480,6 +540,35 @@ redact identifiers, names and the serial path. Include the Home Assistant and
 integration versions, dongle model, exact profile, reproduction steps, and
 redacted logs. See [SUPPORT.md](SUPPORT.md) for the issue checklist and support
 options.
+
+## Hardware-free development
+
+`scripts/fake_esp3_module.py` is a standard-library ESP3 peer used by the
+integration tests. It implements the frame CRCs and the actual start-up
+requests made by this integration; it is not a fake dispatcher or a mock of
+`EnOceanDongle`.
+
+```bash
+python3 scripts/fake_esp3_module.py --link /tmp/enocean-fake
+```
+
+Configure the printed pseudo-terminal (or its stable symbolic link) as the
+serial device. For a network-link and reconnection test, use `--listen 0` and
+configure the printed `socket://127.0.0.1:<port>` URL. Listening is restricted
+to loopback. Interactive commands include `rps`, `1bs`, `4bs`, `vld`, `d2-01`,
+`a5-20-04` and `d2-05`; `quit` closes the emulator. Examples:
+
+```text
+rps 10 058F2233 30
+d2-01 0 100 058F2233
+a5-20-04 40 058F2233
+d2-05 60 058F2233
+```
+
+The D2-05 position is the specification percentage (0 open, 100 closed).
+Tests also cover the real communicator's outgoing radio request, CRC-checked
+responses, lost TCP link, bounded reconnect and clean unload. The emulator
+never opens physical radio hardware and proves no RF behavior.
 
 ## Release and licensing
 

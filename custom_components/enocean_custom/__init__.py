@@ -55,7 +55,9 @@ from .identity import gateway_device_identifier
 from .inbox import DeviceInbox
 from .learn import async_register_learn_service, get_known_ids
 from .migration import async_adopt_legacy_rows, explicit_rps_actuator_profiles
+from .panel import async_setup_entry_panel, async_setup_panel
 from .schema import CONF_UI_DEVICES, valid_ui_devices
+from .simulator import async_register_simulate_service
 from .user_profiles import async_load_user_profiles
 from .yaml_import import purge_yaml_inventory
 
@@ -77,6 +79,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     clear error instead of "service not found".
     """
     async_register_learn_service(hass)
+    async_register_simulate_service(hass)
+    await async_setup_panel(hass)
     if DOMAIN not in config or hass.config_entries.async_entries(DOMAIN):
         return True
     hass.async_create_task(
@@ -182,6 +186,7 @@ async def async_setup_entry(
     async_adopt_legacy_rows(hass, entry)
     async_remove_stale_devices(hass, entry)
     await gateway.async_setup()
+    async_setup_entry_panel(hass, entry, gateway)
 
     try:
         await hass.config_entries.async_forward_entry_setups(

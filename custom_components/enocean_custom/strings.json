@@ -80,6 +80,7 @@
           "manage": "Manage UI devices",
           "settings": "Availability and silent devices",
           "actuators": "D2-01 actuators: state query at start-up",
+          "simulation": "Simulated telegrams (admin only)",
           "import_yaml": "Import YAML devices"
         }
       },
@@ -116,10 +117,19 @@
         "title": "D2-01 actuators",
         "description": "Optional, off by default. When enabled, each of the {count} configured D2-01 actuator channels (relays driven with directed D2 commands; Ubiwizz rows emulating a rocker are not concerned) is asked once for its status after every start-up or reload with one Actuator Status Query (CMD 0x3), so switches leave \"unknown\" without waiting for the next telegram. Queries are sent one at a time, at least 250 ms apart, and never repeated; the actuator must answer within the 300 ms window of the EEP specification. The \"Refresh state\" button of each actuator sends the same query on demand, whatever this setting.",
         "data": {
-          "d2_01_query_on_start": "Query every D2-01 actuator once after start-up"
+          "d2_01_query_on_start": "Query every D2-01 actuator once after start-up",
+          "d2_01_feedback_check": "Verify state after D2-01 commands"
         },
         "data_description": {
-          "d2_01_query_on_start": "Transmits one radio query per actuator channel after each start-up or reload. Leave off if you prefer this integration to never transmit on its own."
+          "d2_01_query_on_start": "Transmits one radio query per actuator channel after each start-up or reload. Leave off if you prefer this integration to never transmit on its own.",
+          "d2_01_feedback_check": "Off by default. After a directed ON/OFF command, wait 1.5 seconds for the requested new state; try twice more if needed, then fire enocean_custom_no_feedback. Displayed state remains feedback-only."
+        }
+      },
+      "simulation": {
+        "title": "Simulated telegrams",
+        "description": "Disabled by default. Allow the admin-only enocean_custom.simulate action to inject a preset into the real receive chain. Every use logs a warning and fires enocean_custom_simulated_telegram with simulated: true. Nothing is persisted or transmitted on the radio.",
+        "data": {
+          "allow_simulated_telegrams": "Allow simulated telegrams"
         }
       },
       "pair_actuator": {
@@ -511,6 +521,11 @@
         }
       }
     },
+    "cover": {
+      "d2_05_00": {
+        "name": "Roller shutter"
+      }
+    },
     "sensor": {
       "temperature": {
         "name": "Temperature"
@@ -672,6 +687,10 @@
       "name": "Start EnOcean teach-in",
       "description": "Listen for the next unknown EnOcean sender and fire enocean_custom_device_learned once one is captured."
     },
+    "simulate": {
+      "name": "Inject a simulated telegram",
+      "description": "Admin only and disabled by default. Inject a marked preset into the real receive chain without radio transmission or persistence."
+    },
     "send_teach_in": {
       "name": "Send dimmer teach-in",
       "description": "Send an A5-38-08 4BS teach-in telegram using the selected light entity's sender ID."
@@ -713,6 +732,9 @@
     },
     "gateway_not_loaded": {
       "message": "The EnOcean dongle is not loaded, so no teach-in window can be opened. Set up or reload the integration first."
+    },
+    "simulation_disabled": {
+      "message": "Simulated telegrams are disabled. Enable Configure → Simulated telegrams first. This action is restricted to administrators and never transmits radio."
     },
     "repeater_write_rejected": {
       "message": "The dongle refused the repeater setting; it is unchanged. Check that the dongle is connected and that its firmware supports CO_WR_REPEATER."

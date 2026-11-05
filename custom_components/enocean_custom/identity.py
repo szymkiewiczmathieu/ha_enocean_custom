@@ -126,6 +126,11 @@ def climate_unique_id(dev_id: list[int], channel: int = 0) -> str:
     return f"{combine_hex(dev_id)}-{channel}"
 
 
+def cover_unique_id(dev_id: list[int], channel: int = 0) -> str:
+    """Return the additive identity of a D2-05-00 cover (2.13)."""
+    return f"{combine_hex(dev_id)}-{channel}-d2-05-00-cover"
+
+
 def binary_sensor_unique_id(dev_id: list[int], device_class: object) -> str:
     """Return the rocker/contact identity.
 
@@ -296,6 +301,8 @@ def ui_device_entity_identities(
         return ((platform, switch_unique_id(dev_id, device["channel"])),)
     if platform == "climate":
         return ((platform, climate_unique_id(dev_id)),)
+    if platform == "cover":
+        return ((platform, cover_unique_id(dev_id, device["channel"])),)
     if platform == "light":
         return ((platform, light_unique_id(dev_id, device.get("sender_id"))),)
     if platform == "binary_sensor":

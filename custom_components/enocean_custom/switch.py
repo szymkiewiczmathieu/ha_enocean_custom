@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
+from time import monotonic
 from typing import Any, override
 
 import voluptuous as vol
@@ -17,15 +19,19 @@ from homeassistant.const import CONF_ID, CONF_NAME, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
-from .const import DOMAIN, LOGGER
+from .const import DOMAIN, EVENT_NO_FEEDBACK, LOGGER
+from .d2_01 import CONF_D2_01_FEEDBACK_CHECK
 from .device_rows import (
     add_entities_for_group,
     async_connect_subentry_setup,
+    async_get_sender_device,
     rows_by_subentry,
+    sender_identifier,
 )
 from .enocean_library.protocol.constants import RORG
 from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
@@ -48,6 +54,11 @@ DEFAULT_NAME = "EnOcean Switch"
 D2_SINGLE_CHANNEL_EEPS = frozenset(("D2-01-0A",))
 
 SWITCH_TYPES = ("default", "RPS")
+
+# D2-01 CMD 0x1 has "Response Timing: None" (EEP 2.6.7 p. 133), so this is a
+# deliberately local, configurable verification timeout -- not a spec deadline.
+FEEDBACK_TIMEOUT_SECONDS = 1.5
+FEEDBACK_MAX_ATTEMPTS = 3  # initial command plus two bounded retries
 
 
 def _validate_switch_config(config: ConfigType) -> ConfigType:
@@ -135,7 +146,9 @@ async def async_setup_platform(
     )
 
 
-def _switch_entities(rows: list[dict]) -> list[EnOceanSwitch]:
+def _switch_entities(
+    rows: list[dict], *, feedback_check: bool = False
+) -> list[EnOceanSwitch]:
     """Build the switches of one group of rows (legacy list or one subentry).
 
     The actuator profile is read from the row only. It is never inferred from
@@ -154,6 +167,7 @@ def _switch_entities(rows: list[dict]) -> list[EnOceanSwitch]:
             row.get("switch_type") or "default",
             (row.get("radio_metadata") or {}).get("eep"),
             row.get(CONF_ACTUATOR_PROFILE),
+            feedback_check=feedback_check,
         ).set_radio_metadata(row.get("radio_metadata"))
         if row_names_the_device(row, names_by_sender):
             # Bronze has-entity-name: Home Assistant then renders this
@@ -171,9 +185,16 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Create switches stored by the options flow, one batch per device subentry."""
+    feedback_check = (
+        getattr(entry, "options", {}).get(CONF_D2_01_FEEDBACK_CHECK) is True
+    )
+
+    def build(rows: list[dict]) -> list[EnOceanSwitch]:
+        return _switch_entities(rows, feedback_check=feedback_check)
+
     for subentry_id, rows in rows_by_subentry(entry):
-        add_entities_for_group(async_add_entities, _switch_entities(rows), subentry_id)
-    async_connect_subentry_setup(hass, entry, async_add_entities, _switch_entities)
+        add_entities_for_group(async_add_entities, build(rows), subentry_id)
+    async_connect_subentry_setup(hass, entry, async_add_entities, build)
 
 
 class EnOceanSwitch(EnOceanEntity, SwitchEntity):
@@ -189,6 +210,8 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
         switch_type: str,
         eep: str | None = None,
         actuator_profile: str | None = None,
+        *,
+        feedback_check: bool = False,
     ) -> None:
         """Initialize an actuator without claiming an unconfirmed state."""
         if eep in D2_SINGLE_CHANNEL_EEPS and channel != 0:
@@ -208,6 +231,20 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
         self._command_sequence = 0
         self._profile = switch_type
         self._actuator_profile = actuator_profile
+        self._feedback_check = feedback_check
+        self._feedback_task: asyncio.Task[None] | None = None
+        self._feedback_seen_at = 0.0
+        self._feedback_state: bool | None = None
+
+    async def async_added_to_hass(self) -> None:
+        """Cancel any bounded verification still running when the row is removed."""
+        await super().async_added_to_hass()
+        self.async_on_remove(self._cancel_feedback_task)
+
+    def _cancel_feedback_task(self) -> None:
+        if self._feedback_task is not None and not self._feedback_task.done():
+            self._feedback_task.cancel()
+        self._feedback_task = None
 
     @property
     def extra_state_attributes(self) -> dict:
@@ -247,32 +284,9 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
                 ([RORG.RPS, 0x00, *self.dev_id, 0x20], build_radio_optional()),
             )
         else:
-            gateway = get_gateway(getattr(self, "hass", None))
-            sender_id = get_gateway_base_id(gateway)
-            if sender_id is None:
-                LOGGER.warning(
-                    "Skipping D2 command because the dongle Base ID is unavailable"
-                )
-                raise HomeAssistantError(
-                    translation_domain=DOMAIN,
-                    translation_key="base_id_unavailable",
-                    translation_placeholders={"name": self.dev_name},
-                )
-            output = 100 if target else 0
-            frames = (
-                (
-                    [
-                        RORG.VLD,
-                        0x01,
-                        self.channel,
-                        output,
-                        *sender_id,
-                        0x00,
-                    ],
-                    build_radio_optional(self.dev_id),
-                ),
-            )
+            frames = self._d2_frames(target)
         command_sequence = self._begin_command_transport()
+        command_started = monotonic()
         queued = self._send_state_packets(
             list(frames),
             completed=lambda accepted: self._record_command_transport_result(
@@ -287,6 +301,112 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
                 translation_key="command_rejected",
                 translation_placeholders={"name": self.dev_name},
             )
+        if self._profile == "default" and self._feedback_check:
+            self.hass.loop.call_soon_threadsafe(
+                self._start_feedback_check,
+                command_sequence,
+                target,
+                command_started,
+            )
+
+    def _d2_frames(self, target: bool) -> tuple[tuple[list[int], list[int]], ...]:
+        """Build one directed D2-01 CMD 0x1 command from the dongle Base ID."""
+        gateway = get_gateway(getattr(self, "hass", None))
+        sender_id = get_gateway_base_id(gateway)
+        if sender_id is None:
+            LOGGER.warning(
+                "Skipping D2 command because the dongle Base ID is unavailable"
+            )
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="base_id_unavailable",
+                translation_placeholders={"name": self.dev_name},
+            )
+        output = 100 if target else 0
+        return (
+            (
+                [
+                    RORG.VLD,
+                    0x01,
+                    self.channel,
+                    output,
+                    *sender_id,
+                    0x00,
+                ],
+                build_radio_optional(self.dev_id),
+            ),
+        )
+
+    def _start_feedback_check(
+        self, command_sequence: int, target: bool, command_started: float
+    ) -> None:
+        """Start one bounded verifier on the event loop, replacing the old one."""
+        self._cancel_feedback_task()
+        self._feedback_task = self.hass.async_create_task(
+            self._async_verify_feedback(command_sequence, target, command_started),
+            f"EnOcean D2-01 feedback check for {self.entity_id}",
+        )
+
+    async def _async_verify_feedback(
+        self, command_sequence: int, target: bool, command_started: float
+    ) -> None:
+        """Require the requested new state, resend twice at most, then report."""
+        attempt_started = command_started
+        try:
+            for attempt in range(1, FEEDBACK_MAX_ATTEMPTS + 1):
+                await asyncio.sleep(FEEDBACK_TIMEOUT_SECONDS)
+                if command_sequence != self._command_sequence:
+                    return
+                if (
+                    self._feedback_seen_at >= attempt_started
+                    and self._feedback_state is target
+                ):
+                    return
+                if attempt == FEEDBACK_MAX_ATTEMPTS:
+                    break
+                # A newer attempt has its own freshness boundary. A status that
+                # matched the request but predates it cannot confirm the resend.
+                attempt_started = monotonic()
+                try:
+                    frames = self._d2_frames(target)
+                except HomeAssistantError:
+                    continue
+                self._send_state_packets(
+                    list(frames),
+                    completed=lambda accepted: self._record_command_transport_result(
+                        command_sequence, accepted
+                    ),
+                )
+            if command_sequence != self._command_sequence:
+                return
+            gateway = get_gateway(self.hass)
+            device_id = None
+            if gateway is not None:
+                device = async_get_sender_device(
+                    dr.async_get(self.hass),
+                    gateway.entry_id,
+                    (DOMAIN, sender_identifier(self.dev_id)),
+                )
+                if device is not None:
+                    device_id = device.id
+            command = "turn_on" if target else "turn_off"
+            LOGGER.warning(
+                "No matching D2-01 feedback for %s after %d attempts",
+                self.dev_name,
+                FEEDBACK_MAX_ATTEMPTS,
+            )
+            self.hass.bus.async_fire(
+                EVENT_NO_FEEDBACK,
+                {
+                    "entity_id": self.entity_id,
+                    "device_id": device_id,
+                    "command": command,
+                    "attempts": FEEDBACK_MAX_ATTEMPTS,
+                },
+            )
+        finally:
+            if command_sequence == self._command_sequence:
+                self._feedback_task = None
 
     def _begin_command_transport(self) -> int:
         """Start a transport result transaction without changing relay state."""
@@ -373,6 +493,8 @@ class EnOceanSwitch(EnOceanEntity, SwitchEntity):
             status = parse_d2_01_actuator_status(packet.data)
             if status is None or status.channel != self.channel:
                 return
+            self._feedback_seen_at = monotonic()
+            self._feedback_state = status.output_value > 0
             self.record_d2_status(status)
             self._attr_is_on = status.output_value > 0
             self.async_write_ha_state()

@@ -80,6 +80,7 @@
           "manage": "UI-apparaten beheren",
           "settings": "Beschikbaarheid en stille apparaten",
           "actuators": "D2-01-actoren: statusopvraag bij het opstarten",
+          "simulation": "Gesimuleerde telegrammen (alleen beheerders)",
           "import_yaml": "YAML-apparaten importeren"
         }
       },
@@ -116,10 +117,19 @@
         "title": "D2-01-actoren",
         "description": "Optioneel, standaard uit. Wanneer ingeschakeld, wordt elk van de {count} geconfigureerde D2-01-actorkanalen (relais aangestuurd met gerichte D2-commando's; Ubiwizz-rijen die een drukknop emuleren vallen hier niet onder) na elke start of herlaad één keer om zijn status gevraagd met een Actuator Status Query (CMD 0x3), zodat schakelaars \"onbekend\" verlaten zonder op het volgende telegram te wachten. Opvragen worden één voor één verzonden, minstens 250 ms uit elkaar, en nooit herhaald; de actor moet binnen het 300 ms-venster van de EEP-specificatie antwoorden. De knop \"Status vernieuwen\" van elke actor verzendt dezelfde opvraag op verzoek, ongeacht deze instelling.",
         "data": {
-          "d2_01_query_on_start": "Elke D2-01-actor één keer opvragen na het opstarten"
+          "d2_01_query_on_start": "Elke D2-01-actor één keer opvragen na het opstarten",
+          "d2_01_feedback_check": "Status controleren na D2-01-commando's"
         },
         "data_description": {
-          "d2_01_query_on_start": "Verzendt na elke start of herlaad één radio-opvraag per actorkanaal. Laat uit als u liever hebt dat deze integratie nooit op eigen initiatief zendt."
+          "d2_01_query_on_start": "Verzendt na elke start of herlaad één radio-opvraag per actorkanaal. Laat uit als u liever hebt dat deze integratie nooit op eigen initiatief zendt.",
+          "d2_01_feedback_check": "Standaard uit. Wacht na een gericht AAN/UIT-commando 1,5 seconden op de gevraagde nieuwe status, probeer daarna nog tweemaal en vuur daarna enocean_custom_no_feedback. De getoonde status blijft uitsluitend op terugmelding gebaseerd."
+        }
+      },
+      "simulation": {
+        "title": "Gesimuleerde telegrammen",
+        "description": "Standaard uitgeschakeld. Staat de actie enocean_custom.simulate, alleen voor beheerders, toe een voorinstelling in de echte ontvangstketen te injecteren. Elk gebruik logt een waarschuwing en vuurt enocean_custom_simulated_telegram met simulated: true. Niets wordt bewaard of via radio verzonden.",
+        "data": {
+          "allow_simulated_telegrams": "Gesimuleerde telegrammen toestaan"
         }
       },
       "pair_actuator": {
@@ -511,6 +521,11 @@
         }
       }
     },
+    "cover": {
+      "d2_05_00": {
+        "name": "Rolluik"
+      }
+    },
     "sensor": {
       "temperature": {
         "name": "Temperatuur"
@@ -672,6 +687,10 @@
       "name": "EnOcean-inleren starten",
       "description": "Luistert naar de volgende onbekende EnOcean-zender en activeert enocean_custom_device_learned zodra er een is vastgelegd."
     },
+    "simulate": {
+      "name": "Gesimuleerd telegram injecteren",
+      "description": "Alleen voor beheerders en standaard uitgeschakeld. Injecteert een gemarkeerde voorinstelling in de echte ontvangstketen, zonder radioverzending of opslag."
+    },
     "send_teach_in": {
       "name": "Dimmer-inleren verzenden",
       "description": "Verzendt een A5-38-08 4BS-inleertelegram met de zender-ID van de geselecteerde lichtentiteit."
@@ -713,6 +732,9 @@
     },
     "gateway_not_loaded": {
       "message": "De EnOcean-dongle is niet geladen, dus er kan geen inleervenster worden geopend. Stel de integratie eerst in of herlaad haar."
+    },
+    "simulation_disabled": {
+      "message": "Gesimuleerde telegrammen zijn uitgeschakeld. Schakel eerst Configureren → Gesimuleerde telegrammen in. Deze actie is alleen voor beheerders en zendt nooit radio uit."
     },
     "repeater_write_rejected": {
       "message": "De dongle weigerde de repeaterinstelling; ze is ongewijzigd. Controleer of de dongle is aangesloten en of zijn firmware CO_WR_REPEATER ondersteunt."

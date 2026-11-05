@@ -81,6 +81,7 @@ Alliance certification nor tested hardware.
 | `D2-01-0B`   | `sensor._decode_d2_measurement` for D2-01 CMD `0x7`                                                                          | `sensor`                  | `assisted`                                                   | `supported` |
 | `D2-01-08`   | Ubiwizz lighting profile from field-verified DolphinView capture | `light`, `switch` | manual (catalog recipe) | manual |
 | `D2-01-12`   | switch/light actuator with D2-01 feedback; explicit `ubiwizz_ubid1507c` limits documented UBID1507C rows to channels `0`/`1` | `light`, `switch` | manual (two valid platforms; EEP is not hardware identity) | manual |
+| `D2-05-00`   | `cover.EnOceanCover`: CMD 0x1 position, CMD 0x2 stop, CMD 0x3 query, CMD 0x4 position/angle/lock feedback; TYPE 0x00 channel `0` only | `cover` | `assisted` (one output; profile remains an operator assertion) | `supported` |
 | `D2-14-30`   | `d2_14.decode_d2_14_30`: smoke alarm (row entity), sensor-fault and maintenance flags, temperature, humidity, energy storage, hygrothermal comfort, indoor air analysis, weeks since maintenance, remaining lifetime. Layout from two agreeing implementations (openHAB `D2_14_30.java`, FHEM `multiFuncSensor.30`); **not yet validated on a real detector** | `binary_sensor`           | `assisted` (profile must be declared)                        | `supported` |
 
 A platform is pre-selected in the options flow only when the mode is
@@ -127,6 +128,34 @@ The `EEP.xml` file dates from EEP 2.6.x. A generic profile is **implemented**,
 not **validated**: compare the first real telegram of your product with the
 entities before relying on them, and report mismatches with the device
 diagnostics (the last raw telegram is included).
+
+### D2-05-00 roller shutters and D2-01 command verification
+
+`d2_05.py` and `cover.py` implement the D2-05-00 TYPE 0x00 subset documented
+in EEP 2.6.7 pp. 157-159. The table is a protocol boundary, not a hardware
+certification:
+
+| What | Source | Rule in this repository |
+| --- | --- | --- |
+| Go to Position and Angle, CMD 0x1 | EEP 2.6.7 p. 158 | POS 0 is up/open and POS 100 down/closed; HA uses the inverse open percentage. ANG is always `0x7F` ("do not change"), never zero. REPO 0 requests no repetition; LOCK 0 leaves locking unchanged. |
+| Stop, CMD 0x2 | EEP 2.6.7 p. 158 | One directed stop command. A local two-second delay after its physical write schedules one CMD 0x3; this delay is not presented as an EEP deadline. |
+| Query Position and Angle, CMD 0x3 | EEP 2.6.7 pp. 158-159 | One query after Base ID resolution at entity start-up and one after stop. No periodic polling loop. |
+| Reply Position and Angle, CMD 0x4 | EEP 2.6.7 p. 159 | POS/ANG are seven-bit values, `0x7F` unknown. POS is inverted for HA. LOCK is retained as a raw diagnostic attribute; no angle-to-tilt conversion is invented. |
+| Set Parameters, CMD 0x5 | EEP 2.6.7 p. 159 | **Not implemented.** Motor timing and alarm behavior are installation-specific and cannot be inferred safely. |
+
+Only channel `0` is accepted: TYPE 0x00 has one output and the command CHN
+value 0 denotes its first channel. Position state is feedback-only; a queued
+command or ESP3 OK never changes it. `RestoreEntity` restores the previous HA
+position as provisional history until real feedback arrives. The unique ID is
+the additive `<sender>-0-d2-05-00-cover`; existing identities do not change.
+
+The separate `d2_01_feedback_check` option verifies directed D2-01 CMD 0x1
+switch commands. EEP 2.6.7 p. 133 gives "Response Timing: None", so the
+integration's 1.5-second wait and three total attempts are explicit local
+policy, not a specification deadline. Matching fresh feedback stops the task;
+two retries are the maximum; exhaustion fires `enocean_custom_no_feedback`.
+No Repair issue is persisted because this is a diagnostic event, not a second
+state model. RPS-emulated rows and the default displayed state are unchanged.
 
 ### D2-01 actuator queries (CMD 0x3 / CMD 0x6)
 
@@ -216,7 +245,7 @@ acceptance rather than proof that a load switched.
 | CCS-2-1-01 card switch                              | `F6-04-01` card insertion/removal                                                      | Unsupported                                              | Telegram fixture and decoder test.                                   |
 | SIN-2-FP-01 pilot-wire module                       | `D2-01-0C` heating modes and telemetry                                                 | Unsupported                                              | Command and status fixtures.                                         |
 | SIN-2-2-01 lighting relay                           | `D2-01-12` ON/OFF actuator                                                             | Manual mapping; untested                                 | Directed-command and feedback fixtures, then safe physical proof.    |
-| SIN-2-RS-01 roller-shutter module                   | `D2-05-00` shutter actuator                                                            | Unsupported                                              | Range and status fixtures.                                           |
+| SIN-2-RS-01 roller-shutter module                   | `D2-05-00` shutter actuator                                                            | Manual `cover`, TYPE 0x00 channel `0`; protocol-tested, not hardware-validated | Safe physical direction/position/stop validation and commissioning proof. |
 | CRC-2-6-01 Soft Remote                              | `D2-03-0A` scene/button transmitter                                                    | Unsupported                                              | Button-event fixture and decoder test.                               |
 | Other transmitter families listed by the ASP manual | `F6-10-00`, `D5-00-01`, `A5-07-*`, `A5-08-*`, `A5-10-*`, `A5-14-*`                     | Only rows in the implementation matrix are supported     | Exact model evidence plus profile-specific fixture.                  |
 
@@ -311,7 +340,7 @@ convenience, never proof**.
 | NodOn ASP-2-1-00 (Smart Plug) | `D2-01-0A` | `switch` | yes |
 | NodOn ASP-2-1-01 (Smart Plug + Metering) | `D2-01-0B` | `switch` | yes (metering not decoded) |
 | NodOn SIN-2-2-01 (dual switch micromodule) | `D2-01-12` | `switch` | yes |
-| NodOn SIN-2-RS-01 (roller shutter module) | `D2-05-00` | — | no: no cover platform exists |
+| NodOn SIN-2-RS-01 (roller shutter module) | `D2-05-00` | `cover` | yes, as an operator assertion; no hardware validation is implied |
 | NodOn CWS-2-1-01 (wireless wall switch) | `F6-02-01` | `binary_sensor` | yes, informational only (RPS declares no EEP) |
 | Eltako FT55 (wireless rocker) | `F6-02-01` | `binary_sensor` | yes, informational only |
 | HOPPE SecuSignal (window handle) | `F6-10-00` | `sensor` | yes |
@@ -339,6 +368,37 @@ neutral: a resolved ID shows the published vendor name, an observed but
 unlisted ID shows the `not_registered` token, and an ID that was never observed
 shows `—`. The distinction matters because "not registered" is an assertion
 about the registry, which cannot be made without having read an ID.
+
+### Admin panel, bounded stream and simulated provenance
+
+The EnOcean sidebar panel is registered with `require_admin=True`; both its
+snapshot and live subscription commands use the websocket `require_admin`
+decorator. The static JavaScript asset contains no runtime data. This is an
+admin diagnostic view, not a new public diagnostics export.
+
+The default snapshot masks every sender and the gateway Base ID, omits chip ID
+and serial path, and keeps names/entity IDs visible only inside the admin UI.
+An administrator can reveal identifiers for the current session; that choice
+is not written to entry options or `.storage`. Existing downloadable
+diagnostics retain their stricter redaction rules and do not include panel
+backlogs.
+
+The telegram monitor has no listener and stores no record by default. Starting
+the live view subscribes it to the real receive dispatcher, caps the backlog at
+100 records, and clears records when the final subscriber unsubscribes or the
+entry unloads. Each subscriber chooses its own masked/unmasked view. A summary
+uses only an EEP already declared on the matching configured row; raw RORG
+envelopes remain generic and no product is inferred from an ID.
+
+The separate admin-only `enocean_custom.simulate` action is refused unless
+`allow_simulated_telegrams` is explicitly true. Its packet is injected after
+serial reception, through the same inbox and dispatcher, without serial write
+or radio transmission. Before dispatch it fires
+`enocean_custom_simulated_telegram` with `simulated: true`; panel records and
+rocker events preserve that marker. A warning is logged for every request.
+Simulation packets and panel records are never persisted; only the explicit
+opt-in option is stored. No simulation preset is a teach-in, and none can enable
+automatic UTE acknowledgement.
 
 ### SIGNAL telegrams (RORG 0xD0)
 

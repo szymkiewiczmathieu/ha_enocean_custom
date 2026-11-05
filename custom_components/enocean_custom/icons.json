@@ -8,6 +8,11 @@
         }
       }
     },
+    "cover": {
+      "d2_05_00": {
+        "default": "mdi:window-shutter"
+      }
+    },
     "button": {
       "light_teach_in": {
         "default": "mdi:radio-tower"

@@ -32,6 +32,9 @@ DATA_LEARN_MANAGER = "learn_manager"
 
 ERROR_INVALID_DONGLE_PATH = "invalid_dongle_path"
 EVENT_DEVICE_LEARNED = f"{DOMAIN}_device_learned"
+EVENT_NO_FEEDBACK = f"{DOMAIN}_no_feedback"
+EVENT_SIMULATED_TELEGRAM = f"{DOMAIN}_simulated_telegram"
+CONF_ALLOW_SIMULATION = "allow_simulated_telegrams"
 ISSUE_SERIAL_STOPPED = "serial_communicator_stopped"
 # Raised per silent sender when silence detection is enabled for its category.
 ISSUE_SILENT_DEVICE = "silent_device"
@@ -40,6 +43,7 @@ ISSUE_VALVE_FAILURE = "valve_failure"
 
 SERVICE_LEARN = "learn"
 SERVICE_SEND_TEACH_IN = "send_teach_in"
+SERVICE_SIMULATE = "simulate"
 
 SIGNAL_DONGLE_STATUS = f"{DOMAIN}.dongle_status"
 SIGNAL_RECEIVE_MESSAGE = f"{DOMAIN}.receive_message"
@@ -59,7 +63,14 @@ LOGGER = logging.getLogger(__package__)
 
 # These platforms accept devices stored by the config-entry options flow: a
 # UI row names one of them as its ``platform``.
-UI_DEVICE_PLATFORMS = ("binary_sensor", "climate", "light", "sensor", "switch")
+UI_DEVICE_PLATFORMS = (
+    "binary_sensor",
+    "climate",
+    "cover",
+    "light",
+    "sensor",
+    "switch",
+)
 
 # Every platform the config entry forwards: the row platforms, ``select``
 # (the dongle's own repeater setting, never a UI row), ``event`` (one

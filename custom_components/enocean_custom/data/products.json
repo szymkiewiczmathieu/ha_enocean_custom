@@ -47,14 +47,14 @@
       "manufacturer": "NodOn",
       "model": "SIN-2-RS-01 (roller shutter module)",
       "eep": "D2-05-00",
-      "platforms": [],
-      "channels": [],
+      "platforms": ["cover"],
+      "channels": [0],
       "teach_in": "ute",
-      "support": "unsupported",
+      "support": "manual",
       "evidence": [
         "NodOn SIN-2-RS-01 User Guide (EnOcean Alliance)"
       ],
-      "notes": "This repository has no cover platform; D2-05-00 is not decoded and this recipe is never offered in the picker. Listed for documentation only."
+      "notes": "D2-05-00 cover commands and position replies are implemented from EEP 2.6.7 pp. 157-159. This recipe remains an operator assertion, not proof of hardware or hardware validation; no automatic UTE acknowledgement is added."
     },
     "nodon_cws_2_1_01": {
       "manufacturer": "NodOn",

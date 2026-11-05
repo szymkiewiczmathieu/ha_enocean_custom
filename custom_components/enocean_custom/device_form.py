@@ -205,6 +205,16 @@ def device_details_schema(
                 selector.SelectSelectorConfig(options=list(SWITCH_TYPES))
             )
         )
+    elif platform == "cover":
+        # D2-05-00 TYPE 0x00 has one output (EEP 2.6.7 pp. 157-158).
+        schema_dict[vol.Optional(CONF_CHANNEL, default=0)] = selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0,
+                max=0,
+                step=1,
+                mode=selector.NumberSelectorMode.BOX,
+            )
+        )
     elif platform == "light":
         schema_dict[vol.Required(CONF_SENDER_ID, default=suggested_sender_id)] = (
             selector.TextSelector(
@@ -344,6 +354,11 @@ def validate_device_details(
             return outcome
         if values.get(CONF_SWITCH_TYPE) == "RPS" and channel not in (0, 1):
             outcome.errors = {CONF_CHANNEL: "invalid_channel_rps"}
+            return outcome
+    elif platform == "cover":
+        channel = exact_int(values.get(CONF_CHANNEL, 0))
+        if channel != 0:
+            outcome.errors = {CONF_CHANNEL: "invalid_channel"}
             return outcome
     elif platform == "light":
         # D2-01-12 I/O channel is 5 bits wide (0-31).

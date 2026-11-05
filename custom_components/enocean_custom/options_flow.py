@@ -30,13 +30,18 @@ from .availability import (
     minutes_key,
 )
 from .const import (
+    CONF_ALLOW_SIMULATION,
     DOMAIN,
     LEARN_TIMEOUT_DEFAULT,
     LOGGER,
     SERVICE_SEND_TEACH_IN,
     SIGNAL_RECEIVE_MESSAGE,
 )
-from .d2_01 import CONF_D2_01_QUERY_ON_START, d2_01_targets
+from .d2_01 import (
+    CONF_D2_01_FEEDBACK_CHECK,
+    CONF_D2_01_QUERY_ON_START,
+    d2_01_targets,
+)
 from .device_catalog import (
     UBIWIZZ_LIGHT_D2_01_08,
     get_product_recipe,
@@ -570,6 +575,7 @@ class EnOceanOptionsFlow(OptionsFlow):
             "manage",
             "settings",
             "actuators",
+            "simulation",
         ]
         if self._pending_yaml_rows():
             menu_options.append("import_yaml")
@@ -594,7 +600,14 @@ class EnOceanOptionsFlow(OptionsFlow):
                     {
                         vol.Required(
                             CONF_D2_01_QUERY_ON_START, default=current
-                        ): selector.BooleanSelector()
+                        ): selector.BooleanSelector(),
+                        vol.Required(
+                            CONF_D2_01_FEEDBACK_CHECK,
+                            default=self.config_entry.options.get(
+                                CONF_D2_01_FEEDBACK_CHECK
+                            )
+                            is True,
+                        ): selector.BooleanSelector(),
                     }
                 ),
                 description_placeholders={
@@ -612,6 +625,30 @@ class EnOceanOptionsFlow(OptionsFlow):
         updated_options = dict(self.config_entry.options)
         updated_options[CONF_D2_01_QUERY_ON_START] = (
             user_input.get(CONF_D2_01_QUERY_ON_START) is True
+        )
+        updated_options[CONF_D2_01_FEEDBACK_CHECK] = (
+            user_input.get(CONF_D2_01_FEEDBACK_CHECK) is True
+        )
+        return self.async_create_entry(title="", data=updated_options)
+
+    async def async_step_simulation(self, user_input=None):
+        """Enable admin-only receive-chain simulations, off by default."""
+        if user_input is None:
+            return self.async_show_form(
+                step_id="simulation",
+                data_schema=vol.Schema(
+                    {
+                        vol.Required(
+                            CONF_ALLOW_SIMULATION,
+                            default=self.config_entry.options.get(CONF_ALLOW_SIMULATION)
+                            is True,
+                        ): selector.BooleanSelector()
+                    }
+                ),
+            )
+        updated_options = dict(self.config_entry.options)
+        updated_options[CONF_ALLOW_SIMULATION] = (
+            user_input.get(CONF_ALLOW_SIMULATION) is True
         )
         return self.async_create_entry(title="", data=updated_options)
 

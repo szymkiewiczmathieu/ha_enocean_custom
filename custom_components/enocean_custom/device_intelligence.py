@@ -163,6 +163,9 @@ EEP_IMPLEMENTATIONS: Mapping[str, EEPImplementation] = MappingProxyType(
         "D2-01-0A": EEPImplementation(("switch",), ConfigMode.MANUAL),
         # sensor._decode_d2_measurement handles D2-01 CMD 0x7 reports.
         "D2-01-0B": EEPImplementation(("sensor",), ConfigMode.ASSISTED),
+        # D2-05-00 TYPE 0x00 actuator with position/angle feedback; one cover,
+        # channel fixed to zero (EEP 2.6.7 pp. 157-159).
+        "D2-05-00": EEPImplementation(("cover",), ConfigMode.ASSISTED),
         # D2-01-12 actuators are valid as either a light or a switch.
         "D2-01-08": EEPImplementation(("light", "switch"), ConfigMode.MANUAL),
         "D2-01-12": EEPImplementation(("light", "switch"), ConfigMode.MANUAL),

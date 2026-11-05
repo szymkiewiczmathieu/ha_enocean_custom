@@ -30,6 +30,41 @@ learn:
           unit_of_measurement: seconds
           mode: box
 
+simulate:
+  name: Inject a simulated telegram
+  description: Admin only and disabled by default. Inject a marked preset into the real receive chain without radio transmission or persistence.
+  fields:
+    preset:
+      name: Preset
+      description: Telegram to inject.
+      required: true
+      selector:
+        select:
+          options:
+            - window_open
+            - window_closed
+            - temperature
+            - button
+            - smoke_alarm
+            - cover_position
+    sender_id:
+      name: Sender ID
+      description: Four-byte EnOcean sender of the configured device, as AA:BB:CC:DD.
+      required: true
+      selector:
+        text:
+    position:
+      name: Cover position
+      description: Open percentage for the cover_position preset; ignored otherwise.
+      required: false
+      default: 50
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+          mode: box
+
 send_teach_in:
   name: Send dimmer teach-in
   description: Send an A5-38-08 4BS teach-in telegram using the selected light entity's sender ID.

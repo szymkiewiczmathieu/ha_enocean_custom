@@ -60,6 +60,8 @@ from .identity import SENSOR_DEFAULT_DEVICE_CLASS
 # Entry option: query every D2-01 actuator once after start-up. Off by default:
 # enabling it is the only way this integration ever transmits on its own.
 CONF_D2_01_QUERY_ON_START: Final = "d2_01_query_on_start"
+# Opt-in post-command verification: one command plus at most two resends.
+CONF_D2_01_FEEDBACK_CHECK: Final = "d2_01_feedback_check"
 
 DATA_D2_01_RUNNERS: Final = "d2_01_runners"
 
