@@ -1,7 +1,7 @@
 # EnOcean Custom
 
 [![HACS](https://img.shields.io/badge/HACS-Default-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/default)
-[![Validation](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml)
+[![Validation](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml/badge.svg?branch=main&style=for-the-badge)](https://github.com/szymkiewiczmathieu/ha_enocean_custom/actions/workflows/validate.yml)
 [![GitHub stars](https://img.shields.io/github/stars/szymkiewiczmathieu/ha_enocean_custom?style=for-the-badge&logo=github&label=Stars)](https://github.com/szymkiewiczmathieu/ha_enocean_custom/stargazers)
 
 Local-first Home Assistant integration for ESP3 EnOcean USB dongles (USB 300
@@ -9,7 +9,9 @@ and compatible). It provides configuration-entry and YAML setup, guided device
 learning, diagnostics, native rocker triggers, automation blueprints and
 bounded actuator control without cloud services or telemetry.
 
-**Current release:** [v2.13.0](CHANGELOG.md) · Apache-2.0 · available in the HACS default store
+**Current release:** [v2.14.0](CHANGELOG.md) · Apache-2.0 · available in the HACS default store
+
+![EnOcean admin panel: gateway health, device cards and signal gauges](docs/images/panel-devices.png)
 
 ## Contents
 
@@ -43,9 +45,7 @@ bounded actuator control without cloud services or telemetry.
 
 The only installation parameter is the serial device:
 
-| Parameter | Meaning |
-| --- | --- |
-| `device` | Path of the ESP3 serial port, preferably the stable `/dev/serial/by-id/usb-EnOcean_GmbH_EnOcean_USB_300_...` alias. A `socket://host:port` or `rfc2217://host:port` URL also works, for a dongle shared over the network through ser2net, ESPHome's `stream_server`, or esp-ha-usb-gateway. |
+- `device`: Path of the ESP3 serial port, preferably the stable `/dev/serial/by-id/usb-EnOcean_GmbH_EnOcean_USB_300_...` alias. A `socket://host:port` or `rfc2217://host:port` URL also works, for a dongle shared over the network through ser2net, ESPHome's `stream_server`, or esp-ha-usb-gateway.
 
 A network link reconnects on its own after an unexpected drop: a growing
 backoff (2s, 5s, 15s, 30s, 60s), then it gives up and waits for a manual
@@ -219,14 +219,30 @@ own four-byte sender ID.
 
 ## Actions
 
-| Action | Target / fields | What it does | Radio transmission |
-| --- | --- | --- | --- |
-| `enocean_custom.learn` | `timeout` (15–300 s, default 60) | Opens one teach-in window; the first unknown sender fires `enocean_custom_device_learned` with its ID, hex form and safe radio evidence. Refused while another window is open or the dongle is not loaded. | none |
-| `enocean_custom.send_teach_in` | one or more `light` entities | Sends the A5-38-08 4BS teach-in telegram with the light's configured sender ID. | yes, on request |
-| `enocean_custom.climate_teach_in_actor` | one or more `climate` entities | Sends the configured profile's 4BS Variation-3 teach-in response (SRC-D08 panel, A5-20-04, or the experimental A5-20-01/A5-20-06). | yes, on request |
-| `enocean_custom.climate_teach_in_actor_switch` | one or more `climate` entities | Sends the legacy RPS rocker teach-in of an SRC-D08; refused on other profiles. | yes, on request |
-| `enocean_custom.reload` | — | Reloads YAML-configured platforms. | none |
-| `enocean_custom.simulate` | `preset`, explicit `sender_id`, optional `position` | Admin-only and disabled by default. Injects a marked test telegram into the real receive chain after the opt-in under *Configure → Simulated telegrams*. | none |
+- `enocean_custom.learn`
+  - Target / fields: `timeout` (15–300 s, default 60)
+  - What it does: Opens one teach-in window; the first unknown sender fires `enocean_custom_device_learned` with its ID, hex form and safe radio evidence. Refused while another window is open or the dongle is not loaded.
+  - Radio transmission: none
+- `enocean_custom.send_teach_in`
+  - Target / fields: one or more `light` entities
+  - What it does: Sends the A5-38-08 4BS teach-in telegram with the light's configured sender ID.
+  - Radio transmission: yes, on request
+- `enocean_custom.climate_teach_in_actor`
+  - Target / fields: one or more `climate` entities
+  - What it does: Sends the configured profile's 4BS Variation-3 teach-in response (SRC-D08 panel, A5-20-04, or the experimental A5-20-01/A5-20-06).
+  - Radio transmission: yes, on request
+- `enocean_custom.climate_teach_in_actor_switch`
+  - Target / fields: one or more `climate` entities
+  - What it does: Sends the legacy RPS rocker teach-in of an SRC-D08; refused on other profiles.
+  - Radio transmission: yes, on request
+- `enocean_custom.reload`
+  - Target / fields: —
+  - What it does: Reloads YAML-configured platforms.
+  - Radio transmission: none
+- `enocean_custom.simulate`
+  - Target / fields: `preset`, explicit `sender_id`, optional `position`
+  - What it does: Admin-only and disabled by default. Injects a marked test telegram into the real receive chain after the opt-in under *Configure → Simulated telegrams*.
+  - Radio transmission: none
 
 The simulator supports `window_open`, `window_closed`, `temperature`, `button`,
 `smoke_alarm` and `cover_position`. It never creates a teach-in telegram, never
@@ -237,6 +253,8 @@ rejected teach-in, unsupported profile) is reported as a translated error in
 the UI and in automation traces.
 
 ## Admin panel and simulated telegrams
+
+![Live telegram feed in the dark theme, with a simulated telegram clearly marked](docs/images/panel-telegrams-dark.png)
 
 Administrators get an **EnOcean** item in the Home Assistant sidebar. Its four
 views are deliberately local and read-mostly:
@@ -275,12 +293,10 @@ existing automations, although its provenance event is always marked.
 Every rocker device (a `binary_sensor` row for an F6-02 switch) offers native
 device triggers in the automation editor:
 
-| Trigger type | Fires when |
-| --- | --- |
-| `button_pressed` | any button is pressed |
-| `button_released` | the rocker is released |
-| `button_pressed_channel_0` | the first rocker (A) is pressed |
-| `button_pressed_channel_1` | the second rocker (B) is pressed |
+- `button_pressed`: fires when any button is pressed
+- `button_released`: fires when the rocker is released
+- `button_pressed_channel_0`: fires when the first rocker (A) is pressed
+- `button_pressed_channel_1`: fires when the second rocker (B) is pressed
 
 Each trigger accepts the optional filters `which` (`0`, `1`, `10` for both) and
 `onoff` (`1` = upper/I side, `0` = lower/O side). The same information is
@@ -332,11 +348,12 @@ Import each one with its button (or paste the raw file URL into **Settings →
 Automations & scenes → Blueprints → Import blueprint**), then create an
 automation from the blueprint and fill in the inputs.
 
-| Blueprint | What it does | Import |
-| --- | --- | --- |
-| `rocker_to_light.yaml` | One half of an F6-02 rocker turns a light on (I) and off (O) through the native device trigger. Home Assistant transmits nothing: the rocker keeps driving its directly paired relays as well. | [Import](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fszymkiewiczmathieu%2Fha_enocean_custom%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fenocean_custom%2Frocker_to_light.yaml) |
-| `handle_open_hvac_off.yaml` | A window handle left `open` or `tilt` beyond a grace period switches the chosen climate entities off and notifies you; `closed` restores the HVAC mode you pick. | [Import](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fszymkiewiczmathieu%2Fha_enocean_custom%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fenocean_custom%2Fhandle_open_hvac_off.yaml) |
-| `smoke_alarm_notify.yaml` | A smoke alarm notifies every phone (`notify.notify`) and turns the chosen lights fully on; a second message is sent when the alarm clears. | [Import](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fszymkiewiczmathieu%2Fha_enocean_custom%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fenocean_custom%2Fsmoke_alarm_notify.yaml) |
+- `rocker_to_light.yaml` — [Import](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fszymkiewiczmathieu%2Fha_enocean_custom%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fenocean_custom%2Frocker_to_light.yaml)
+  One half of an F6-02 rocker turns a light on (I) and off (O) through the native device trigger. Home Assistant transmits nothing: the rocker keeps driving its directly paired relays as well.
+- `handle_open_hvac_off.yaml` — [Import](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fszymkiewiczmathieu%2Fha_enocean_custom%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fenocean_custom%2Fhandle_open_hvac_off.yaml)
+  A window handle left `open` or `tilt` beyond a grace period switches the chosen climate entities off and notifies you; `closed` restores the HVAC mode you pick.
+- `smoke_alarm_notify.yaml` — [Import](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fszymkiewiczmathieu%2Fha_enocean_custom%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fenocean_custom%2Fsmoke_alarm_notify.yaml)
+  A smoke alarm notifies every phone (`notify.notify`) and turns the chosen lights fully on; a second message is sent when the alarm clears.
 
 ## Use cases
 
@@ -514,21 +531,32 @@ because their subentry still exists. Delete them again from the device page.
 
 ## Troubleshooting
 
-| Symptom | What to check |
-| --- | --- |
-| **"No valid dongle found for this path"** when adding the integration | Use the `/dev/serial/by-id/...` alias, make sure no other integration or container opens the port, and that the user running Home Assistant may access it. |
-| **Repair issue "The EnOcean serial worker stopped"** and all entities unavailable | The dongle was unplugged, the port vanished or a response timed out. Reconnect the dongle, then reload the integration (**Settings → Devices & services → EnOcean Custom → ⋮ → Reload**). |
-| **Error "The dongle has not reported its Base ID"** on a switch | The start-up `CO_RD_IDBASE` read was refused or lost. The integration retries it automatically (three attempts with backoff); wait a few seconds or reload. |
-| **Error "The dongle refused to queue the command"** | The serial worker is stopped or its transmit queue is full. Check the Repair issue and the logs. |
-| **A rocker/contact entity never changes** | Confirm the four-byte ID with a learn session or the passive radio test; the row must use the sender ID printed in the telegram, not the dongle's Base ID. |
-| **A switch stays `unknown` after a command** | Normal until the actuator answers with its status telegram. If it never does, the module is not paired with the dongle's Base ID: run the guided pairing or UTE association. |
-| **A D2-01 switch stays `unknown` after a restart** | Press its **Refresh state** button, or enable **Configure → D2-01 actuators** to ask every D2-01 actuator once after each start-up. If the button leaves it `unknown`, the actuator did not answer within 300 ms: check pairing, range (signal strength sensor) and that the row's channel matches the actuator's output. |
-| **"Add device" says the ID is already configured** | That sender already has a subentry (one per EnOcean ID). Open that device to reconfigure it, or use **Configure → Add a device** to add another channel/row to the same sender. |
-| **A device deleted under 2.10.x came back after upgrading again** | Its subentry still existed; subentries win over the `ui_devices` mirror on upgrade. Delete the device from its page once more. |
-| **After the upgrade a device shows no entities** | Check the log for `Migrated EnOcean entry to minor version 3`; download the integration diagnostics and look at `subentries.legacy_rows` (should be 0) and the device diagnostics `in_subentry` (should be true). Reload the integration once; if a row stays legacy, its sender has a malformed row in `.storage` that was never a working entity. |
-| **Handle shows `unknown`** | Only the documented F6-10-00 nibbles map to `open`/`tilt`/`closed`; any other value is deliberately `unknown`. |
-| **Repair issue "… has gone silent"** or a sensor/contact is unavailable while the dongle works | Silence detection is enabled for that category and the timeout elapsed. Check the device's battery/energy harvesting and range (signal strength sensor), or raise/disable the timeout under **Configure → Availability and silent devices**. |
-| **Need details for a bug report** | Enable debug logging for `custom_components.enocean_custom` and download the diagnostics (identifiers are redacted). |
+- **"No valid dongle found for this path"** when adding the integration
+  Use the `/dev/serial/by-id/...` alias, make sure no other integration or container opens the port, and that the user running Home Assistant may access it.
+- **Repair issue "The EnOcean serial worker stopped"** and all entities unavailable
+  The dongle was unplugged, the port vanished or a response timed out. Reconnect the dongle, then reload the integration (**Settings → Devices & services → EnOcean Custom → ⋮ → Reload**).
+- **Error "The dongle has not reported its Base ID"** on a switch
+  The start-up `CO_RD_IDBASE` read was refused or lost. The integration retries it automatically (three attempts with backoff); wait a few seconds or reload.
+- **Error "The dongle refused to queue the command"**
+  The serial worker is stopped or its transmit queue is full. Check the Repair issue and the logs.
+- **A rocker/contact entity never changes**
+  Confirm the four-byte ID with a learn session or the passive radio test; the row must use the sender ID printed in the telegram, not the dongle's Base ID.
+- **A switch stays `unknown` after a command**
+  Normal until the actuator answers with its status telegram. If it never does, the module is not paired with the dongle's Base ID: run the guided pairing or UTE association.
+- **A D2-01 switch stays `unknown` after a restart**
+  Press its **Refresh state** button, or enable **Configure → D2-01 actuators** to ask every D2-01 actuator once after each start-up. If the button leaves it `unknown`, the actuator did not answer within 300 ms: check pairing, range (signal strength sensor) and that the row's channel matches the actuator's output.
+- **"Add device" says the ID is already configured**
+  That sender already has a subentry (one per EnOcean ID). Open that device to reconfigure it, or use **Configure → Add a device** to add another channel/row to the same sender.
+- **A device deleted under 2.10.x came back after upgrading again**
+  Its subentry still existed; subentries win over the `ui_devices` mirror on upgrade. Delete the device from its page once more.
+- **After the upgrade a device shows no entities**
+  Check the log for `Migrated EnOcean entry to minor version 3`; download the integration diagnostics and look at `subentries.legacy_rows` (should be 0) and the device diagnostics `in_subentry` (should be true). Reload the integration once; if a row stays legacy, its sender has a malformed row in `.storage` that was never a working entity.
+- **Handle shows `unknown`**
+  Only the documented F6-10-00 nibbles map to `open`/`tilt`/`closed`; any other value is deliberately `unknown`.
+- **Repair issue "… has gone silent"** or a sensor/contact is unavailable while the dongle works
+  Silence detection is enabled for that category and the timeout elapsed. Check the device's battery/energy harvesting and range (signal strength sensor), or raise/disable the timeout under **Configure → Availability and silent devices**.
+- **Need details for a bug report**
+  Enable debug logging for `custom_components.enocean_custom` and download the diagnostics (identifiers are redacted).
 
 ## Diagnostics and support
 

@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>EnOcean panel preview</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --primary-background-color: #f4f6fa;
+      --card-background-color: #ffffff;
+      --primary-text-color: #182230;
+      --secondary-text-color: #566374;
+      --divider-color: #dfe4eb;
+      --primary-color: #2563eb;
+      --text-primary-color: #ffffff;
+      --secondary-background-color: #edf1f7;
+      --success-color: #137333;
+      --warning-color: #8a4300;
+      --error-color: #b3261e;
+      --info-color: #0369a1;
+      --disabled-color: #6c7684;
+      --panel-signal-empty: #6c7684;
+      --panel-rorg-rps: #175cd3;
+      --panel-rorg-1bs: #6d28d9;
+      --panel-rorg-4bs: #00758a;
+      --panel-rorg-vld: #4b5565;
+      --panel-simulated: #a60883;
+      --code-font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --primary-background-color: #10151d;
+      --card-background-color: #18212c;
+      --primary-text-color: #edf2f7;
+      --secondary-text-color: #aab5c3;
+      --divider-color: #34404e;
+      --primary-color: #7aa7ff;
+      --text-primary-color: #101923;
+      --secondary-background-color: #202b38;
+      --success-color: #7de2a2;
+      --warning-color: #ffc078;
+      --error-color: #ff9b9b;
+      --info-color: #67c7f5;
+      --disabled-color: #93a0b1;
+      --panel-signal-empty: #93a0b1;
+      --panel-rorg-rps: #8fb4ff;
+      --panel-rorg-1bs: #c4a7ff;
+      --panel-rorg-4bs: #71d7e8;
+      --panel-rorg-vld: #c3c9d4;
+      --panel-simulated: #ff7ad9;
+    }
+    html, body { margin: 0; min-height: 100%; background: var(--primary-background-color); }
+    body { min-width: 0; }
+    enocean-custom-panel { min-height: 100vh; }
+    #audit-results { display: none; }
+  </style>
+  <script>
+    const previewParams = new URLSearchParams(window.location.search);
+    document.documentElement.dataset.theme = previewParams.get("theme") === "dark" ? "dark" : "light";
+  </script>
+  <script src="../custom_components/enocean_custom/www/enocean-custom-panel.js"></script>
+</head>
+<body>
+  <div id="panel-mount"></div>
+  <pre id="audit-results"></pre>
+  <script>
+    "use strict";
+
+    const panel = document.createElement("enocean-custom-panel");
+    const auditOutput = document.querySelector("#audit-results");
+    const startedAt = Date.now();
+    const demoErrors = [];
+    const serviceCalls = [];
+    const navigationRequests = [];
+    const nativePushState = window.history.pushState.bind(window.history);
+    window.history.pushState = (state, title, url) => {
+      if (url === "/config/integrations/integration/enocean_custom") {
+        navigationRequests.push(url);
+        return;
+      }
+      nativePushState(state, title, url);
+    };
+    let demoStreamActive = false;
+    let demoTelegramCount = 0;
+    window.addEventListener("error", (event) => demoErrors.push(event.message));
+    window.addEventListener("unhandledrejection", (event) => demoErrors.push(String(event.reason)));
+
+    const isoAgo = (seconds) => new Date(startedAt - seconds * 1000).toISOString();
+    const masked = "••:••:••:••";
+    const sender = (id, anonymize) => anonymize ? masked : id;
+
+    function device(id, name, platform, state, lastSeenSeconds, signal, eep, packets, hops = 0, available = true, unit = null) {
+      return {
+        id,
+        name,
+        entity_id: `${platform}.${name.toLowerCase().replaceAll(" ", "_")}`,
+        state,
+        unit,
+        available,
+        platforms: [platform],
+        eep,
+        last_seen: lastSeenSeconds === null ? null : isoAgo(lastSeenSeconds),
+        packet_count: packets,
+        last_rssi_dbm: signal,
+        last_repeater_count: hops,
+      };
+    }
+
+    const rawDevices = [
+      device("AA:BB:CC:01", "Living room light", "light", "on", 12, -45, "D2-01-01", 128),
+      device("AA:BB:CC:02", "Bedroom night light", "light", "off", 120, -63, "D2-01-02", 74),
+      device("AA:BB:CC:03", "Kitchen window", "binary_sensor", "closed", 240, -68, "D5-00-01", 42),
+      device("AA:BB:CC:04", "Bedroom shutter", "cover", "open", 2520, -79, "D2-05-00", 31, 1),
+      device("AA:BB:CC:05", "Hall rocker", "switch", "released", 28800, -82, "F6-02-01", 96),
+      device("AA:BB:CC:06", "Nursery climate", "climate", "heat", 180, -56, "A5-20-04", 210),
+      device("AA:BB:CC:07", "Attic temperature", "sensor", "21.4", 172800, -95, "A5-02-05", 18, 0, true, "°C"),
+      device("AA:BB:CC:08", "Garage contact", "binary_sensor", "unavailable", 10800, -74, "D5-00-01", 27, 0, false),
+    ];
+
+    const rawNearby = [
+      { id: "AA:BB:CC:10", configured: false, rorgs: ["0xF6"], last_seen: isoAgo(25), packet_count: 7, last_rssi_dbm: -52, last_repeater_count: 0 },
+      { id: "AA:BB:CC:11", configured: false, rorgs: ["0xA5"], last_seen: isoAgo(540), packet_count: 3, last_rssi_dbm: -90, last_repeater_count: 1 },
+      ...rawDevices.filter((item) => ["AA:BB:CC:01", "AA:BB:CC:03", "AA:BB:CC:04", "AA:BB:CC:07"].includes(item.id)).map((item) => ({
+        id: item.id,
+        configured: true,
+        rorgs: [item.eep.startsWith("D2") ? "0xD2" : item.eep.startsWith("A5") ? "0xA5" : "0xD5"],
+        last_seen: item.last_seen,
+        packet_count: item.packet_count,
+        last_rssi_dbm: item.last_rssi_dbm,
+        last_repeater_count: item.last_repeater_count,
+      })),
+    ];
+
+    const demoRates = [3, 5, 2, 7, 4, 8, 6, 3, 9, 5, 4, 7, 11, 6, 3, 8, 5, 10, 4, 6, 12, 7, 5, 9, 4, 8, 6, 11, 7, 10];
+    const demoActivitySamples = [];
+    let demoPacketCount = 1200;
+    for (let index = 0; index <= demoRates.length; index += 1) {
+      demoActivitySamples.push({ count: demoPacketCount, at: startedAt - (30 - index) * 60000 });
+      if (index < demoRates.length) demoPacketCount += demoRates[index];
+    }
+
+    function snapshot(anonymize) {
+      return {
+        devices: rawDevices.map((item) => ({ ...item, sender: sender(item.id, anonymize), id: undefined })),
+        nearby: rawNearby.map((item) => ({ ...item, sender: sender(item.id, anonymize), id: undefined })),
+        gateway: {
+          available: true,
+          worker_alive: true,
+          app_version: "2.15.0.0",
+          api_version: "2.6.3.0",
+          chip_version: "0F:0E:0D:0C",
+          app_description: "Demo ESP3 gateway",
+          base_id: sender("FF:FF:AA:01", anonymize),
+          repeater: { enabled: false, level: 1 },
+          received_radio_packets: demoPacketCount,
+          last_packet_at: isoAgo(8),
+          last_error: null,
+        },
+        stream: { enabled: demoStreamActive, size: demoTelegramCount },
+        simulation_allowed: true,
+        adoption_url: "/config/integrations/integration/enocean_custom",
+      };
+    }
+
+    const demoTelegrams = [
+      { sender: "AA:BB:CC:05", rorg: "0xF6", eep: "F6-02-01", summary: "RPS released (0x00)", data: [0xF6, 0x00, 0xAA, 0xBB, 0xCC, 0x05, 0x20], rssi_dbm: -82, repeater_count: 0, simulated: false },
+      { sender: "AA:BB:CC:03", rorg: "0xD5", eep: "D5-00-01", summary: "Contact closed", data: [0xD5, 0x09, 0xAA, 0xBB, 0xCC, 0x03, 0x30], rssi_dbm: -68, repeater_count: 0, simulated: false },
+      { sender: "AA:BB:CC:07", rorg: "0xA5", eep: "A5-02-05", summary: "tmp=21.49", data: [0xA5, 0x00, 0x00, 0x76, 0x08, 0xAA, 0xBB, 0xCC, 0x07, 0x00], rssi_dbm: -57, repeater_count: 1, simulated: false },
+      { sender: "AA:BB:CC:01", rorg: "0xD2", eep: "D2-01-01", summary: "Channel 0 output 100 %", data: [0xD2, 0x04, 0x00, 0x64, 0xAA, 0xBB, 0xCC, 0x01, 0x00], rssi_dbm: -45, repeater_count: 0, simulated: false },
+      { sender: "AA:BB:CC:05", rorg: "0xF6", eep: "F6-02-01", summary: "RPS pressed (0x10)", data: [0xF6, 0x10, 0xAA, 0xBB, 0xCC, 0x05, 0x30], rssi_dbm: -95, repeater_count: 0, simulated: true },
+    ];
+
+    function telegramView(record, anonymize) {
+      return {
+        ...record,
+        sender: sender(record.sender, anonymize),
+        data: anonymize ? record.data.map((value, index) => index >= record.data.length - 5 && index <= record.data.length - 2 ? 0 : value) : [...record.data],
+        received_at: new Date().toISOString(),
+      };
+    }
+
+    const fakeHass = {
+      async callWS(message) {
+        if (message.type !== "enocean_custom/panel") throw new Error("Unexpected websocket command");
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        return snapshot(message.anonymize !== false);
+      },
+      async subscribeMessage(callback, message) {
+        if (message.type !== "enocean_custom/telegram_stream/subscribe") throw new Error("Unexpected stream command");
+        demoStreamActive = true;
+        const timers = [];
+        let stopped = false;
+        demoTelegrams.forEach((record, index) => {
+          timers.push(setTimeout(() => {
+            if (stopped) return;
+            demoTelegramCount += 1;
+            callback(telegramView(record, message.anonymize !== false));
+          }, 120 + index * 430));
+        });
+        return async () => {
+          stopped = true;
+          demoStreamActive = false;
+          timers.forEach(clearTimeout);
+        };
+      },
+      async callService(domain, service, data) {
+        serviceCalls.push({ domain, service, data });
+      },
+    };
+    panel._activitySamples = demoActivitySamples.map((sample) => ({ ...sample }));
+    panel.hass = fakeHass;
+    document.querySelector("#panel-mount").append(panel);
+
+    function delay(milliseconds) {
+      return new Promise((resolve) => setTimeout(resolve, milliseconds));
+    }
+
+    function visible(element) {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    }
+
+    function collectAudit() {
+      const root = panel.shadowRoot;
+      const wrap = root.querySelector(".wrap");
+      const nav = root.querySelector(".tabs");
+      const navRect = nav.getBoundingClientRect();
+      const navStyle = getComputedStyle(nav);
+      const wrapStyle = getComputedStyle(wrap);
+      const targets = [...root.querySelectorAll("button, input")].filter(visible).map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          label: element.getAttribute("aria-label") || element.textContent || element.placeholder,
+          width: Math.round(rect.width * 10) / 10,
+          height: Math.round(rect.height * 10) / 10,
+        };
+      });
+      const overflowElements = [...root.querySelectorAll(".wrap, .card, .device-grid, .device-heading, .device-title, .device-footer, .telegram-row, .telegram-main, .tabs, .header-actions, .health-metrics")]
+        .filter(visible)
+        .filter((element) => {
+          const rect = element.getBoundingClientRect();
+          return rect.left < -0.5 || rect.right > window.innerWidth + 0.5;
+        })
+        .map((element) => ({ className: element.className, left: element.getBoundingClientRect().left, right: element.getBoundingClientRect().right }));
+      const clippedContainers = [...root.querySelectorAll(".card, .device-title, .metric, .telegram-main, button, input")]
+        .filter(visible)
+        .filter((element) => element.scrollWidth > element.clientWidth + 1)
+        .map((element) => ({ className: element.className, scrollWidth: element.scrollWidth, clientWidth: element.clientWidth }));
+      const hostStyle = getComputedStyle(panel);
+      const signalValues = [...root.querySelectorAll(".nearby-card .signal-value")].map((element) => Number(element.dataset.value));
+      const visibleBottom = navStyle.position === "fixed" ? navRect.top : window.innerHeight;
+      const deviceCardRects = [...root.querySelectorAll(".device-card")].map((element) => {
+        const rect = element.getBoundingClientRect();
+        return { top: rect.top, bottom: rect.bottom, height: rect.height, fullyVisible: rect.top >= 0 && rect.bottom <= visibleBottom + 0.5 };
+      });
+      const deviceGroups = [...root.querySelectorAll(".platform-group")].map((element) => {
+        const cards = [...element.querySelectorAll(".device-card")];
+        const fullyVisible = cards.filter((card) => {
+          const rect = card.getBoundingClientRect();
+          return rect.top >= 0 && rect.bottom <= visibleBottom + 0.5;
+        }).length;
+        return { name: element.querySelector("h2").textContent, cards: cards.length, fullyVisibleCards: fullyVisible };
+      });
+      const telegramHeights = [...root.querySelectorAll(".telegram-row")].map((element) => element.getBoundingClientRect().height);
+      const filters = root.querySelector(".filters");
+      const headerRect = root.querySelector(".header-actions").getBoundingClientRect();
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        documentScrollWidth: document.documentElement.scrollWidth,
+        bodyScrollWidth: document.body.scrollWidth,
+        horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth,
+        overflowElements,
+        clippedContainers,
+        tapTargets: {
+          count: targets.length,
+          minimumHeight: Math.min(...targets.map((target) => target.height)),
+          minimumWidth: Math.min(...targets.map((target) => target.width)),
+          undersized: targets.filter((target) => target.height < 44 || target.width < 44),
+        },
+        nav: {
+          position: navStyle.position,
+          left: navRect.left,
+          right: navRect.right,
+          top: navRect.top,
+          bottom: navRect.bottom,
+          height: navRect.height,
+        },
+        contentPadding: {
+          bottom: Number.parseFloat(wrapStyle.paddingBottom),
+          requiredWithoutSafeArea: navStyle.position === "fixed" ? navRect.height : 0,
+          sufficient: navStyle.position !== "fixed" || Number.parseFloat(wrapStyle.paddingBottom) >= navRect.height,
+        },
+        headerActions: { left: headerRect.left, right: headerRect.right, width: headerRect.width },
+        activeTab: root.querySelector("[role='tab'][aria-selected='true']")?.textContent,
+        tabCount: root.querySelectorAll("[role='tab']").length,
+        tabPanelCount: root.querySelectorAll("[role='tabpanel']").length,
+        deviceCards: root.querySelectorAll(".device-card").length,
+        fullyVisibleDeviceCards: deviceCardRects.filter((rect) => rect.fullyVisible).length,
+        deviceCardRects,
+        deviceGroups,
+        nearbyCards: root.querySelectorAll(".nearby-card").length,
+        telegramRows: root.querySelectorAll(".telegram-row").length,
+        telegramRowHeightSpread: telegramHeights.length ? Math.max(...telegramHeights) - Math.min(...telegramHeights) : 0,
+        telegramHeights,
+        telegramRssiInMeta: [...root.querySelectorAll(".telegram-meta")].some((element) => element.textContent.includes("dBm")),
+        simulatedBadges: root.querySelectorAll(".simulated").length,
+        signalGauges: root.querySelectorAll(".signal").length,
+        groups: [...root.querySelectorAll(".group-heading")].map((element) => element.textContent),
+        gridTemplates: [...root.querySelectorAll(".device-grid, .nearby-grid")].map((element) => getComputedStyle(element).gridTemplateColumns),
+        nearbySignalOrder: signalValues,
+        nearbySorted: signalValues.every((value, index) => index === 0 || signalValues[index - 1] >= value),
+        adoptButtons: root.querySelectorAll(".adopt-button").length,
+        maskedIdsAbsent: !wrap.textContent.includes(masked) && root.querySelectorAll(".sender").length === 0,
+        senderElements: root.querySelectorAll(".sender").length,
+        lastPacketText: root.querySelector(".last-packet")?.textContent,
+        filters: filters ? { clientWidth: filters.clientWidth, scrollWidth: filters.scrollWidth, overflowX: getComputedStyle(filters).overflowX } : null,
+        activity: { samples: panel._activitySamples.length, bars: root.querySelectorAll(".activity-bar").length, collecting: root.querySelector(".activity-status")?.textContent === "collecting…" },
+        svgIcons: root.querySelectorAll("svg").length,
+        stateValues: [...root.querySelectorAll(".state-value")].map((element) => element.textContent),
+        theme: {
+          name: document.documentElement.dataset.theme,
+          background: hostStyle.backgroundColor,
+          foreground: hostStyle.color,
+        },
+        healthMetrics: [...root.querySelectorAll(".metric")].map((element) => element.textContent),
+        errors: demoErrors,
+        serviceCalls,
+        text: wrap.textContent,
+      };
+    }
+    window.panelAudit = collectAudit;
+
+    async function drivePreview() {
+      while (!panel._snapshot) await delay(25);
+      const requestedTab = previewParams.get("tab") || "devices";
+      const tab = panel.shadowRoot.querySelector(`[data-tab='${requestedTab}']`);
+      if (tab) tab.click();
+      const requestedFilter = previewParams.get("filter");
+      if (requestedFilter) panel.shadowRoot.querySelector(`[data-filter='${requestedFilter}']`)?.click();
+      const search = previewParams.get("search");
+      if (search) {
+        const input = panel.shadowRoot.querySelector("[data-search]");
+        input.value = search;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      if (previewParams.get("reveal") === "1") panel.shadowRoot.querySelector("[data-action='privacy']").click();
+      if (previewParams.get("stream") === "1") {
+        while (!panel._snapshot) await delay(25);
+        panel.shadowRoot.querySelector("[data-tab='telegrams']").click();
+        panel.shadowRoot.querySelector("[data-action='stream']").click();
+        while (!panel._streamActive || panel._telegrams.length < demoTelegrams.length) await delay(50);
+      }
+      await delay(500);
+      auditOutput.textContent = JSON.stringify(collectAudit());
+      document.documentElement.dataset.previewReady = "true";
+    }
+
+    drivePreview().catch((error) => {
+      demoErrors.push(error.stack || String(error));
+      auditOutput.textContent = JSON.stringify({ errors: demoErrors });
+      document.documentElement.dataset.previewReady = "error";
+    });
+  </script>
+</body>
+</html>

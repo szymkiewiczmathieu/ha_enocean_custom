@@ -1,5 +1,32 @@
 # Changelog
 
+## 2.14.0 - 2026-11-06
+
+A redesigned, more graphical admin panel and a README that fits small screens. Nothing to migrate; a plain code rollback to 2.13.0 stays possible.
+
+### Admin panel redesign
+
+- Reworked the EnOcean side panel with a live gateway health banner, signal
+  gauges, grouped device cards, freshness and state badges, platform/EEP icons,
+  client-side search and filters, and a card-based Nearby view sorted by signal
+  strength. Nearby adoption still opens the existing commissioning flow.
+- Refined the visual hierarchy with consistent auto-fill grids, uniform freshness
+  accents, last-known states and measurement units, compact Details controls,
+  clearer KPI tiles and a client-sampled 30-minute packet activity chart. Masked
+  identifier rows are omitted; repeater details appear only when hops exist.
+- Rebuilt the telegram view as a compact live feed with distinct RORG colors, a
+  separate simulated-provenance marker, short timestamps, entry transitions,
+  accessible signal quality and Start, Stop and Clear controls. The stream
+  remains opt-in and bounded to 100 in-memory records; identifier masking
+  remains session-only.
+- Added responsive light and dark styling, a fixed mobile tab bar with icons,
+  keyboard tab navigation, visible focus, reduced-motion support and measured
+  small-text contrast. Added a fictional-data browser preview, desktop, Nearby
+  and mobile screenshots, and Node-backed tests for pure presentation helpers.
+- Added the strictly additive `unit` field to each device in the panel snapshot,
+  sourced from the Home Assistant state's `unit_of_measurement` attribute. No
+  service, dependency or radio behavior changed.
+
 ## 2.13.0 - 2026-11-05
 
 Shutters, a hardware-free test bench and an admin side panel. Everything new is

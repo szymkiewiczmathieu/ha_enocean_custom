@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -25,7 +26,11 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from custom_components.enocean_custom import panel
 from custom_components.enocean_custom.const import DOMAIN, SIGNAL_RECEIVE_MESSAGE
 from custom_components.enocean_custom.dongle import GatewayInfo, RepeaterState
+from custom_components.enocean_custom.eep_catalog import generic_profile
 from custom_components.enocean_custom.enocean_library.protocol.constants import RORG
+from custom_components.enocean_custom.enocean_library.protocol.d2 import (
+    parse_d2_01_actuator_status,
+)
 from custom_components.enocean_custom.identity import cover_unique_id
 from custom_components.enocean_custom.inbox import DeviceInbox, PacketObservation
 from custom_components.enocean_custom.schema import CONF_UI_DEVICES, UI_DEVICE_SCHEMA
@@ -97,6 +102,35 @@ class MonitorTests(unittest.TestCase):
         views = monitor.snapshot(anonymize=False)
         self.assertEqual(views[0]["sender"], "05:8F:22:33")
         unsubscribe()
+
+
+class PreviewTelegramTests(unittest.TestCase):
+    def _record(self, eep):
+        source = (ROOT / "scripts" / "panel_preview.html").read_text(encoding="utf-8")
+        line = next(line for line in source.splitlines() if f'eep: "{eep}"' in line)
+        summary_match = re.search(r'summary: "([^"]+)"', line)
+        data_match = re.search(r"data: \[([^]]+)\]", line)
+        assert summary_match is not None
+        assert data_match is not None
+        summary = summary_match.group(1)
+        data = [int(value.strip(), 0) for value in data_match.group(1).split(",")]
+        return summary, data
+
+    def test_temperature_demo_bytes_decode_to_the_displayed_value(self):
+        summary, data = self._record("A5-02-05")
+        self.assertEqual(data[3], 0x76)  # DB1: inverted 0..40 °C scale.
+        profile = generic_profile("A5-02-05")
+        assert profile is not None
+        self.assertEqual(profile.decode(data), {"tmp": 21.49})
+        self.assertEqual(summary, "tmp=21.49")
+
+    def test_dimmer_demo_bytes_decode_to_the_displayed_output(self):
+        summary, data = self._record("D2-01-01")
+        status = parse_d2_01_actuator_status(data)
+        assert status is not None
+        self.assertEqual((status.channel, status.output_value), (0, 100))
+        self.assertEqual(data[3], 0x64)
+        self.assertEqual(summary, "Channel 0 output 100 %")
 
 
 class PanelFixture(unittest.IsolatedAsyncioTestCase):
@@ -199,6 +233,23 @@ class PanelFixture(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(revealed["gateway"]["base_id"], "FF:87:CA:00")
         self.assertEqual(revealed["devices"][0]["sender"], "05:8F:22:33")
+
+    async def test_snapshot_unit_is_additive_and_not_an_identifier(self):
+        self.hass.states.async_set(
+            "cover.bedroom_shutter", "21.4", {"unit_of_measurement": "°C"}
+        )
+        for anonymize in (True, False):
+            with self.subTest(anonymize=anonymize):
+                payload = panel.build_panel_snapshot(
+                    self.hass, self.entry, self.gateway, anonymize=anonymize
+                )
+                self.assertEqual(payload["devices"][0]["unit"], "°C")
+        self.hass.states.async_set("cover.bedroom_shutter", "21.4")
+        payload = panel.build_panel_snapshot(
+            self.hass, self.entry, self.gateway, anonymize=True
+        )
+        self.assertIsNone(payload["devices"][0]["unit"])
+        self.assertEqual(payload["devices"][0]["state"], "21.4")
 
     async def test_websocket_commands_require_admin_and_stream_live_packets(self):
         connection = SimpleNamespace(

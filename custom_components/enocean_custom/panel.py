@@ -239,6 +239,11 @@ def build_panel_snapshot(
                 "sender": _format_sender(sender, anonymize),
                 "entity_id": entity_id,
                 "state": state.state if state is not None else None,
+                "unit": (
+                    state.attributes.get("unit_of_measurement")
+                    if state is not None
+                    else None
+                ),
                 "available": gateway.available,
                 "platforms": sorted({row["platform"] for row in sender_rows}),
                 "eep": (first.get("radio_metadata") or {}).get("eep"),
