@@ -21,6 +21,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.loader import async_get_integration
 
 from .const import CONF_ALLOW_SIMULATION, DOMAIN, SIGNAL_RECEIVE_MESSAGE
 from .d2_05 import parse_d2_05_00_status
@@ -433,13 +434,14 @@ async def async_setup_panel(hass: HomeAssistant) -> None:
             )
         ]
     )
+    integration = await async_get_integration(hass, DOMAIN)
     await panel_custom.async_register_panel(
         hass,
         frontend_url_path=PANEL_URL_PATH,
         webcomponent_name=PANEL_COMPONENT,
         sidebar_title="EnOcean",
         sidebar_icon="mdi:radio-tower",
-        module_url=PANEL_JS_URL,
+        module_url=f"{PANEL_JS_URL}?v={integration.version}",
         require_admin=True,
     )
     websocket_api.async_register_command(hass, ws_panel_snapshot)

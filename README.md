@@ -9,9 +9,9 @@ and compatible). It provides configuration-entry and YAML setup, guided device
 learning, diagnostics, native rocker triggers, automation blueprints and
 bounded actuator control without cloud services or telemetry.
 
-**Current release:** [v2.14.0](CHANGELOG.md) · Apache-2.0 · available in the HACS default store
+**Current release:** [v2.14.1](CHANGELOG.md) · Apache-2.0 · available in the HACS default store
 
-![EnOcean admin panel: gateway health, device cards and signal gauges](docs/images/panel-devices.png)
+![EnOcean admin panel: gateway health, device cards and signal gauges](https://raw.githubusercontent.com/szymkiewiczmathieu/ha_enocean_custom/main/docs/images/panel-devices.png)
 
 ## Contents
 
@@ -254,7 +254,7 @@ the UI and in automation traces.
 
 ## Admin panel and simulated telegrams
 
-![Live telegram feed in the dark theme, with a simulated telegram clearly marked](docs/images/panel-telegrams-dark.png)
+![Live telegram feed in the dark theme, with a simulated telegram clearly marked](https://raw.githubusercontent.com/szymkiewiczmathieu/ha_enocean_custom/main/docs/images/panel-telegrams-dark.png)
 
 Administrators get an **EnOcean** item in the Home Assistant sidebar. Its four
 views are deliberately local and read-mostly:

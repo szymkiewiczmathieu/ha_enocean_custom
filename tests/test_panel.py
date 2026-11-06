@@ -325,6 +325,15 @@ class PanelFixture(unittest.IsolatedAsyncioTestCase):
         )
         self.assertGreaterEqual(register_ws.call_count, 2)
         http.async_register_static_paths.assert_awaited_once()
+        # A versioned module URL makes browsers and the mobile app reload the
+        # panel after an update instead of serving a stale cached script.
+        manifest_version = manifest.manifest["version"]
+        self.assertEqual(
+            register.call_args.kwargs["module_url"],
+            f"{panel.PANEL_JS_URL}?v={manifest_version}",
+        )
+        static_config = http.async_register_static_paths.call_args.args[0][0]
+        self.assertEqual(static_config.url_path, panel.PANEL_JS_URL)
 
 
 if __name__ == "__main__":

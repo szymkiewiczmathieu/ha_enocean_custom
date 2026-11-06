@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.14.1 - 2026-11-06
+
+Fixes the admin panel looking unchanged after an update, and README screenshots that did not show inside Home Assistant. Nothing to migrate; a plain code rollback to 2.14.0 stays possible.
+
+### Fixes
+
+- **The EnOcean side panel now reloads after every update.** The panel script was served from a fixed URL, so browsers and the mobile app kept showing the previous version until their cache was cleared. The URL now carries the integration version, which forces a fresh download on each release.
+- **README screenshots use absolute URLs**, so they also display where the README is rendered outside GitHub, such as the Home Assistant Marketplace.
+
 ## 2.14.0 - 2026-11-06
 
 A redesigned, more graphical admin panel and a README that fits small screens. Nothing to migrate; a plain code rollback to 2.13.0 stays possible.
