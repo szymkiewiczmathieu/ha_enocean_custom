@@ -20,7 +20,7 @@
           "device": "Pad van de USB-dongle"
         },
         "data_description": {
-          "device": "Pad naar uw EnOcean-USB-dongle, of een socket://host:poort- / rfc2217://host:poort-URL voor een dongle die via het netwerk wordt gedeeld (ser2net, ESPHome stream_server, esp-ha-usb-gateway). Een netwerkverbinding maakt na een onverwachte onderbreking een begrensd aantal keren zelf opnieuw verbinding; een lokaal pad niet."
+          "device": "Pad naar uw EnOcean-USB-dongle, of een socket://host:poort- / rfc2217://host:poort-URL voor een dongle die via het netwerk wordt gedeeld (ser2net, ESPHome stream_server, esp-ha-usb-gateway). Lokale paden en netwerkverbindingen maken na een onverwachte onderbreking automatisch opnieuw verbinding, met wachttijden van 2 tot 60 seconden en zonder poginglimiet. Voor USB wordt een stabiel /dev/serial/by-id-pad aanbevolen."
         }
       },
       "reconfigure": {
@@ -479,6 +479,9 @@
       },
       "eep_rain": {
         "name": "Regen"
+      },
+      "eep_night": {
+        "name": "Nacht"
       }
     },
     "button": {
@@ -519,6 +522,17 @@
           "level_1": "Niveau 1 (één hop)",
           "level_2": "Niveau 2 (twee hops)"
         }
+      },
+      "d2_01_0c_pilot_wire": {
+        "name": "Pilotdraadmodus",
+        "state": {
+          "off": "Uit",
+          "comfort": "Comfort",
+          "eco": "Eco",
+          "anti_freeze": "Antivorst",
+          "comfort_1": "Comfort-1",
+          "comfort_2": "Comfort-2"
+        }
       }
     },
     "cover": {
@@ -538,6 +552,9 @@
       },
       "energy": {
         "name": "Energie"
+      },
+      "a5_12_01_energy": {
+        "name": "Energie (A5-12-01, gecorrigeerd)"
       },
       "supply_voltage": {
         "name": "Voedingsspanning"
@@ -599,6 +616,24 @@
       "eep_dawn": {
         "name": "Schemerlicht"
       },
+      "eep_sun_west": {
+        "name": "Zon west"
+      },
+      "eep_sun_south": {
+        "name": "Zon zuid"
+      },
+      "eep_sun_east": {
+        "name": "Zon oost"
+      },
+      "eep_gas_volume": {
+        "name": "Gasvolume"
+      },
+      "eep_water_volume": {
+        "name": "Watervolume"
+      },
+      "eep_volume_flow_rate": {
+        "name": "Volumedebiet"
+      },
       "eep_supply_voltage": {
         "name": "Voedingsspanning"
       },
@@ -631,6 +666,9 @@
       },
       "eep_voc": {
         "name": "VOS"
+      },
+      "eep_voc_mass": {
+        "name": "VOS-massaconcentratie"
       },
       "d2_14_30_temperature": {
         "name": "Temperatuur"
@@ -741,9 +779,16 @@
     },
     "repeater_readback_timeout": {
       "message": "De dongle accepteerde de repeaterinstelling maar bevestigde ze niet binnen {seconds} seconden. Herlaad de integratie om de huidige instelling opnieuw te lezen."
+    },
+    "pilot_wire_readback_timeout": {
+      "message": "Het pilotdraadcommando voor {name} is verzonden, maar er kwam binnen 300 ms geen geldige modusrespons. De weergegeven modus is niet gewijzigd. Controleer de actuator en probeer opnieuw."
     }
   },
   "issues": {
+    "a5_12_01_energy_migration": {
+      "title": "Schakel {name} over op de gecorrigeerde energie-entiteit",
+      "description": "De bestaande energie-entiteit van deze A5-12-01-meter meldt waarden die 1000 keer te klein zijn; de geschiedenis wordt niet herschreven. Kies onder Instellingen → Dashboards → Energie de nieuwe entiteit 'Energie (A5-12-01, gecorrigeerd)' in kWh. Behoud de bestaande entiteit voor geschiedenis en sjablonen; bijwerken daarvan stopt naar planning in 2.16. Deze melding kan niet automatisch worden verholpen."
+    },
     "serial_communicator_stopped": {
       "title": "De seriële EnOcean-worker is gestopt",
       "description": "De seriële worker voor {device} draait niet meer: {reason}. EnOcean-entiteiten zijn niet beschikbaar en uitgaande commando's worden geweigerd om te voorkomen dat een tweede proces om de poort concurreert. Controleer de USB-verbinding en de logboeken, herlaad daarna de integratie of herstart Home Assistant één keer."

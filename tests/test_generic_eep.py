@@ -104,7 +104,8 @@ def _row(eep: str, **extra):
 class CatalogTests(unittest.TestCase):
     def test_catalog_shape(self):
         profiles = generic_profiles()
-        self.assertEqual(len(profiles), 43)
+        # 43 vendored profiles plus eight additive 2.15 sensor layouts.
+        self.assertEqual(len(profiles), 51)
         for excluded in EXCLUDED_PROFILES:
             self.assertNotIn(excluded, profiles)
         self.assertNotIn("D2-01-12", profiles, "actuators are never generic")
@@ -112,8 +113,12 @@ class CatalogTests(unittest.TestCase):
         weather = profiles["A5-13-01"]
         self.assertEqual(weather.command, 1)
         self.assertEqual(
-            [field.shortcut for field in weather.exposed_fields],
+            [field.shortcut for field in weather.exposed_fields if not field.additive],
             ["DWS", "TMP", "WND", "RAN"],
+        )
+        self.assertEqual(
+            [field.shortcut for field in weather.exposed_fields if field.additive],
+            ["D/N", "SNW", "SNS", "SNE"],
         )
         indoor = profiles["D2-14-41"]
         self.assertEqual(indoor.rorg, RORG.VLD)
@@ -189,7 +194,12 @@ class DecodingTests(unittest.TestCase):
         self.assertAlmostEqual(decoded["tmp"], 20.235, places=3)
         self.assertEqual(decoded["wnd"], 0.0)
         self.assertEqual(decoded["ran"], 1)
-        self.assertIsNone(profile.decode(_4bs(255, 128, 0, 0x28).data), "command 2")
+        self.assertEqual(
+            profile.decode(_4bs(255, 128, 0, 0x28).data),
+            {"snw": 150000, "sns": 75294, "sne": 0},
+            "A5-13-02 is additive from 2.15",
+        )
+        self.assertIsNone(profile.decode(_4bs(255, 128, 0, 0x38).data), "command 3")
 
     def test_d2_14_41_vld_layout(self):
         profile = generic_profile("D2-14-41")

@@ -3,6 +3,7 @@
 import ast
 import asyncio
 import json
+import os
 import queue
 import struct
 import threading
@@ -94,6 +95,10 @@ def _load_dongle_members(*names):
         "serial": serial,
         "RadioPacket": type("RadioPacket", (), {}),
         "ResponsePacket": type("ResponsePacket", (), {}),
+        "UTETeachInPacket": type("UTETeachInPacket", (), {}),
+        "parse_base_id_write_cycles": Mock(),
+        "monotonic": time.monotonic,
+        "os": os,
         "datetime": Mock(),
         "UTC": object(),
         "packet_observation": Mock(),
@@ -243,7 +248,9 @@ class DongleLifecycleTests(unittest.IsolatedAsyncioTestCase):
         namespace["_LOGGER"].warning.assert_called_once()
 
     def test_serial_error_redacts_device_path(self):
-        namespace = _load_dongle_members("_communicator_stopped", "is_network_url")
+        namespace = _load_dongle_members(
+            "_communicator_stopped", "_schedule_reconnect", "is_network_url"
+        )
         dongle = namespace["EnOceanDongle"]()
         dongle.serial_path = "/dev/serial/by-id/private-serial"
         dongle._available = True
@@ -258,8 +265,9 @@ class DongleLifecycleTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertNotIn("private-serial", dongle._last_error)
         self.assertIn("[REDACTED]", dongle._last_error)
-        dongle.hass.loop.call_soon_threadsafe.assert_called_once_with(
-            dongle._notify_status
+        dongle.hass.loop.call_soon_threadsafe.assert_any_call(dongle._notify_status)
+        dongle.hass.loop.call_soon_threadsafe.assert_any_call(
+            dongle._schedule_reconnect
         )
 
     def test_packet_written_starts_protocol_deadline_after_wire_write(self):
@@ -983,7 +991,7 @@ class NetworkUrlTests(unittest.TestCase):
 
 
 class NetworkReconnectionTests(unittest.IsolatedAsyncioTestCase):
-    """Bounded reconnection (M13): only for a network URL, never forever."""
+    """Unlimited, backed-off reconnection for local paths and network URLs."""
 
     def _stopped_namespace(self):
         return _load_dongle_members(
@@ -1014,12 +1022,14 @@ class NetworkReconnectionTests(unittest.IsolatedAsyncioTestCase):
             dongle._schedule_reconnect
         )
 
-    def test_plain_path_never_schedules_a_reconnect(self):
+    def test_plain_path_schedules_a_reconnect_when_not_stopping(self):
         namespace = self._stopped_namespace()
         dongle = self._dongle(namespace, serial_path="/dev/serial/by-id/private")
         dongle._communicator_stopped(None)
-        calls = dongle.hass.loop.call_soon_threadsafe.call_args_list
-        self.assertEqual(calls, [((dongle._notify_status,), {})])
+        dongle.hass.loop.call_soon_threadsafe.assert_any_call(dongle._notify_status)
+        dongle.hass.loop.call_soon_threadsafe.assert_any_call(
+            dongle._schedule_reconnect
+        )
 
     def test_a_deliberate_stop_never_schedules_a_reconnect(self):
         namespace = self._stopped_namespace()
@@ -1031,11 +1041,9 @@ class NetworkReconnectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(calls, [((dongle._notify_status,), {})])
 
     def _schedule_namespace(self):
-        return _load_dongle_members(
-            "_schedule_reconnect", "RECONNECT_LIMIT", "RECONNECT_BACKOFF_SECONDS"
-        )
+        return _load_dongle_members("_schedule_reconnect", "RECONNECT_BACKOFF_SECONDS")
 
-    def test_backoff_grows_and_the_attempt_counter_advances(self):
+    def test_backoff_grows_then_stays_at_sixty_seconds_forever(self):
         namespace = self._schedule_namespace()
         async_call_later = namespace["async_call_later"]
         dongle = namespace["EnOceanDongle"]()
@@ -1044,31 +1052,32 @@ class NetworkReconnectionTests(unittest.IsolatedAsyncioTestCase):
         dongle._reconnect_attempts = 0
         dongle._attempt_reconnect = Mock()
         dongle.hass = Mock()
-        for expected_delay in dongle.RECONNECT_BACKOFF_SECONDS:
+        for expected_delay in (2.0, 5.0, 15.0, 30.0, 60.0, 60.0, 60.0):
             async_call_later.reset_mock()
             dongle._reconnect_unsub = None  # the prior attempt "fired"
             dongle._schedule_reconnect()
             async_call_later.assert_called_once_with(
                 dongle.hass, expected_delay, dongle._attempt_reconnect
             )
-        self.assertEqual(
-            dongle._reconnect_attempts, len(dongle.RECONNECT_BACKOFF_SECONDS)
-        )
+        self.assertEqual(dongle._reconnect_attempts, 7)
 
-    def test_gives_up_once_the_limit_is_reached(self):
+    def test_reconnection_never_gives_up(self):
         namespace = self._schedule_namespace()
         async_call_later = namespace["async_call_later"]
         dongle = namespace["EnOceanDongle"]()
         dongle._stopping = False
         dongle._reconnect_unsub = None
-        dongle._reconnect_attempts = dongle.RECONNECT_LIMIT
+        dongle._reconnect_attempts = 1000
+        dongle._attempt_reconnect = Mock()
         dongle.hass = Mock()
         async_call_later.reset_mock()
 
         dongle._schedule_reconnect()
 
-        async_call_later.assert_not_called()
-        self.assertEqual(dongle._reconnect_attempts, dongle.RECONNECT_LIMIT)
+        async_call_later.assert_called_once_with(
+            dongle.hass, 60.0, dongle._attempt_reconnect
+        )
+        self.assertEqual(dongle._reconnect_attempts, 1001)
 
     def test_an_attempt_already_pending_is_not_duplicated(self):
         namespace = self._schedule_namespace()
@@ -1085,7 +1094,9 @@ class NetworkReconnectionTests(unittest.IsolatedAsyncioTestCase):
         async_call_later.assert_not_called()
         self.assertEqual(dongle._reconnect_attempts, 0)
 
-    async def test_a_successful_reopen_restarts_the_worker_and_resets_the_count(self):
+    async def test_a_successful_reopen_does_not_reset_the_count_before_a_valid_version_response(
+        self,
+    ):
         namespace = _load_dongle_members(
             "_attempt_reconnect", "_build_communicator", "_schedule_reconnect"
         )
@@ -1093,6 +1104,9 @@ class NetworkReconnectionTests(unittest.IsolatedAsyncioTestCase):
         dongle._stopping = False
         dongle._reconnect_unsub = Mock()
         dongle._reconnect_attempts = 3
+        old_communicator = Mock()
+        old_communicator.is_alive.return_value = False
+        dongle._communicator = old_communicator
         new_communicator = Mock()
         dongle._build_communicator = Mock(return_value=new_communicator)
         dongle.request_version = Mock()
@@ -1108,7 +1122,7 @@ class NetworkReconnectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(dongle._reconnect_unsub)
         self.assertTrue(dongle._available)
         self.assertIsNone(dongle._last_error)
-        self.assertEqual(dongle._reconnect_attempts, 0)
+        self.assertEqual(dongle._reconnect_attempts, 3)
         self.assertIs(dongle._communicator, new_communicator)
         new_communicator.start.assert_called_once_with()
         new_communicator.request_base_id.assert_called_once_with()
@@ -1127,6 +1141,9 @@ class NetworkReconnectionTests(unittest.IsolatedAsyncioTestCase):
         dongle._stopping = False
         dongle._reconnect_unsub = Mock()
         dongle._reconnect_attempts = 1
+        old_communicator = Mock()
+        old_communicator.is_alive.return_value = False
+        dongle._communicator = old_communicator
         dongle._build_communicator = Mock(
             side_effect=namespace["serial"].SerialException("still down")
         )
@@ -1180,6 +1197,9 @@ class NetworkReconnectionTests(unittest.IsolatedAsyncioTestCase):
         dongle._available = False
         dongle._reconnect_unsub = Mock()
         dongle._reconnect_attempts = 1
+        old_communicator = Mock()
+        old_communicator.is_alive.return_value = False
+        dongle._communicator = old_communicator
         new_communicator = Mock()
         dongle._build_communicator = Mock(return_value=new_communicator)
         dongle.request_version = Mock()

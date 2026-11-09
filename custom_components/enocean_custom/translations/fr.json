@@ -20,7 +20,7 @@
           "device": "Chemin du dongle USB"
         },
         "data_description": {
-          "device": "Chemin d'accès à votre dongle USB EnOcean, ou une URL socket://hôte:port / rfc2217://hôte:port pour un dongle partagé sur le réseau (ser2net, ESPHome stream_server, esp-ha-usb-gateway). Une liaison réseau se reconnecte seule, un nombre borné de fois, après une coupure inattendue ; un chemin local ne le fait pas."
+          "device": "Chemin d'accès à votre dongle USB EnOcean, ou une URL socket://hôte:port / rfc2217://hôte:port pour un dongle partagé sur le réseau (ser2net, ESPHome stream_server, esp-ha-usb-gateway). Les chemins locaux et les liaisons réseau se reconnectent automatiquement après une coupure, avec des délais croissants de 2 à 60 secondes et sans limite d'essais. Un chemin stable /dev/serial/by-id est recommandé pour l'USB."
         }
       },
       "reconfigure": {
@@ -479,6 +479,9 @@
       },
       "eep_rain": {
         "name": "Pluie"
+      },
+      "eep_night": {
+        "name": "Nuit"
       }
     },
     "button": {
@@ -519,6 +522,17 @@
           "level_1": "Niveau 1 (un saut)",
           "level_2": "Niveau 2 (deux sauts)"
         }
+      },
+      "d2_01_0c_pilot_wire": {
+        "name": "Mode fil pilote",
+        "state": {
+          "off": "Arrêt",
+          "comfort": "Confort",
+          "eco": "Éco",
+          "anti_freeze": "Hors gel",
+          "comfort_1": "Confort-1",
+          "comfort_2": "Confort-2"
+        }
       }
     },
     "cover": {
@@ -538,6 +552,9 @@
       },
       "energy": {
         "name": "Énergie"
+      },
+      "a5_12_01_energy": {
+        "name": "Énergie (A5-12-01, corrigée)"
       },
       "supply_voltage": {
         "name": "Tension d'alimentation"
@@ -599,6 +616,24 @@
       "eep_dawn": {
         "name": "Lumière du jour"
       },
+      "eep_sun_west": {
+        "name": "Soleil ouest"
+      },
+      "eep_sun_south": {
+        "name": "Soleil sud"
+      },
+      "eep_sun_east": {
+        "name": "Soleil est"
+      },
+      "eep_gas_volume": {
+        "name": "Volume de gaz"
+      },
+      "eep_water_volume": {
+        "name": "Volume d'eau"
+      },
+      "eep_volume_flow_rate": {
+        "name": "Débit volumique"
+      },
       "eep_supply_voltage": {
         "name": "Tension d'alimentation"
       },
@@ -631,6 +666,9 @@
       },
       "eep_voc": {
         "name": "COV"
+      },
+      "eep_voc_mass": {
+        "name": "Concentration massique de COV"
       },
       "d2_14_30_temperature": {
         "name": "Température"
@@ -741,9 +779,16 @@
     },
     "repeater_readback_timeout": {
       "message": "Le dongle a accepté le réglage du répéteur mais ne l'a pas confirmé dans les {seconds} secondes. Rechargez l'intégration pour relire le réglage actuel."
+    },
+    "pilot_wire_readback_timeout": {
+      "message": "La commande fil pilote pour {name} a été envoyée, mais aucune réponse de mode valide n'est arrivée sous 300 ms. Le mode affiché n'a pas changé. Vérifiez l'actionneur et réessayez."
     }
   },
   "issues": {
+    "a5_12_01_energy_migration": {
+      "title": "Passez {name} à l'entité d'énergie corrigée",
+      "description": "L'ancienne entité d'énergie de ce compteur A5-12-01 indique des valeurs 1000 fois trop faibles et son historique n'est pas réécrit. Dans Paramètres → Tableaux de bord → Énergie, sélectionnez la nouvelle entité « Énergie (A5-12-01, corrigée) » en kWh. Conservez l'ancienne entité pour l'historique et les modèles existants ; son gel est prévu en 2.16. Cette notice ne peut pas être corrigée automatiquement."
+    },
     "serial_communicator_stopped": {
       "title": "Le worker série EnOcean s'est arrêté",
       "description": "Le worker série pour {device} ne fonctionne plus : {reason}. Les entités EnOcean sont indisponibles et les commandes sortantes sont rejetées afin d'éviter qu'un second processus n'entre en concurrence pour le port. Vérifiez la connexion USB et les journaux, puis rechargez l'intégration ou redémarrez Home Assistant une fois."

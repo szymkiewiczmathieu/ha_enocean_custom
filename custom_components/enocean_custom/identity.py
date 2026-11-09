@@ -20,6 +20,7 @@ SENSOR_KEY_TEMPERATURE: Final = "temperature"
 SENSOR_KEY_HUMIDITY: Final = "humidity"
 SENSOR_KEY_POWER: Final = "powersensor"
 SENSOR_KEY_ENERGY: Final = "energy"
+SENSOR_KEY_A5_12_01_ENERGY: Final = "a5_12_01_energy"
 SENSOR_KEY_WINDOWHANDLE: Final = "windowhandle"
 SENSOR_KEY_CONTACT: Final = "d5_00_01_contact"
 SENSOR_KEY_SHUTTERCONTACT: Final = "shuttercontact"
@@ -187,6 +188,11 @@ def rocker_event_unique_id(dev_id: list[int]) -> str:
     return f"{combine_hex(dev_id)}-rocker-event"
 
 
+def d2_01_0c_pilot_wire_unique_id(dev_id: list[int], channel: int) -> str:
+    """Return the additive D2-01-0C pilot-wire select identity (2.15)."""
+    return f"{combine_hex(dev_id)}-{channel}-d2-01-0c-pilot-wire"
+
+
 def d2_01_refresh_unique_id(dev_id: list[int], channel: int) -> str:
     """Return the identity of a D2-01 channel's "refresh state" button (2.11.0).
 
@@ -276,6 +282,26 @@ def generic_eep_identities(dev_id: list[int], eep: Any) -> tuple[tuple[str, str]
             sensor_unique_id(dev_id, generic_field_key(field.slug)),
         )
         for field in profile.exposed_fields
+        if not field.additive
+    )
+
+
+def additive_generic_eep_identities(
+    dev_id: list[int], eep: Any
+) -> tuple[tuple[str, str], ...]:
+    """Return companions added after 2.14.1, outside the frozen base tuple."""
+    from .eep_catalog import generic_profile
+
+    profile = generic_profile(eep)
+    if profile is None:
+        return ()
+    return tuple(
+        (
+            "sensor" if field.is_value else "binary_sensor",
+            sensor_unique_id(dev_id, generic_field_key(field.slug)),
+        )
+        for field in profile.exposed_fields
+        if field.additive
     )
 
 
@@ -284,6 +310,48 @@ def sensor_keys_for_device_class(device_class: object) -> tuple[str, ...]:
     if isinstance(device_class, str) and device_class in SENSOR_KEYS_BY_DEVICE_CLASS:
         return SENSOR_KEYS_BY_DEVICE_CLASS[device_class]
     return SENSOR_KEYS_BY_DEVICE_CLASS[SENSOR_DEFAULT_DEVICE_CLASS]
+
+
+def additive_ui_device_entity_identities(
+    device: Mapping[str, Any],
+) -> tuple[tuple[str, str], ...]:
+    """Return additive companions deliberately outside the frozen 2.14.1 tuple.
+
+    They participate in collision checks and deletion, but never alter an
+    existing row's ``ui_device_entity_identities`` result.
+    """
+    identities: list[tuple[str, str]] = []
+    if (
+        device.get("platform") == "sensor"
+        and device.get("device_class") == GENERIC_SENSOR_DEVICE_CLASS
+    ):
+        metadata = device.get("radio_metadata") or {}
+        identities.extend(
+            additive_generic_eep_identities(device["id"], metadata.get("eep"))
+        )
+    if (
+        device.get("platform") == "sensor"
+        and device.get("device_class", SENSOR_DEFAULT_DEVICE_CLASS)
+        == SENSOR_DEFAULT_DEVICE_CLASS
+    ):
+        identities.append(
+            (
+                "sensor",
+                sensor_unique_id(device["id"], SENSOR_KEY_A5_12_01_ENERGY),
+            )
+        )
+    if (
+        device.get("platform") == "switch"
+        and (device.get("switch_type") or "default") == "default"
+        and (device.get("radio_metadata") or {}).get("eep") == "D2-01-0C"
+    ):
+        identities.append(
+            (
+                "select",
+                d2_01_0c_pilot_wire_unique_id(device["id"], device["channel"]),
+            )
+        )
+    return tuple(identities)
 
 
 def ui_device_entity_identities(

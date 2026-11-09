@@ -1,5 +1,67 @@
 # Changelog
 
+## 2.15.0 - 2026-11-09
+
+### Measurement corrections and new sensors
+
+- **A5-09-05 now applies the SCM scale multiplier.** The existing
+  `<id>-eep_conc` entity keeps its identity and ppb unit. The received
+  `scale_multiplier` and `voc_id` are exposed as attributes to help diagnose
+  older transmitters that may leave SCM at zero.
+- **A5-12-01 gets an additive, correctly scaled kWh energy entity:**
+  `<id>-a5_12_01_energy`, enabled by default only when the row declares
+  A5-12-01. The historical `<id>-energy` (Wh) and `<id>-powersensor` behavior is
+  deliberately unchanged, so existing templates and long-term statistics do
+  not jump. A non-fixable Repair asks affected users to select the new entity
+  in the Energy dashboard; freezing the historical entity is planned for 2.16.
+  **No historical statistic is rewritten.**
+- Added generic receive-only decoders for A5-04-02, A5-07-02/03, A5-08-02/03,
+  A5-12-02 gas and A5-12-03 water meters, and dual-unit A5-09-0C VOC. Gas and
+  water expose cumulative m³ and L/s flow with tariff information; VOC has
+  independent ppb and µg/m³ entities updated only for their declared unit.
+- A5-13 weather stations now expose day/night plus A5-13-02 west/south/east sun
+  intensity in lx and hemisphere information. Existing dawn, temperature, wind
+  and rain identities and values are unchanged. A5-07 motion uses 1 = motion;
+  A5-08 occupancy keeps its previous 0 = occupied polarity.
+
+### Serial recovery and diagnostics
+
+- **Local USB paths and network URLs now reconnect automatically** after an
+  unexpected stop, with 2/5/15/30/60-second delays and an unlimited 60-second
+  plateau. The old worker is joined before reopening, a missing local path is
+  not opened, and the retry counter resets only after a valid CO_RD_VERSION
+  response. Unload cancels the next attempt. A stable `/dev/serial/by-id` path
+  remains recommended for USB.
+- Diagnostics now include the oldest transmit-queue age, CO_RD_IDBASE optional
+  remaining write cycles (`0..254`, `unlimited`, or unknown when absent), and an
+  anonymized hint when four UTE requests repeat within 300 seconds. These paths
+  are read-only: no Base ID write, automatic UTE response or 40 ms TX pacing was
+  added.
+
+### D2-01-0C pilot wire
+
+- Declared default D2-01-0C switch rows get an additive six-mode pilot-wire
+  select: Off, Comfort, Eco, Anti-freeze, Comfort-1 and Comfort-2. An explicit
+  user selection sends exactly one CMD 0x8, waits for its ESP3 result, sends one
+  CMD 0x9 and accepts only a valid CMD 0xA within 300 ms. Missing or invalid
+  feedback raises a translated error and leaves the old state unchanged.
+- Existing D2-01 measurement behavior remains W and Wh. CMD 0x2 local settings,
+  CMD 0x5 measurement settings, autonomous configuration changes and automatic
+  radio commands are not implemented.
+
+### Compatibility and validation boundaries
+
+- Existing unique IDs, config-entry version 1 and the manifest requirements are
+  unchanged. New companion identities are additive and a code-only rollback to
+  2.14.1 remains possible. `enocean_library/` is unchanged.
+- **NOT VERIFIED ON HARDWARE:** actual SCM values of old VOC transmitters;
+  A5-12-01/02/03 readings against meter displays; A5-07/08 occupancy polarity
+  and illuminance; A5-13 directions and night state; the real unit selected by
+  an A5-09-0C sensor; USB300 unplug/replug and network outages; and every
+  pilot-wire mode applied and read back on a physical D2-01-0C module. All were
+  tested with exact byte vectors and simulated transports only.
+- ReCom, MQTT, free-form radio sending and TX pacing are outside this release.
+
 ## 2.14.1 - 2026-11-06
 
 Fixes the admin panel looking unchanged after an update, and README screenshots that did not show inside Home Assistant. Nothing to migrate; a plain code rollback to 2.14.0 stays possible.

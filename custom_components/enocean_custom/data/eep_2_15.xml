@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Additive layouts transcribed from EEP 2.6.8; the vendored library is unchanged.
+     A5-04-02 p.36; A5-07-02/03 pp.40-41; A5-08-02/03 pp.42-43.
+     PIRM is an internal alias for A5-07 PIRS, whose 1 value means motion. -->
+<profiles>
+  <profile rorg="A5" func="04" type="02" description="Temperature and Humidity Sensor">
+    <data>
+      <value shortcut="HUM" description="Humidity" offset="8" size="8" unit="%">
+        <range><min>0</min><max>250</max></range><scale><min>0</min><max>100</max></scale>
+      </value>
+      <value shortcut="TMP" description="Temperature" offset="16" size="8" unit="°C">
+        <range><min>0</min><max>250</max></range><scale><min>-20</min><max>60</max></scale>
+      </value>
+    </data>
+  </profile>
+  <profile rorg="A5" func="07" type="02" description="Occupancy with Supply Voltage">
+    <data>
+      <value shortcut="SVC" description="Supply voltage" offset="0" size="8" unit="V">
+        <range><min>0</min><max>250</max></range><scale><min>0</min><max>5</max></scale>
+      </value>
+      <enum shortcut="PIRM" description="Motion detected" offset="24" size="1" />
+    </data>
+  </profile>
+  <profile rorg="A5" func="07" type="03" description="Occupancy with Illuminance and Supply Voltage">
+    <data>
+      <value shortcut="SVC" description="Supply voltage" offset="0" size="8" unit="V">
+        <range><min>0</min><max>250</max></range><scale><min>0</min><max>5</max></scale>
+      </value>
+      <value shortcut="ILL" description="Illuminance" offset="8" size="10" unit="lx">
+        <range><min>0</min><max>1000</max></range><scale><min>0</min><max>1000</max></scale>
+      </value>
+      <enum shortcut="PIRM" description="Motion detected" offset="24" size="1" />
+    </data>
+  </profile>
+  <profile rorg="A5" func="08" type="02" description="Light, Temperature and Occupancy, 1020 lx">
+    <data>
+      <value shortcut="SVC" description="Supply voltage" offset="0" size="8" unit="V">
+        <range><min>0</min><max>255</max></range><scale><min>0</min><max>5.1</max></scale>
+      </value>
+      <value shortcut="ILL" description="Illuminance" offset="8" size="8" unit="lx">
+        <range><min>0</min><max>255</max></range><scale><min>0</min><max>1020</max></scale>
+      </value>
+      <value shortcut="TMP" description="Temperature" offset="16" size="8" unit="°C">
+        <range><min>0</min><max>255</max></range><scale><min>0</min><max>51</max></scale>
+      </value>
+      <enum shortcut="PIRS" description="Occupancy" offset="30" size="1" />
+    </data>
+  </profile>
+  <profile rorg="A5" func="08" type="03" description="Light, Temperature and Occupancy, 1530 lx">
+    <data>
+      <value shortcut="SVC" description="Supply voltage" offset="0" size="8" unit="V">
+        <range><min>0</min><max>255</max></range><scale><min>0</min><max>5.1</max></scale>
+      </value>
+      <value shortcut="ILL" description="Illuminance" offset="8" size="8" unit="lx">
+        <range><min>0</min><max>255</max></range><scale><min>0</min><max>1530</max></scale>
+      </value>
+      <value shortcut="TMP" description="Temperature" offset="16" size="8" unit="°C">
+        <range><min>0</min><max>255</max></range><scale><min>-30</min><max>50</max></scale>
+      </value>
+      <enum shortcut="PIRS" description="Occupancy" offset="30" size="1" />
+    </data>
+  </profile>
+  <profile rorg="A5" func="12" type="02" description="Gas meter">
+    <data>
+      <value shortcut="GASV" slug="cumul" description="Cumulative gas volume" offset="0" size="24" unit="m³">
+        <range><min>0</min><max>16777215</max></range><scale><min>0</min><max>16777215</max></scale>
+      </value>
+      <value shortcut="FLOW" description="Gas flow" offset="0" size="24" unit="L/s">
+        <range><min>0</min><max>16777215</max></range><scale><min>0</min><max>16777215</max></scale>
+      </value>
+    </data>
+  </profile>
+  <profile rorg="A5" func="12" type="03" description="Water meter">
+    <data>
+      <value shortcut="WATERV" slug="cumul" description="Cumulative water volume" offset="0" size="24" unit="m³">
+        <range><min>0</min><max>16777215</max></range><scale><min>0</min><max>16777215</max></scale>
+      </value>
+      <value shortcut="FLOW" description="Water flow" offset="0" size="24" unit="L/s">
+        <range><min>0</min><max>16777215</max></range><scale><min>0</min><max>16777215</max></scale>
+      </value>
+    </data>
+  </profile>
+  <profile rorg="A5" func="09" type="0C" description="VOC, selectable parts or mass concentration">
+    <data>
+      <value shortcut="Conc" description="VOC parts concentration" offset="0" size="16" unit="ppb">
+        <range><min>0</min><max>65535</max></range><scale><min>0</min><max>65535</max></scale>
+      </value>
+      <value shortcut="VOCM" description="VOC mass concentration" offset="0" size="16" unit="µg/m³">
+        <range><min>0</min><max>65535</max></range><scale><min>0</min><max>65535</max></scale>
+      </value>
+      <enum shortcut="VOC_ID" description="VOC identification" offset="16" size="8" />
+    </data>
+  </profile>
+</profiles>

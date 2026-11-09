@@ -73,12 +73,13 @@ Alliance certification nor tested hardware.
 | `F6-10-00`   | `sensor.EnOceanWindowHandle`: high nibble `C/E` open, `D` tilt, `F` closed; any other/truncated RPS is `unknown`             | `sensor`                  | `assisted` (device class)                                    | `supported` |
 | `D5-00-01`   | `sensor.EnOceanD50001Contact`: `0x08` open / `0x09` closed; legacy `shuttercontact` remains an alias                         | `sensor`                  | `assisted` (device class)                                    | `supported` |
 | `A5-10-06`   | `sensor.EnOceanTemperatureSensor`, a _generic_ linear 8-bit A5 decoder                                                       | `sensor`                  | `manual` (scale and raw range must be supplied)              | `manual`    |
-| `A5-12-01`   | `sensor.EnOceanPowerSensor` / `EnOceanEnergySensor` via `parse_eep(0x12, 0x01)`                                              | `sensor`                  | `assisted`                                                   | `supported` |
+| `A5-12-01`   | `sensor.EnOceanPowerSensor` / `EnOceanEnergySensor` via `parse_eep(0x12, 0x01)`, plus additive `EnOceanA51201EnergySensor` in kWh; the historical Wh entity is unchanged | `sensor`                  | `assisted`                                                   | `supported` |
 | `A5-14-01`   | `binary_sensor.EnOceanA514Contact`; optional disabled-by-default diagnostic `sensor.EnOceanA514Voltage`                      | `binary_sensor`           | `automatic`                                                  | `supported` |
 | `A5-20-04`   | `climate.EnOceanClimate` valve control                                                                                       | `climate`                 | `yaml_only` (the options flow persists SRC-D08 only)         | `manual`    |
 | `A5-38-08`   | `light.EnOceanLight` commands and teach-in (transmit only)                                                                   | `light`                   | `assisted` (a sender identity is required)                   | `supported` |
 | `D2-01-0A`   | `switch.EnOceanSwitch` D2 CMD `0x1` switching and CMD `0x4` feedback                                                         | `switch`                  | `manual` (EEP does not prove NodOn hardware)                 | `manual`    |
 | `D2-01-0B`   | `sensor._decode_d2_measurement` for D2-01 CMD `0x7`                                                                          | `sensor`                  | `assisted`                                                   | `supported` |
+| `D2-01-0C`   | additive six-mode `select.EnOceanD201PilotWireSelect`; explicit action sends CMD `0x8` then `0x9`, state comes only from CMD `0xA`; CMD `0x7` stays W/Wh | `switch`, `select`, `sensor` | `assisted` (profile must be declared)                     | `supported` |
 | `D2-01-08`   | Ubiwizz lighting profile from field-verified DolphinView capture | `light`, `switch` | manual (catalog recipe) | manual |
 | `D2-01-12`   | switch/light actuator with D2-01 feedback; explicit `ubiwizz_ubid1507c` limits documented UBID1507C rows to channels `0`/`1` | `light`, `switch` | manual (two valid platforms; EEP is not hardware identity) | manual |
 | `D2-05-00`   | `cover.EnOceanCover`: CMD 0x1 position, CMD 0x2 stop, CMD 0x3 query, CMD 0x4 position/angle/lock feedback; TYPE 0x00 channel `0` only | `cover` | `assisted` (one output; profile remains an operator assertion) | `supported` |
@@ -91,36 +92,39 @@ always remains changeable, and a manufacturer conflict suppresses it entirely.
 ### Generic EEP.xml decoder (sensor device class `eep`)
 
 Since 2.10.0 a `sensor` row may use the device class `eep` together with a
-profile stored in `radio_metadata.eep`. The decoder (`eep_catalog.py`) is
-driven entirely by the vendored `EEP.xml`: bit offsets, ranges and scales come
-from the file, and only the specification *shortcuts* are mapped to Home
-Assistant device classes and units (`TMP` → temperature °C, `HUM` → humidity %,
-`ILL`/`ILL1`/`ILL2`/`DWS` → illuminance lx, `Conc` → CO₂ ppm or VOC ppb, `SVC`
-→ supply voltage V (diagnostic, disabled by default), `WND` → wind speed m/s,
-`SP` → raw set point, `ACX`/`ACY`/`ACZ` → acceleration g (disabled by default);
-enums `PIR`/`PIRS` → occupancy, `CO` → contact, `RAN` → rain). Each numeric
+profile stored in `radio_metadata.eep`. The decoder (`eep_catalog.py`) reads the
+vendored `EEP.xml` plus the integration-owned `data/eep_2_15.xml`: bit offsets,
+ranges and scales come from those files, and only the specification *shortcuts*
+are mapped to Home Assistant device classes and units (`TMP` → temperature °C,
+`HUM` → humidity %, `ILL`/`ILL1`/`ILL2`/`DWS`/`SNW`/`SNS`/`SNE` → illuminance
+lx, `Conc` → CO₂ ppm or VOC ppb, `VOCM` → VOC µg/m³, `SVC` → supply voltage V
+(diagnostic, disabled by default), `WND` → wind speed m/s, `SP` → raw set point,
+`ACX`/`ACY`/`ACZ` → acceleration g (disabled by default); enums `PIR`/`PIRS`/
+`PIRM` → occupancy, `CO` → contact, `RAN` → rain, `D/N` → night). Each numeric
 field becomes one `sensor` (`<id>-eep_<shortcut>`), each mapped enum one
 `binary_sensor`. 4BS teach-in telegrams (LRN bit clear) and raw values outside
 the documented range are ignored. The profile is pre-filled when a 4BS teach-in
 declared it, otherwise it is chosen from the list and recorded as a manual
 assertion.
 
-Profiles covered (43), excluding the dedicated decoders above, bidirectional
+Profiles covered (51), excluding the dedicated decoders above, bidirectional
 A5-20-01 and the A5-38-08 command profile:
 
 | Profile(s) | Description (EEP.xml) | Entities |
 | --- | --- | --- |
 | `A5-02-01` … `A5-02-0B`, `A5-02-10` … `A5-02-1B`, `A5-02-20`, `A5-02-30` | Temperature sensors (8 and 10 bit ranges) | temperature |
-| `A5-04-01`, `A5-04-03` | Temperature and humidity | humidity, temperature |
+| `A5-04-01`, `A5-04-02`, `A5-04-03` | Temperature and humidity | humidity, temperature |
 | `A5-06-01`, `A5-06-02` | Light sensors | supply voltage, illuminance range 1 and 2 |
-| `A5-07-01` | Occupancy with supply voltage | supply voltage, occupancy |
-| `A5-08-01` | Light, temperature and occupancy | supply voltage, illuminance, temperature, occupancy |
+| `A5-07-01`, `A5-07-02`, `A5-07-03` | Occupancy with supply voltage; 03 adds 10-bit illuminance | supply voltage, occupancy, illuminance where present |
+| `A5-08-01`, `A5-08-02`, `A5-08-03` | Light, temperature and occupancy | supply voltage, illuminance, temperature, occupancy |
 | `A5-09-04` | CO₂ sensor | humidity, CO₂, temperature |
-| `A5-09-05` | VOC sensor | VOC |
+| `A5-09-05` | VOC sensor with SCM scale | VOC ppb, SCM and VOC_ID attributes |
+| `A5-09-0C` | VOC sensor with UN-selectable unit and SCM scale | independent VOC ppb and µg/m³ entities |
+| `A5-12-02`, `A5-12-03` | Gas and water meters with DT/DIV/TI | cumulative m³, L/s flow, tariff-info attribute |
 | `A5-10-03`, `A5-10-05`, `A5-10-06`, `A5-10-10`, `A5-10-12` | Room operating panels | set point, humidity where present, temperature |
 | `A5-11-02` | Temperature controller output | controller output, actual set point |
 | `A5-11-03` | Blind status | blind position, blind angle |
-| `A5-13-01` (command 1 only) | Weather station | dawn light, temperature, wind speed, rain |
+| `A5-13-01` (commands 1 and 2; A5-13-02 rides on the same row) | Weather station and sun intensity | dawn light, temperature, wind speed, rain, night, west/south/east lux |
 | `A5-30-03` | Digital inputs, wake and temperature | temperature |
 | `D2-14-41` | Indoor temperature, humidity, acceleration, illumination, contact | temperature, humidity, illuminance, acceleration X/Y/Z, contact |
 
@@ -179,6 +183,24 @@ channel per pass. Rows emulating a rocker (`switch_type: RPS`, every Ubiwizz
 UBID1507C profile row) are not D2 actuators from this integration's point of
 view and are never queried. Hardware validation of the CMD 0x3/0x4 exchange on
 the NodOn ASP-2-1-00 and on a UTE-associated UBID1507C is still pending.
+
+### D2-01-0C pilot wire
+
+A default switch row explicitly declared `D2-01-0C` gets the additive identity
+`<sender>-<channel>-d2-01-0c-pilot-wire`. Its six options map to PM 0..5: Off,
+Comfort, Eco, Anti-freeze, Comfort-1, Comfort-2. Selecting one is the only
+trigger: the runner sends one CMD `0x8` (`08 02` for Eco), waits for the ESP3
+result, sends one CMD `0x9`, then accepts only a valid CMD `0xA` from the same
+sender within 300 ms of the physical write. `0A 02` reads Eco and `0A 05`
+Comfort-2; PM 6/7 leaves the previous state unchanged. A timeout raises
+`pilot_wire_readback_timeout` rather than displaying the requested mode.
+No CMD `0x2`, CMD `0x5`, UTE response or automatic mode query is used.
+
+In the EEP table PM sits at offset 13, size 3: bits 13-15 counted from the
+most significant bit, i.e. the three low bits of the second payload byte (the
+five bits before it are unused). `08 02` therefore encodes Eco and `0A 02`
+reads Eco. Behaviour on a physical module is still unverified. CMD `0x6`/`0x7`
+measurements reuse the existing path and remain W/Wh, with no unit migration.
 
 ### User profile definitions (`<config>/enocean_custom/profiles.json`)
 
@@ -243,7 +265,7 @@ acceptance rather than proof that a load switched.
 | ASP-2-1-00 / ASP-2-1-10 / ASP-2-1-01 SmartPlug      | `D2-01-0A`; one-channel switching, local control, status, and power-failure parameters | Manual `switch`, channel `0` only; no consumption entity | Captured fixture and safe-load commissioning with matching feedback. |
 | CWS-2-1-01 wall switch                              | `F6-02-01` rocker                                                                      | Manual binary-sensor or switch mapping                   | Captured RPS fixture and decoder test.                               |
 | CCS-2-1-01 card switch                              | `F6-04-01` card insertion/removal                                                      | Unsupported                                              | Telegram fixture and decoder test.                                   |
-| SIN-2-FP-01 pilot-wire module                       | `D2-01-0C` heating modes and telemetry                                                 | Unsupported                                              | Command and status fixtures.                                         |
+| SIN-2-FP-01 pilot-wire module                       | `D2-01-0C` heating modes and telemetry                                                 | Six-mode select and existing W/Wh sensors; protocol-tested, not hardware-validated | Real CMD `0x8`/`0x9`/`0xA` exchange and physical mode verification. |
 | SIN-2-2-01 lighting relay                           | `D2-01-12` ON/OFF actuator                                                             | Manual mapping; untested                                 | Directed-command and feedback fixtures, then safe physical proof.    |
 | SIN-2-RS-01 roller-shutter module                   | `D2-05-00` shutter actuator                                                            | Manual `cover`, TYPE 0x00 channel `0`; protocol-tested, not hardware-validated | Safe physical direction/position/stop validation and commissioning proof. |
 | CRC-2-6-01 Soft Remote                              | `D2-03-0A` scene/button transmitter                                                    | Unsupported                                              | Button-event fixture and decoder test.                               |

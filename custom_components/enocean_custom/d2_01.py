@@ -69,6 +69,17 @@ CMD_STATUS_QUERY: Final = 0x03
 CMD_STATUS_RESPONSE: Final = 0x04
 CMD_MEASUREMENT_QUERY: Final = 0x06
 CMD_MEASUREMENT_RESPONSE: Final = 0x07
+CMD_PILOT_WIRE_SET: Final = 0x08
+CMD_PILOT_WIRE_QUERY: Final = 0x09
+CMD_PILOT_WIRE_RESPONSE: Final = 0x0A
+PILOT_WIRE_OPTIONS: Final = (
+    "off",
+    "comfort",
+    "eco",
+    "anti_freeze",
+    "comfort_1",
+    "comfort_2",
+)
 # CMD 0x6 offset 10 ("qu": 0 = query energy, 1 = query power), EEP 2.6.7 p.137.
 MEASUREMENT_QUERY_POWER_BIT: Final = 0x20
 IO_CHANNEL_MASK: Final = 0x1F
@@ -232,6 +243,45 @@ def build_measurement_query(
     )
 
 
+def build_pilot_wire_set(
+    sender_id: list[int], destination: list[int], mode: int
+) -> ESP3Packet:
+    """Return CMD 0x8 for PM 0..5; reject anything else before queueing.
+
+    The 2.15 acceptance vectors and D2-01-0C product protocol use the second
+    payload byte directly (Eco = ``08 02``). No CMD 0x2 or CMD 0x5 is involved.
+    """
+    if isinstance(mode, bool) or not isinstance(mode, int):
+        raise TypeError("pilot-wire mode must be an integer")
+    if not 0 <= mode < len(PILOT_WIRE_OPTIONS):
+        raise ValueError("pilot-wire mode must be between 0 and 5")
+    return ESP3Packet(
+        PACKET.RADIO_ERP1,
+        data=[RORG.VLD, CMD_PILOT_WIRE_SET, mode, *sender_id, 0x00],
+        optional=build_radio_optional(destination),
+    )
+
+
+def build_pilot_wire_query(sender_id: list[int], destination: list[int]) -> ESP3Packet:
+    """Return the CMD 0x9 Pilot Wire Mode Query (EEP 2.6.8 p.141)."""
+    return ESP3Packet(
+        PACKET.RADIO_ERP1,
+        data=[RORG.VLD, CMD_PILOT_WIRE_QUERY, *sender_id, 0x00],
+        optional=build_radio_optional(destination),
+    )
+
+
+def decode_pilot_wire_mode(packet: Any) -> str | None:
+    """Decode a valid CMD 0xA response; PM 6/7 and other commands are ignored."""
+    data = getattr(packet, "data", packet)
+    if not isinstance(data, (list, tuple)) or len(data) < 3 or data[0] != RORG.VLD:
+        return None
+    if data[1] & 0x0F != CMD_PILOT_WIRE_RESPONSE:
+        return None
+    mode = data[2] & 0x07
+    return PILOT_WIRE_OPTIONS[mode] if mode < len(PILOT_WIRE_OPTIONS) else None
+
+
 def is_matching_response(packet: Any, target: D201Target, command: int) -> bool:
     """Return whether a radio packet answers a query of ``command`` for the target."""
     if getattr(packet, "sender_int", None) != target.sender:
@@ -249,6 +299,8 @@ def is_matching_response(packet: Any, target: D201Target, command: int) -> bool:
             data[1] & 0x0F == CMD_MEASUREMENT_RESPONSE
             and data[2] & IO_CHANNEL_MASK == target.channel
         )
+    if command == CMD_PILOT_WIRE_QUERY:
+        return decode_pilot_wire_mode(packet) is not None
     return False
 
 
@@ -342,8 +394,42 @@ class D201QueryRunner:
         )
         return report
 
+    async def async_pilot_wire_set(self, target: D201Target, mode: int) -> str:
+        """Run exactly CMD 0x8 → ESP3 result → CMD 0x9 → CMD 0xA.
+
+        This coroutine is called only by the pilot-wire select's explicit user
+        action. It never configures autonomous reporting and never retries.
+        """
+        if isinstance(mode, bool) or not isinstance(mode, int):
+            raise TypeError("pilot-wire mode must be an integer")
+        if not 0 <= mode < len(PILOT_WIRE_OPTIONS):
+            raise ValueError("pilot-wire mode must be between 0 and 5")
+        async with self._lock:
+            sender_id = get_gateway_base_id(self.gateway)
+            if sender_id is None:
+                return "no_base_id"
+            destination = list(target.dev_id)
+            outcome = await self._async_send_and_wait(
+                target,
+                CMD_PILOT_WIRE_SET,
+                build_pilot_wire_set(sender_id, destination, mode),
+                expect_response=False,
+            )
+            if outcome != "answered":
+                return outcome
+            return await self._async_send_and_wait(
+                target,
+                CMD_PILOT_WIRE_QUERY,
+                build_pilot_wire_query(sender_id, destination),
+            )
+
     async def _async_send_and_wait(
-        self, target: D201Target, command: int, packet: ESP3Packet
+        self,
+        target: D201Target,
+        command: int,
+        packet: ESP3Packet,
+        *,
+        expect_response: bool = True,
     ) -> str:
         """Transmit one query and wait for its answer within the EEP window."""
         loop = asyncio.get_running_loop()
@@ -383,6 +469,8 @@ class D201QueryRunner:
             self._last_write_at = written.result() if written.done() else loop.time()
             if not ok:
                 return "rejected"
+            if not expect_response:
+                return "answered"
             # The 300 ms window runs from the physical write (EEP 2.6.7
             # p.135/p.137 "from the time of transmission").
             deadline = self._last_write_at + RESPONSE_WINDOW_SECONDS

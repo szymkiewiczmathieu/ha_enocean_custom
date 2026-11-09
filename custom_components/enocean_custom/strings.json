@@ -20,7 +20,7 @@
           "device": "USB dongle path"
         },
         "data_description": {
-          "device": "Path to your EnOcean USB dongle, or a socket://host:port / rfc2217://host:port URL for a dongle shared over the network (ser2net, ESPHome stream_server, esp-ha-usb-gateway). A network link reconnects on its own, a bounded number of times, after an unexpected drop; a local path does not."
+          "device": "Path to your EnOcean USB dongle, or a socket://host:port / rfc2217://host:port URL for a dongle shared over the network (ser2net, ESPHome stream_server, esp-ha-usb-gateway). Local paths and network links reconnect automatically after an unexpected drop, with delays growing from 2 to 60 seconds and no retry limit. A stable /dev/serial/by-id path is recommended for USB."
         }
       },
       "reconfigure": {
@@ -479,6 +479,9 @@
       },
       "eep_rain": {
         "name": "Rain"
+      },
+      "eep_night": {
+        "name": "Night"
       }
     },
     "button": {
@@ -519,6 +522,17 @@
           "level_1": "Level 1 (one hop)",
           "level_2": "Level 2 (two hops)"
         }
+      },
+      "d2_01_0c_pilot_wire": {
+        "name": "Pilot wire mode",
+        "state": {
+          "off": "Off",
+          "comfort": "Comfort",
+          "eco": "Eco",
+          "anti_freeze": "Anti-freeze",
+          "comfort_1": "Comfort-1",
+          "comfort_2": "Comfort-2"
+        }
       }
     },
     "cover": {
@@ -538,6 +552,9 @@
       },
       "energy": {
         "name": "Energy"
+      },
+      "a5_12_01_energy": {
+        "name": "Energy (A5-12-01, corrected)"
       },
       "supply_voltage": {
         "name": "Supply voltage"
@@ -599,6 +616,24 @@
       "eep_dawn": {
         "name": "Dawn light"
       },
+      "eep_sun_west": {
+        "name": "Sun west"
+      },
+      "eep_sun_south": {
+        "name": "Sun south"
+      },
+      "eep_sun_east": {
+        "name": "Sun east"
+      },
+      "eep_gas_volume": {
+        "name": "Gas volume"
+      },
+      "eep_water_volume": {
+        "name": "Water volume"
+      },
+      "eep_volume_flow_rate": {
+        "name": "Volume flow rate"
+      },
       "eep_supply_voltage": {
         "name": "Supply voltage"
       },
@@ -631,6 +666,9 @@
       },
       "eep_voc": {
         "name": "VOC"
+      },
+      "eep_voc_mass": {
+        "name": "VOC mass concentration"
       },
       "d2_14_30_temperature": {
         "name": "Temperature"
@@ -741,9 +779,16 @@
     },
     "repeater_readback_timeout": {
       "message": "The dongle accepted the repeater setting but did not confirm it within {seconds} seconds. Reload the integration to read the current setting again."
+    },
+    "pilot_wire_readback_timeout": {
+      "message": "The pilot-wire command for {name} was sent, but no valid mode response arrived within 300 ms. The displayed mode was not changed. Check the actuator and try again."
     }
   },
   "issues": {
+    "a5_12_01_energy_migration": {
+      "title": "Switch {name} to the corrected energy entity",
+      "description": "The historical energy entity of this A5-12-01 meter reports values 1000 times too small and its history is not rewritten. In Settings → Dashboards → Energy, select the new 'Energy (A5-12-01, corrected)' entity in kWh instead. Keep the historical entity for existing history and templates; it is planned to stop updating in 2.16. This notice cannot be fixed automatically."
+    },
     "serial_communicator_stopped": {
       "title": "The EnOcean serial worker stopped",
       "description": "The serial worker for {device} is no longer running: {reason}. EnOcean entities are unavailable and outgoing commands are rejected to prevent a second process from competing for the port. Check the USB connection and logs, then reload the integration or restart Home Assistant once."

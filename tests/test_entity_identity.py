@@ -37,6 +37,7 @@ try:  # The bare unit-test environment has no Home Assistant installed.
     from custom_components.enocean_custom.const import DOMAIN
     from custom_components.enocean_custom.identity import (
         SENSOR_KEYS_BY_DEVICE_CLASS,
+        additive_ui_device_entity_identities,
         sender_diagnostic_identities,
         sensor_keys_for_device_class,
         sensor_unique_id,
@@ -220,6 +221,7 @@ class PlatformParityAndRegistryTests(unittest.IsolatedAsyncioTestCase):
                     sorted(
                         (
                             *ui_device_entity_identities(row),
+                            *additive_ui_device_entity_identities(row),
                             *sender_diagnostic_identities(row["id"]),
                         )
                     ),

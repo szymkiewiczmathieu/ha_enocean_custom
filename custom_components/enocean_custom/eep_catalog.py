@@ -20,10 +20,13 @@ Boundaries, on purpose:
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
+from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Final
+
+from bs4 import BeautifulSoup
 
 from .enocean_library.protocol.constants import RORG
 from .enocean_library.protocol.packet import Packet
@@ -47,6 +50,7 @@ class FieldSemantics:
     unit: str | None = None
     diagnostic: bool = False
     enabled_default: bool = True
+    state_class: str | None = None
     # Binary fields: the raw values that mean "on".
     on_values: frozenset[int] = frozenset()
 
@@ -61,6 +65,16 @@ VALUE_SEMANTICS: Final[Mapping[str, FieldSemantics]] = MappingProxyType(
         "ILL1": FieldSemantics("eep_illuminance_range_1", "illuminance", "lx"),
         "ILL2": FieldSemantics("eep_illuminance_range_2", "illuminance", "lx"),
         "DWS": FieldSemantics("eep_dawn", "illuminance", "lx"),
+        "SNW": FieldSemantics("eep_sun_west", "illuminance", "lx"),
+        "SNS": FieldSemantics("eep_sun_south", "illuminance", "lx"),
+        "SNE": FieldSemantics("eep_sun_east", "illuminance", "lx"),
+        "GASV": FieldSemantics(
+            "eep_gas_volume", "gas", "m³", state_class="total_increasing"
+        ),
+        "WATERV": FieldSemantics(
+            "eep_water_volume", "water", "m³", state_class="total_increasing"
+        ),
+        "FLOW": FieldSemantics("eep_volume_flow_rate", "volume_flow_rate", "L/s"),
         "SVC": FieldSemantics(
             "eep_supply_voltage", "voltage", "V", diagnostic=True, enabled_default=False
         ),
@@ -80,6 +94,7 @@ _CONCENTRATION_SEMANTICS: Final[Mapping[str, FieldSemantics]] = MappingProxyType
     {
         "ppm": FieldSemantics("eep_co2", "carbon_dioxide", "ppm"),
         "ppb": FieldSemantics("eep_voc", "volatile_organic_compounds_parts", "ppb"),
+        "µg/m³": FieldSemantics("eep_voc_mass", "volatile_organic_compounds", "µg/m³"),
     }
 )
 
@@ -88,9 +103,11 @@ _CONCENTRATION_SEMANTICS: Final[Mapping[str, FieldSemantics]] = MappingProxyType
 BINARY_SEMANTICS: Final[Mapping[str, FieldSemantics]] = MappingProxyType(
     {
         "PIR": FieldSemantics("eep_occupancy", "occupancy", on_values=frozenset({1})),
+        "PIRM": FieldSemantics("eep_occupancy", "occupancy", on_values=frozenset({1})),
         "PIRS": FieldSemantics("eep_occupancy", "occupancy", on_values=frozenset({0})),
         "CO": FieldSemantics("eep_contact", "opening", on_values=frozenset({0})),
         "RAN": FieldSemantics("eep_rain", "moisture", on_values=frozenset({1})),
+        "D/N": FieldSemantics("eep_night", on_values=frozenset({1})),
     }
 )
 
@@ -114,6 +131,9 @@ class EepField:
     range_max: float = 0.0
     scale_min: float = 0.0
     scale_max: float = 0.0
+    command: int | None = None
+    # Additive companions stay outside generic_eep_identities' frozen tuple.
+    additive: bool = False
 
     @property
     def is_value(self) -> bool:
@@ -124,7 +144,7 @@ class EepField:
     def semantics(self) -> FieldSemantics | None:
         """Return the Home Assistant mapping, or None for an unexposed enum."""
         if self.is_value:
-            if self.shortcut == "Conc":
+            if self.shortcut in ("Conc", "VOCM"):
                 return _CONCENTRATION_SEMANTICS.get(self.unit)
             return VALUE_SEMANTICS.get(self.shortcut)
         return BINARY_SEMANTICS.get(self.shortcut)
@@ -195,34 +215,53 @@ class EepProfile:
         return bits
 
     def decode(self, data: Any) -> dict[str, int | float] | None:
-        """Decode the ERP1 data bytes into ``{slug: value}``.
+        """Decode the ERP1 data bytes into ``{slug: value}``."""
+        return self.decode_with_metadata(data)[0]
+
+    def decode_with_metadata(
+        self, data: Any
+    ) -> tuple[dict[str, int | float] | None, dict[str, int | float]]:
+        """Decode values and passive field diagnostics of one ERP1 telegram.
 
         Numeric fields outside their documented range are omitted; the whole
         telegram is rejected when it is too short or carries another command.
+        A5-09-05 SCM (EEP 2.6.8 p.45, DB0.1..0) scales the 16-bit concentration
+        by 0.01, 0.1, 1 or 10 and is retained for old-sensor diagnostics.
         """
         if not isinstance(data, (list, tuple)) or len(data) < 6 or data[0] != self.rorg:
-            return None
+            return None, {}
         if any(
             isinstance(byte, bool) or not isinstance(byte, int) or not 0 <= byte <= 0xFF
             for byte in data
         ):
-            return None
+            return None, {}
         payload = bytes(data[1:-5])
         payload_size = len(payload) * 8
         if payload_size < self.payload_bits:
-            return None
+            return None, {}
         # 4BS DB0 bit 3 is the LRN bit: clear on a teach-in telegram, whose
         # data bytes carry FUNC/TYPE/manufacturer rather than a measurement.
         if self.rorg == int(RORG.BS4) and not payload[-1] & 0x08:
-            return None
+            return None, {}
         bits = int.from_bytes(payload, "big")
+        command_value: int | None = None
         if self.command is not None:
             shift = payload_size - self.command_offset - self.command_size
-            if (bits >> shift) & ((1 << self.command_size) - 1) != self.command:
-                return None
+            command_value = (bits >> shift) & ((1 << self.command_size) - 1)
+            supported_commands = {
+                self.command,
+                *(field.command for field in self.fields if field.command is not None),
+            }
+            if command_value not in supported_commands:
+                return None, {}
         decoded: dict[str, int | float] = {}
         for field in self.fields:
             if not field.exposed:
+                continue
+            if field.command is None:
+                if command_value != self.command:
+                    continue
+            elif field.command != command_value:
                 continue
             raw = field.raw(self.payload_bits, bits, payload_size)
             if field.is_value:
@@ -231,7 +270,29 @@ class EepProfile:
                     decoded[field.slug] = scaled
             else:
                 decoded[field.slug] = raw
-        return decoded
+        metadata: dict[str, int | float] = {}
+        if self.eep == "A5-09-05" and "conc" in decoded:
+            scm = payload[-1] & 0x03
+            multiplier = (0.01, 0.1, 1, 10)[scm]
+            decoded["conc"] = round(decoded["conc"] * multiplier, 3)
+            metadata = {"scale_multiplier": multiplier, "voc_id": payload[2]}
+        if self.eep == "A5-09-0C":
+            multiplier = (0.01, 0.1, 1, 10)[payload[-1] & 0x03]
+            selected = "vocm" if payload[-1] & 0x04 else "conc"
+            decoded = {selected: round(decoded[selected] * multiplier, 3)}
+            metadata = {"scale_multiplier": multiplier, "voc_id": payload[2]}
+        if self.eep in ("A5-12-02", "A5-12-03"):
+            reading = int.from_bytes(payload[:3], "big")
+            divisor = payload[-1] & 0x03
+            selected = "flow" if payload[-1] & 0x04 else "cumul"
+            decoded = {selected: round(reading / (10**divisor), 3)}
+            metadata = {"tariff_info": payload[-1] >> 4}
+        if self.eep == "A5-13-01" and command_value == 2:
+            for slug in ("snw", "sns", "sne"):
+                if slug in decoded:
+                    decoded[slug] = round(decoded[slug])
+            metadata = {"hem": (payload[-1] >> 2) & 0x01}
+        return decoded, metadata
 
 
 def slugify_shortcut(shortcut: str) -> str:
@@ -260,7 +321,7 @@ def _field(element: Any) -> EepField | None:
         return None
     description = element.get("description") or shortcut
     unit = element.get("unit") or ""
-    slug = slugify_shortcut(shortcut)
+    slug = element.get("slug") or slugify_shortcut(shortcut)
     if element.name == "enum":
         return EepField(shortcut, slug, description, "enum", offset, size, unit)
     rng = element.find("range")
@@ -343,6 +404,59 @@ def _profile(rorg: int, func: int, type_: int, node: Any) -> EepProfile | None:
     return profile
 
 
+def _with_weather_companions(profile: EepProfile) -> EepProfile:
+    """Add A5-13 D/N and A5-13-02 fields without changing old identities.
+
+    EEP 2.6.8 pp.79-80: command/identifier 1 is weather, 2 is sun intensity.
+    The specification's 0..150 klx scale is converted to lx because Home
+    Assistant's illuminance device class accepts lx, not klx.
+    """
+    fields = [
+        replace(field, additive=True) if field.shortcut == "D/N" else field
+        for field in profile.fields
+    ]
+    for shortcut, description, offset in (
+        ("SNW", "Sun west", 0),
+        ("SNS", "Sun south", 8),
+        ("SNE", "Sun east", 16),
+    ):
+        fields.append(
+            EepField(
+                shortcut,
+                shortcut.lower(),
+                description,
+                "value",
+                offset,
+                8,
+                "lx",
+                0,
+                255,
+                0,
+                150000,
+                command=2,
+                additive=True,
+            )
+        )
+    return replace(profile, fields=tuple(fields))
+
+
+def _supplemental_profiles() -> tuple[EepProfile, ...]:
+    """Read integration-owned XML; never edit or override the vendored EEP.xml."""
+    path = Path(__file__).with_name("data") / "eep_2_15.xml"
+    soup = BeautifulSoup(path.read_text(encoding="utf-8"), "xml")
+    profiles: list[EepProfile] = []
+    for node in soup.find_all("profile"):
+        try:
+            rorg = int(node["rorg"], 16)
+            func = int(node["func"], 16)
+            type_ = int(node["type"], 16)
+        except (KeyError, TypeError, ValueError):
+            continue
+        if (profile := _profile(rorg, func, type_, node)) is not None:
+            profiles.append(profile)
+    return tuple(profiles)
+
+
 @lru_cache(maxsize=1)
 def built_in_profiles() -> Mapping[str, EepProfile]:
     """Return every profile the vendored ``EEP.xml`` describes, by ``XX-XX-XX``."""
@@ -353,7 +467,12 @@ def built_in_profiles() -> Mapping[str, EepProfile]:
             for type_, node in sorted(types.items()):
                 profile = _profile(rorg, func, type_, node)
                 if profile is not None:
+                    if profile.eep == "A5-13-01":
+                        profile = _with_weather_companions(profile)
                     profiles[profile.eep] = profile
+    for profile in _supplemental_profiles():
+        if profile.eep not in profiles:
+            profiles[profile.eep] = profile
     return MappingProxyType(profiles)
 
 

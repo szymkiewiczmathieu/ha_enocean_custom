@@ -34,6 +34,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
@@ -44,7 +45,7 @@ from .availability import (
     availability_settings,
     silence_category,
 )
-from .const import DOMAIN, LOGGER
+from .const import DOMAIN, ISSUE_A5_12_01_ENERGY_MIGRATION, LOGGER
 from .d2_14 import (
     AIR_QUALITY_STATES,
     COMFORT_STATES,
@@ -67,6 +68,7 @@ from .identity import (
     GATEWAY_KEY_LAST_TELEGRAM,
     GATEWAY_KEY_RECEIVED_TELEGRAMS,
     GENERIC_SENSOR_DEVICE_CLASS,
+    SENSOR_KEY_A5_12_01_ENERGY,
     SENSOR_KEY_A514_SUPPLY_VOLTAGE,
     SENSOR_KEY_CONTACT,
     SENSOR_KEY_ENERGY,
@@ -145,6 +147,15 @@ SENSOR_DESC_ENERGY = EnOceanSensorEntityDescription(
     native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
     device_class=SensorDeviceClass.ENERGY,
     state_class=SensorStateClass.TOTAL_INCREASING,
+)
+SENSOR_DESC_A5_12_01_ENERGY = EnOceanSensorEntityDescription(
+    key=SENSOR_KEY_A5_12_01_ENERGY,
+    name="Energy (A5-12-01)",
+    translation_key="a5_12_01_energy",
+    native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+    device_class=SensorDeviceClass.ENERGY,
+    state_class=SensorStateClass.TOTAL_INCREASING,
+    entity_registry_enabled_default=False,
 )
 SENSOR_DESC_SUPPLY_VOLTAGE = EnOceanSensorEntityDescription(
     key=SENSOR_KEY_A514_SUPPLY_VOLTAGE,
@@ -240,6 +251,17 @@ PLATFORM_SCHEMA = vol.All(
 )
 
 
+def _a5_12_01_energy_entity(
+    device_id: list[int], name: str, metadata: object
+) -> EnOceanA51201EnergySensor:
+    """Build the additive kWh entity; unknown/YAML rows keep it disabled."""
+    entity = EnOceanA51201EnergySensor(device_id, name, SENSOR_DESC_A5_12_01_ENERGY)
+    entity._attr_entity_registry_enabled_default = (
+        isinstance(metadata, dict) and metadata.get("eep") == "A5-12-01"
+    )
+    return entity
+
+
 def setup_platform(
     hass: HomeAssistant,
     config: ConfigType,
@@ -249,7 +271,12 @@ def setup_platform(
     """Create YAML-configured measurement entities."""
     track_yaml_device(hass, "sensor", config)
     register_known_id(hass, config[CONF_ID])
-    add_entities(_entities_from_config(config))
+    entities = _entities_from_config(config)
+    if config[CONF_DEVICE_CLASS] == SENSOR_TYPE_POWER:
+        entities.append(
+            _a5_12_01_energy_entity(config[CONF_ID], config[CONF_NAME], None)
+        )
+    add_entities(entities)
 
 
 async def async_setup_entry(
@@ -266,7 +293,7 @@ async def async_setup_entry(
     settings = availability_settings(getattr(entry, "options", {}))
 
     def build(rows: list[dict]) -> list[SensorEntity]:
-        return _row_entities(rows, settings)
+        return _row_entities(rows, settings, hass)
 
     groups = dict(rows_by_subentry(entry))
     legacy = build(groups.pop(None, []))
@@ -278,7 +305,7 @@ async def async_setup_entry(
 
 
 def _row_entities(
-    rows: list[dict], settings: AvailabilitySettings
+    rows: list[dict], settings: AvailabilitySettings, hass: HomeAssistant | None = None
 ) -> list[SensorEntity]:
     """Build the measurement and radio-diagnostic sensors of one group of rows."""
     entities: list[SensorEntity] = []
@@ -340,6 +367,27 @@ def _row_entities(
             )
             for entity in _entities_from_config(config)
         )
+        if row[CONF_DEVICE_CLASS] == SENSOR_TYPE_POWER:
+            metadata = row.get("radio_metadata") or {}
+            entities.append(
+                _a5_12_01_energy_entity(row["id"], row["name"], metadata)
+                .set_radio_metadata(row.get("radio_metadata"))
+                .configure_silence(silence[0], repair=silence[1])
+            )
+            if hass is not None and metadata.get("eep") == "A5-12-01":
+                issue_id = (
+                    f"{ISSUE_A5_12_01_ENERGY_MIGRATION}_{combine_hex(row['id']):08X}"
+                )
+                ir.async_create_issue(
+                    hass,
+                    DOMAIN,
+                    issue_id,
+                    is_fixable=False,
+                    is_persistent=False,
+                    severity=ir.IssueSeverity.WARNING,
+                    translation_key=ISSUE_A5_12_01_ENERGY_MIGRATION,
+                    translation_placeholders={"name": row["name"]},
+                )
     entities.extend(_radio_diagnostic_entities(rows))
     return entities
 
@@ -539,6 +587,7 @@ class EnOceanEepValueSensor(EnOceanEntity, RestoreSensor):
         super().__init__(dev_id, dev_name)
         self._profile = profile
         self._field = field
+        self._field_metadata: dict[str, int | float] = {}
         self._attr_unique_id = sensor_unique_id(dev_id, generic_field_key(field.slug))
         self._attr_native_unit_of_measurement = field.normalized_unit
         semantics = field.semantics
@@ -549,14 +598,28 @@ class EnOceanEepValueSensor(EnOceanEntity, RestoreSensor):
         self._attr_translation_key = semantics.translation_key
         if semantics.device_class is not None:
             self._attr_device_class = SensorDeviceClass(semantics.device_class)
+        if semantics.state_class is not None:
+            self._attr_state_class = SensorStateClass(semantics.state_class)
         if semantics.diagnostic:
             self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._attr_entity_registry_enabled_default = semantics.enabled_default
 
     @property
-    def extra_state_attributes(self) -> dict[str, str]:
-        """Name the profile and field so the source of a value is auditable."""
-        return {"eep": self._profile.eep, "eep_field": self._field.shortcut}
+    def extra_state_attributes(self) -> dict[str, str | int | float]:
+        """Name the profile/field and retain documented passive diagnostics."""
+        attributes: dict[str, str | int | float] = {
+            "eep": self._profile.eep,
+            "eep_field": self._field.shortcut,
+        }
+        if self._profile.eep in {
+            "A5-09-05",
+            "A5-09-0C",
+            "A5-12-02",
+            "A5-12-03",
+            "A5-13-01",
+        }:
+            attributes.update(self._field_metadata)
+        return attributes
 
     @override
     async def async_added_to_hass(self) -> None:
@@ -570,9 +633,12 @@ class EnOceanEepValueSensor(EnOceanEntity, RestoreSensor):
     @override
     def value_changed(self, packet) -> None:
         """Decode a data telegram of the declared profile."""
-        decoded = self._profile.decode(getattr(packet, "data", None))
+        decoded, metadata = self._profile.decode_with_metadata(
+            getattr(packet, "data", None)
+        )
         if decoded is None or self._field.slug not in decoded:
             return
+        self._field_metadata = metadata
         self._attr_native_value = decoded[self._field.slug]
         self.schedule_update_ha_state()
 
@@ -819,6 +885,28 @@ class EnOceanPowerSensor(EnOceanSensor):
             return
         packet.parse_eep(0x12, 0x01)
         if packet.parsed["DT"]["raw_value"] != 1:
+            return
+        reading = packet.parsed["MR"]["raw_value"]
+        divisor = packet.parsed["DIV"]["raw_value"]
+        self._attr_native_value = reading / (10**divisor)
+        self.schedule_update_ha_state()
+
+
+class EnOceanA51201EnergySensor(EnOceanSensor):
+    """Expose the additive, correctly scaled A5-12-01 kWh counter only.
+
+    EEP 2.6.8 pp.74-75: DT=0 means cumulative kWh and DIV selects 10^n.
+    The historical ``-energy`` entity remains separate and unchanged so its
+    long-term statistics cannot jump by a factor of 1000 during this release.
+    """
+
+    @override
+    def value_changed(self, packet) -> None:
+        """Decode only A5-12-01 cumulative energy, never D2 or power reports."""
+        if not packet.data or packet.data[0] != RORG.BS4 or len(packet.data) < 5:
+            return
+        packet.parse_eep(0x12, 0x01)
+        if packet.parsed["DT"]["raw_value"] != 0:
             return
         reading = packet.parsed["MR"]["raw_value"]
         divisor = packet.parsed["DIV"]["raw_value"]

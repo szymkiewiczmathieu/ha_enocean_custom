@@ -90,6 +90,7 @@ from .enocean_library.protocol.packet import (
 from .enocean_library.utils import combine_hex, to_hex_string
 from .entity import build_radio_optional, get_gateway_base_id
 from .identity import (
+    additive_ui_device_entity_identities,
     d2_01_refresh_unique_id,
     rocker_event_unique_id,
     sender_diagnostic_identities,
@@ -2177,12 +2178,18 @@ class EnOceanOptionsFlow(OptionsFlow):
             for existing in valid_ui_devices(
                 self.config_entry.options.get(CONF_UI_DEVICES, [])
             )
-            for identity in ui_device_entity_identities(existing)
+            for identity in (
+                *ui_device_entity_identities(existing),
+                *additive_ui_device_entity_identities(existing),
+            )
         }
         if any(
             (platform, unique_id) in stored_identities
             or registry.async_get_entity_id(platform, DOMAIN, unique_id) is not None
-            for platform, unique_id in ui_device_entity_identities(device)
+            for platform, unique_id in (
+                *ui_device_entity_identities(device),
+                *additive_ui_device_entity_identities(device),
+            )
         ):
             return None
         updated_options = dict(self.config_entry.options)
@@ -2235,6 +2242,7 @@ class EnOceanOptionsFlow(OptionsFlow):
         registry = er.async_get(self.hass)
         identities = [
             *ui_device_entity_identities(device),
+            *additive_ui_device_entity_identities(device),
             *teach_in_button_identities(device),
         ]
         if device["platform"] == "switch":

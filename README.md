@@ -9,7 +9,7 @@ and compatible). It provides configuration-entry and YAML setup, guided device
 learning, diagnostics, native rocker triggers, automation blueprints and
 bounded actuator control without cloud services or telemetry.
 
-**Current release:** [v2.14.1](CHANGELOG.md) · Apache-2.0 · available in the HACS default store
+**Current release:** [v2.15.0](CHANGELOG.md) · Apache-2.0 · available in the HACS default store
 
 ![EnOcean admin panel: gateway health, device cards and signal gauges](https://raw.githubusercontent.com/szymkiewiczmathieu/ha_enocean_custom/main/docs/images/panel-devices.png)
 
@@ -47,11 +47,12 @@ The only installation parameter is the serial device:
 
 - `device`: Path of the ESP3 serial port, preferably the stable `/dev/serial/by-id/usb-EnOcean_GmbH_EnOcean_USB_300_...` alias. A `socket://host:port` or `rfc2217://host:port` URL also works, for a dongle shared over the network through ser2net, ESPHome's `stream_server`, or esp-ha-usb-gateway.
 
-A network link reconnects on its own after an unexpected drop: a growing
-backoff (2s, 5s, 15s, 30s, 60s), then it gives up and waits for a manual
-reload, so a flaky link never retries forever. A local device path never
-reconnects on its own — this is unchanged and matches how a lost USB
-connection has always behaved.
+Local USB paths and network links reconnect on their own after an unexpected
+stop: a growing backoff (2s, 5s, 15s, 30s, 60s), then an unlimited 60-second
+plateau. The previous worker is joined before reopening, and the backoff resets
+only after the dongle answers a valid version request. A stable
+`/dev/serial/by-id` path is recommended because a `/dev/ttyUSB*` number may
+change when the device is plugged in again.
 
 A dongle must have one reader. Do not configure `enocean` and `enocean_custom`
 against the same serial device. If the port changes, use **Reconfigure** on the
@@ -384,7 +385,8 @@ In short: F6-02-01/02 rockers, F6-05-02 smoke detectors, F6-10-00 handles,
 D5-00-01 contacts, A5-14-01 window sensors, A5-12-01 meters, 8-bit A5
 temperature/humidity profiles with a manual scale, D2-14-30/41 multi-sensors,
 the generic EEP.xml sensor decoder, A5-38-08 dimmer commands, A5-20-04 valves
-(YAML), D2-01 actuators (D2-01-0A/0B/08/12), and D2-05-00 TYPE 0x00 roller
+(YAML), D2-01 actuators (D2-01-0A/0B/08/12), D2-01-0C pilot-wire mode selects,
+and D2-05-00 TYPE 0x00 roller
 shutters. A5-20-01 and A5-20-06 valves
 are also implemented but **experimental and not validated on real
 hardware**: YAML-only, refused without an explicit `experimental_valve_ack:

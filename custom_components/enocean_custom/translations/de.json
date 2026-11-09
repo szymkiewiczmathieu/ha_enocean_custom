@@ -20,7 +20,7 @@
           "device": "Pfad des USB-Dongles"
         },
         "data_description": {
-          "device": "Pfad zu Ihrem EnOcean-USB-Dongle oder eine socket://host:port- / rfc2217://host:port-URL für einen über das Netzwerk geteilten Dongle (ser2net, ESPHome stream_server, esp-ha-usb-gateway). Eine Netzwerkverbindung verbindet sich nach einem unerwarteten Abbruch eine begrenzte Anzahl von Malen selbst neu; ein lokaler Pfad nicht."
+          "device": "Pfad zu Ihrem EnOcean-USB-Dongle oder eine socket://host:port- / rfc2217://host:port-URL für einen über das Netzwerk geteilten Dongle (ser2net, ESPHome stream_server, esp-ha-usb-gateway). Lokale Pfade und Netzwerkverbindungen verbinden sich nach einem unerwarteten Abbruch automatisch neu, mit Wartezeiten von 2 bis 60 Sekunden und ohne Versuchsgrenze. Für USB wird ein stabiler /dev/serial/by-id-Pfad empfohlen."
         }
       },
       "reconfigure": {
@@ -479,6 +479,9 @@
       },
       "eep_rain": {
         "name": "Regen"
+      },
+      "eep_night": {
+        "name": "Nacht"
       }
     },
     "button": {
@@ -519,6 +522,17 @@
           "level_1": "Stufe 1 (ein Sprung)",
           "level_2": "Stufe 2 (zwei Sprünge)"
         }
+      },
+      "d2_01_0c_pilot_wire": {
+        "name": "Pilotdraht-Modus",
+        "state": {
+          "off": "Aus",
+          "comfort": "Komfort",
+          "eco": "Eco",
+          "anti_freeze": "Frostschutz",
+          "comfort_1": "Komfort-1",
+          "comfort_2": "Komfort-2"
+        }
       }
     },
     "cover": {
@@ -538,6 +552,9 @@
       },
       "energy": {
         "name": "Energie"
+      },
+      "a5_12_01_energy": {
+        "name": "Energie (A5-12-01, korrigiert)"
       },
       "supply_voltage": {
         "name": "Versorgungsspannung"
@@ -599,6 +616,24 @@
       "eep_dawn": {
         "name": "Dämmerungslicht"
       },
+      "eep_sun_west": {
+        "name": "Sonne West"
+      },
+      "eep_sun_south": {
+        "name": "Sonne Süd"
+      },
+      "eep_sun_east": {
+        "name": "Sonne Ost"
+      },
+      "eep_gas_volume": {
+        "name": "Gasvolumen"
+      },
+      "eep_water_volume": {
+        "name": "Wasservolumen"
+      },
+      "eep_volume_flow_rate": {
+        "name": "Volumenstrom"
+      },
       "eep_supply_voltage": {
         "name": "Versorgungsspannung"
       },
@@ -631,6 +666,9 @@
       },
       "eep_voc": {
         "name": "VOC"
+      },
+      "eep_voc_mass": {
+        "name": "VOC-Massenkonzentration"
       },
       "d2_14_30_temperature": {
         "name": "Temperatur"
@@ -741,9 +779,16 @@
     },
     "repeater_readback_timeout": {
       "message": "Der Dongle hat die Repeater-Einstellung angenommen, sie aber nicht innerhalb von {seconds} Sekunden bestätigt. Laden Sie die Integration neu, um die aktuelle Einstellung erneut zu lesen."
+    },
+    "pilot_wire_readback_timeout": {
+      "message": "Der Pilotdraht-Befehl für {name} wurde gesendet, aber innerhalb von 300 ms ging keine gültige Modusantwort ein. Der angezeigte Modus wurde nicht geändert. Prüfen Sie den Aktor und versuchen Sie es erneut."
     }
   },
   "issues": {
+    "a5_12_01_energy_migration": {
+      "title": "{name} auf die korrigierte Energie-Entität umstellen",
+      "description": "Die bisherige Energie-Entität dieses A5-12-01-Zählers meldet 1000-mal zu kleine Werte; ihr Verlauf wird nicht neu geschrieben. Wählen Sie unter Einstellungen → Dashboards → Energie stattdessen die neue Entität 'Energie (A5-12-01, korrigiert)' in kWh. Behalten Sie die bisherige Entität für Verlauf und Vorlagen; ihre Aktualisierung soll in 2.16 eingestellt werden. Dieser Hinweis kann nicht automatisch behoben werden."
+    },
     "serial_communicator_stopped": {
       "title": "Der serielle EnOcean-Worker wurde gestoppt",
       "description": "Der serielle Worker für {device} läuft nicht mehr: {reason}. EnOcean-Entitäten sind nicht verfügbar und ausgehende Befehle werden abgelehnt, damit kein zweiter Prozess um den Port konkurriert. Prüfen Sie die USB-Verbindung und die Protokolle, laden Sie dann die Integration neu oder starten Sie Home Assistant einmal neu."

@@ -36,6 +36,8 @@ EVENT_NO_FEEDBACK = f"{DOMAIN}_no_feedback"
 EVENT_SIMULATED_TELEGRAM = f"{DOMAIN}_simulated_telegram"
 CONF_ALLOW_SIMULATION = "allow_simulated_telegrams"
 ISSUE_SERIAL_STOPPED = "serial_communicator_stopped"
+# Raised for each A5-12-01 power row until its Energy dashboard uses the kWh entity.
+ISSUE_A5_12_01_ENERGY_MIGRATION = "a5_12_01_energy_migration"
 # Raised per silent sender when silence detection is enabled for its category.
 ISSUE_SILENT_DEVICE = "silent_device"
 # Raised per A5-20-04 valve while its reported failure code is non-zero.

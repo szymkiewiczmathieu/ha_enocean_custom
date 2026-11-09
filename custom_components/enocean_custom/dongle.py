@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import glob
 import logging
+import os
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -35,7 +36,11 @@ from .const import (
 )
 from .enocean_library.communicators import SerialCommunicator
 from .enocean_library.protocol.constants import RETURN_CODE
-from .enocean_library.protocol.packet import RadioPacket, ResponsePacket
+from .enocean_library.protocol.packet import (
+    RadioPacket,
+    ResponsePacket,
+    UTETeachInPacket,
+)
 from .inbox import DeviceInbox, packet_observation
 
 _LOGGER = logging.getLogger(__name__)
@@ -47,9 +52,8 @@ CO_WR_REPEATER = 0x09
 CO_RD_REPEATER = 0x0A
 
 # serial.serial_for_url schemes for a remote dongle (ser2net, ESPHome
-# stream_server, esp-ha-usb-gateway): these are the only paths bounded
-# reconnection ever applies to. A plain device path keeps today's behavior
-# unchanged -- an unexpected stop still requires a manual reload.
+# stream_server, esp-ha-usb-gateway). Local paths and network URLs share the
+# same reconnection loop; only the pre-open existence check differs.
 NETWORK_URL_SCHEMES = ("socket://", "rfc2217://")
 
 
@@ -120,6 +124,57 @@ def parse_repeater_response(packet: Any) -> RepeaterState | None:
     return RepeaterState(enabled=enable != 0, level=level, raw_enable=enable)
 
 
+def parse_base_id_write_cycles(packet: Any, base_id: object) -> int | str | None:
+    """Return CO_RD_IDBASE optional write cycles, or None when absent/irrelevant.
+
+    ESP3 1.58 p.38 (Table 41): 0x00..0xFE are remaining writes, 0xFF means
+    unlimited. No write command exists here; this is strictly passive parsing.
+    """
+    if (
+        getattr(packet, "response", None) != RETURN_CODE.OK
+        or list(getattr(packet, "response_data", []) or []) != list(base_id or [])
+        or len(getattr(packet, "optional", []) or []) != 1
+    ):
+        return None
+    value = packet.optional[0]
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 0xFF:
+        return None
+    return "unlimited" if value == 0xFF else value
+
+
+class RepeatedTeachInTracker:
+    """Count repeated UTE requests passively; never creates or sends a packet."""
+
+    WINDOW_SECONDS = 300.0
+    HINT_THRESHOLD = 4
+
+    def __init__(self) -> None:
+        self._requests: dict[int, deque[float]] = {}
+        self._lock = Lock()
+
+    def observe(self, sender: int, now: float) -> bool:
+        """Return True only when one sender crosses four requests in 300 s."""
+        with self._lock:
+            requests = self._requests.setdefault(sender, deque())
+            while requests and now - requests[0] > self.WINDOW_SECONDS:
+                requests.popleft()
+            requests.append(now)
+            return len(requests) == self.HINT_THRESHOLD
+
+    def hinted_senders(self, now: float) -> int:
+        """Return the anonymized count of senders currently at the threshold."""
+        with self._lock:
+            hinted = 0
+            for sender, requests in tuple(self._requests.items()):
+                while requests and now - requests[0] > self.WINDOW_SECONDS:
+                    requests.popleft()
+                if not requests:
+                    del self._requests[sender]
+                elif len(requests) >= self.HINT_THRESHOLD:
+                    hinted += 1
+            return hinted
+
+
 class EnOceanDongle:
     """Own the serial worker and expose its health to Home Assistant."""
 
@@ -131,13 +186,8 @@ class EnOceanDongle:
     BASE_ID_RETRY_LIMIT = 3
     BASE_ID_RETRY_BACKOFF_SECONDS = (5.0, 30.0, 120.0)
 
-    # Bounded reconnection: only for a socket:// / rfc2217:// remote dongle,
-    # whose link can drop for reasons a local USB cable never has (a ser2net
-    # restart, a brief network blip). A plain device path never reconnects
-    # on its own; an unexpected stop there still requires a manual reload,
-    # exactly as before this item. Growing backoff, a hard ceiling, then
-    # give up: never a tight retry loop, never forever.
-    RECONNECT_LIMIT = 5
+    # Unlimited reconnection for local USB and network links. The delay grows
+    # to a 60-second plateau; only a valid CO_RD_VERSION response resets it.
     RECONNECT_BACKOFF_SECONDS = (2.0, 5.0, 15.0, 30.0, 60.0)
 
     def __init__(self, hass, serial_path: str, entry_id: str | None = None) -> None:
@@ -157,6 +207,7 @@ class EnOceanDongle:
         self._base_id_retry_count = 0
         self._base_id_retry_not_before = 0.0
         self._base_id_retry_lock = Lock()
+        self._base_id_write_cycles_remaining: int | str | None = None
         self._reconnect_attempts = 0
         self._reconnect_unsub: Callable[[], None] | None = None
         self._started_at: datetime | None = None
@@ -171,6 +222,8 @@ class EnOceanDongle:
         self._last_response_at: datetime | None = None
         self._last_response_code: str | None = None
         self._response_lock = Lock()
+        self._transmit_queued_at: dict[int, float] = {}
+        self._ute_tracker = RepeatedTeachInTracker()
         self._inbox: DeviceInbox | None = None
         self._queued_response_callbacks: dict[
             int, tuple[Callable[[bool], None] | None, Callable[[], None] | None]
@@ -239,6 +292,9 @@ class EnOceanDongle:
             _LOGGER.debug("The dongle did not report a usable CO_RD_VERSION answer")
             return
         self._gateway_info = info
+        # Opening a flapping port is not progress. Only the first valid ESP3
+        # CO_RD_VERSION response proves the link and earns a fresh backoff.
+        self._reconnect_attempts = 0
         self._notify_gateway_update()
 
     def _repeater_response(self, packet: Any) -> None:
@@ -450,18 +506,21 @@ class EnOceanDongle:
                 response_callback,
                 written_callback,
             )
+            self._transmit_queued_at[id(command)] = monotonic()
         accepted = self._communicator.send(command)
         if accepted:
             self._transmit_queued += 1
         else:
             with self._response_lock:
                 self._queued_response_callbacks.pop(id(command), None)
+                self._transmit_queued_at.pop(id(command), None)
             self._transmit_rejected += 1
         return accepted
 
     def _packet_written(self, packet: Any) -> None:
         """Register response ownership and publish the physical write once."""
         with self._response_lock:
+            getattr(self, "_transmit_queued_at", {}).pop(id(packet), None)
             callbacks = self._queued_response_callbacks.pop(id(packet), None)
             if callable(callbacks):
                 response_callback, written_callback = callbacks, None
@@ -477,6 +536,18 @@ class EnOceanDongle:
     def callback(self, packet: Any) -> None:
         """Dispatch a valid radio packet from the worker thread."""
         if isinstance(packet, ResponsePacket):
+            current_base_id = getattr(
+                getattr(self, "_communicator", None), "current_base_id", None
+            )
+            if (
+                current_base_id is not None
+                and getattr(packet, "response", None) == RETURN_CODE.OK
+                and list(getattr(packet, "response_data", []) or [])
+                == list(current_base_id)
+            ):
+                self._base_id_write_cycles_remaining = parse_base_id_write_cycles(
+                    packet, current_base_id
+                )
             self._response_packets += 1
             self._last_response_at = datetime.now(UTC)
             try:
@@ -507,6 +578,15 @@ class EnOceanDongle:
             return
         if not isinstance(packet, RadioPacket):
             return
+        if (
+            isinstance(packet, UTETeachInPacket)
+            and (tracker := getattr(self, "_ute_tracker", None)) is not None
+            and tracker.observe(packet.sender_int, monotonic())
+        ):
+            _LOGGER.warning(
+                "Repeated UTE teach-in requests suggest a pairing retry; "
+                "no response was sent"
+            )
         self._received_packets += 1
         self._last_packet_at = datetime.now(UTC)
         _LOGGER.debug("Received EnOcean packet type=%s", packet.packet_type)
@@ -553,18 +633,19 @@ class EnOceanDongle:
             )
             self._queued_response_callbacks.clear()
             self._pending_response_callbacks.clear()
+            getattr(self, "_transmit_queued_at", {}).clear()
         try:
             for response_callback in callbacks:
                 self.hass.loop.call_soon_threadsafe(response_callback, False)
             self.hass.loop.call_soon_threadsafe(self._notify_status)
-            if not self._stopping and is_network_url(self.serial_path):
+            if not self._stopping:
                 self.hass.loop.call_soon_threadsafe(self._schedule_reconnect)
         except RuntimeError:
             _LOGGER.debug("Home Assistant loop closed before serial stop notification")
 
     @ha_callback
     def _schedule_reconnect(self) -> None:
-        """Arm one bounded, backed-off reconnection attempt.
+        """Arm one unlimited, backed-off reconnection attempt.
 
         Runs on Home Assistant's event loop, scheduled from the worker
         thread via call_soon_threadsafe. A pending attempt or a deliberate
@@ -572,29 +653,25 @@ class EnOceanDongle:
         """
         if self._stopping or self._reconnect_unsub is not None:
             return
-        if self._reconnect_attempts >= self.RECONNECT_LIMIT:
-            _LOGGER.error(
-                "Giving up reconnecting to the network dongle after %d attempts; "
-                "reload the integration once the link is back",
-                self._reconnect_attempts,
-            )
-            return
         delay = self.RECONNECT_BACKOFF_SECONDS[
             min(self._reconnect_attempts, len(self.RECONNECT_BACKOFF_SECONDS) - 1)
         ]
         self._reconnect_attempts += 1
         _LOGGER.warning(
-            "Network dongle link lost; retrying in %.0fs (attempt %d of %d)",
+            "Dongle link lost; retrying in %.0fs (attempt %d)",
             delay,
             self._reconnect_attempts,
-            self.RECONNECT_LIMIT,
         )
         self._reconnect_unsub = async_call_later(
             self.hass, delay, self._attempt_reconnect
         )
 
     def _build_communicator(self) -> SerialCommunicator:
-        """Open the network link; blocking, so only ever run in the executor."""
+        """Open a local/network link; blocking, so only run in the executor."""
+        if not is_network_url(self.serial_path) and not os.path.exists(
+            self.serial_path
+        ):
+            raise serial.SerialException("Local serial path does not exist")
         return SerialCommunicator(
             port=self.serial_path,
             callback=self.callback,
@@ -606,6 +683,15 @@ class EnOceanDongle:
     async def _attempt_reconnect(self, _now: datetime) -> None:
         """Rebuild and restart the worker; failure re-arms its own retry."""
         self._reconnect_unsub = None
+        if self._stopping:
+            return
+        previous = self._communicator
+        if getattr(previous, "ident", None) is not None:
+            await self.hass.async_add_executor_job(previous.join, 1)
+            if previous.is_alive():
+                _LOGGER.warning("Previous serial worker is still alive; retrying later")
+                self._schedule_reconnect()
+                return
         if self._stopping:
             return
         try:
@@ -624,14 +710,12 @@ class EnOceanDongle:
         self._communicator = communicator
         self._available = True
         self._last_error = None
+        self._base_id_write_cycles_remaining = None
         self._started_at = datetime.now(UTC)
         self._communicator.start()
         self._communicator.request_base_id()
         self.request_version()
         self.request_repeater()
-        # A successful reopen is real progress: the next outage gets a fresh
-        # budget of attempts rather than inheriting this one's count.
-        self._reconnect_attempts = 0
         ir.async_delete_issue(self.hass, DOMAIN, ISSUE_SERIAL_STOPPED)
         self._notify_status()
 
@@ -664,6 +748,12 @@ class EnOceanDongle:
         thread_name = self._communicator.name.replace(self.serial_path, "[REDACTED]")
         with self._response_lock:
             pending_responses = len(self._pending_response_callbacks)
+            queued_at = tuple(getattr(self, "_transmit_queued_at", {}).values())
+        oldest_queued_age = (
+            round(max(0.0, monotonic() - min(queued_at)), 3) if queued_at else None
+        )
+        tracker = getattr(self, "_ute_tracker", None)
+        repeated_ute_senders = tracker.hinted_senders(monotonic()) if tracker else 0
         # Read defensively: lifecycle tests build the dongle without __init__.
         info = getattr(self, "_gateway_info", None)
         repeater = getattr(self, "_repeater", None)
@@ -675,6 +765,9 @@ class EnOceanDongle:
             "stopping": self._stopping,
             "base_id_resolved": self.base_id is not None,
             "base_id_retries": self._base_id_retry_count,
+            "base_id_write_cycles_remaining": getattr(
+                self, "_base_id_write_cycles_remaining", None
+            ),
             "network_url": is_network_url(self.serial_path),
             "reconnect_attempts": self._reconnect_attempts,
             "reconnect_pending": self._reconnect_unsub is not None,
@@ -704,6 +797,8 @@ class EnOceanDongle:
             "transmit_queued": self._transmit_queued,
             "transmit_rejected": self._transmit_rejected,
             "transmit_queue_depth": queue_depth,
+            "transmit_queue_oldest_age_seconds": oldest_queued_age,
+            "repeated_ute_teach_in_senders": repeated_ute_senders,
             "response_packets": self._response_packets,
             "response_errors": self._response_errors,
             "last_response_at": (
