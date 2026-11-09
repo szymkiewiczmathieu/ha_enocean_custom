@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.15.1 - 2026-11-09
+
+### Fixes
+
+- **No more blocking file read at start-up.** Home Assistant logged
+  `Detected blocking call to read_text ... inside the event loop` when the
+  integration loaded, because the generic sensor catalog read its bundled
+  profile file on the event loop. The catalog is now built once in the
+  executor during set-up. No entity, identifier or behavior changes; a
+  code-only rollback to 2.15.0 remains possible.
+
 ## 2.15.0 - 2026-11-09
 
 ### Measurement corrections and new sensors
