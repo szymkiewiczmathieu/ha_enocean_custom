@@ -50,6 +50,7 @@ from .device_rows import (
     subentry_rows,
 )
 from .dongle import EnOceanDongle
+from .eep_catalog import async_warm_built_in_profiles
 from .enocean_library.utils import combine_hex
 from .identity import gateway_device_identifier
 from .inbox import DeviceInbox
@@ -179,6 +180,7 @@ async def async_setup_entry(
     )
     # Operator-defined generic profiles (<config>/enocean_custom/profiles.json)
     # must be published before any row that declares one is validated.
+    await async_warm_built_in_profiles(hass)
     await async_load_user_profiles(hass)
     # Rows a 2.10.x release wrote during a downgrade, or hand-edited into
     # ``.storage``, get their subentry before any platform reads the entry.

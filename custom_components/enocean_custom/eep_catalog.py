@@ -476,6 +476,16 @@ def built_in_profiles() -> Mapping[str, EepProfile]:
     return MappingProxyType(profiles)
 
 
+async def async_warm_built_in_profiles(hass) -> None:
+    """Build the profile catalog in the executor.
+
+    ``built_in_profiles`` reads integration-owned XML from disk, which Home
+    Assistant forbids inside the event loop. Calling this once at entry
+    set-up fills the ``lru_cache`` so every later synchronous call is free.
+    """
+    await hass.async_add_executor_job(built_in_profiles)
+
+
 # Operator-defined profiles (``user_profiles.py``), published at entry set-up.
 # They only ever add EEPs the vendored catalog lacks: ``set_user_profiles``
 # drops any key a built-in profile already owns, so a built-in can never be
