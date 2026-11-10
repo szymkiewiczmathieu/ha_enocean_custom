@@ -42,6 +42,9 @@ ISSUE_A5_12_01_ENERGY_MIGRATION = "a5_12_01_energy_migration"
 ISSUE_SILENT_DEVICE = "silent_device"
 # Raised per A5-20-04 valve while its reported failure code is non-zero.
 ISSUE_VALVE_FAILURE = "valve_failure"
+# Raised per smoke binary sensor row without a declared profile once it
+# receives F6-05-02 telegrams its rocker decoder cannot interpret.
+ISSUE_SMOKE_PROFILE_MISSING = "smoke_profile_missing"
 
 SERVICE_LEARN = "learn"
 SERVICE_SEND_TEACH_IN = "send_teach_in"

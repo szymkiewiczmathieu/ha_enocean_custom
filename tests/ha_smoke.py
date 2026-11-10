@@ -101,7 +101,7 @@ async def _assert_off_without_sensor_sends_switch_off() -> None:
     entity._attr_hvac_mode = HVACMode.OFF
     entity._attr_preset_mode = None
     entity._attr_target_temp = None
-    entity._attr_current_temperature = None
+    entity._attr_native_current_temperature = None
     packets: list[list[int]] = []
 
     def record_packet(data: list[int], response_callback=None) -> bool:
@@ -125,7 +125,7 @@ def _new_transactional_climate():
     entity._attr_target_temp_comfort = 20.0
     entity._attr_target_temp_sleep = 18.0
     entity._attr_target_temp_away = 16.0
-    entity._attr_current_temperature = 19.0
+    entity._attr_native_current_temperature = 19.0
     entity._sensor_target_temp = None
     entity._attr_pi_control_output = 25.0
     entity._pi_control_integrator_state = 1.0
@@ -219,7 +219,7 @@ async def _assert_real_climate_send_chain() -> None:
     entity._attr_target_temp_comfort = 20.0
     entity._attr_target_temp_sleep = 18.0
     entity._attr_target_temp_away = 16.0
-    entity._attr_current_temperature = 19.0
+    entity._attr_native_current_temperature = 19.0
     entity._attr_pi_control_output = 25.0
     entity._pi_control_integrator_state = 1.0
     entity._pi_control_error = 0.5

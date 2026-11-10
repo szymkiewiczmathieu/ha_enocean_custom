@@ -127,7 +127,7 @@ class ClimateRuntimeInputValidationTests(unittest.TestCase):
 
     def _entity(self):
         entity = object.__new__(climate.EnOceanClimate)
-        entity._attr_current_temperature = 19.0
+        entity._attr_native_current_temperature = 19.0
         entity._profile = climate.PROFILE_SRC_D08
         entity._sensor_target_temp = None
         entity._sensor_target_temp_range = 5

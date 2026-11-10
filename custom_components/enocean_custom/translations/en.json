@@ -808,6 +808,10 @@
     "user_profiles_skipped": {
       "title": "Some user EEP profile definitions were skipped",
       "description": "The file {path} was loaded, but these profiles were refused and left inactive: {eeps}. A profile the vendored EEP.xml already describes, or one of the families with a dedicated decoder (D2-01, D2-14-30, A5-12-01, A5-14-01, A5-20, A5-38-08, F6, D5), is never overridden; a layout the decoder cannot honour is refused with the reason shown. Fix the file and reload the integration."
+    },
+    "smoke_profile_missing": {
+      "title": "{name} needs its smoke detector profile declared",
+      "description": "{name} is configured as a smoke binary sensor without a declared EnOcean profile, and it transmits telegrams of the {eep} smoke detector profile that the generic rocker decoder cannot interpret: the entity may never report an alarm. Open Configure → Declare the profile of an existing device, select this device and enter {eep}. The entity keeps its identity and history and gains a 'Battery low' entity. This issue clears itself once the profile is declared or the device is removed."
     }
   }
 }

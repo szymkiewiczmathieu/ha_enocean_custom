@@ -18,6 +18,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_DEVICE_CLASS, CONF_ID, CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
@@ -28,6 +29,7 @@ from .availability import (
     availability_settings,
     silence_category,
 )
+from .const import DOMAIN, ISSUE_SMOKE_PROFILE_MISSING
 from .d2_14 import decode_d2_14_30
 from .device_rows import (
     add_entities_for_group,
@@ -285,6 +287,15 @@ class EnOceanD21430Problem(EnOceanEntity, BinarySensorEntity):
         self.schedule_update_ha_state()
 
 
+# The three DB0 values EEP F6-05-02 defines (alarm off, alarm on, energy low).
+F6_05_02_VALUES = frozenset({0x00, 0x10, 0x30})
+
+
+def smoke_profile_issue_id(dev_id: list[int]) -> str:
+    """Return the Repair issue id of one undeclared smoke detector."""
+    return f"{ISSUE_SMOKE_PROFILE_MISSING}_{''.join(f'{byte:02X}' for byte in dev_id)}"
+
+
 @dataclass(frozen=True, slots=True)
 class SmokeStatus:
     """Decoded F6-05-02 DB0: alarm state (None when the frame says nothing about it)."""
@@ -327,6 +338,12 @@ class EnOceanSmokeDetector(EnOceanEntity, BinarySensorEntity):
         super().__init__(dev_id, dev_name)
         self._attr_name = dev_name
         self._attr_unique_id = binary_sensor_unique_id(dev_id, device_class)
+
+    @override
+    async def async_added_to_hass(self) -> None:
+        """Close the hint raised while this row had no declared profile."""
+        await super().async_added_to_hass()
+        ir.async_delete_issue(self.hass, DOMAIN, smoke_profile_issue_id(self.dev_id))
 
     @override
     def value_changed(self, packet) -> None:
@@ -393,6 +410,38 @@ class EnOceanBinarySensor(EnOceanEntity, BinarySensorEntity):
         self.onoff = -1
         self.which = -1
         self.repeated_telegram: int = -1
+        self._smoke_profile_hint_raised = False
+
+    @override
+    async def async_will_remove_from_hass(self) -> None:
+        """Take the undeclared-profile hint away with the entity."""
+        await super().async_will_remove_from_hass()
+        if self._smoke_profile_hint_raised:
+            ir.async_delete_issue(
+                self.hass, DOMAIN, smoke_profile_issue_id(self.dev_id)
+            )
+
+    def _hint_undeclared_smoke_profile(self) -> None:
+        """Tell the operator, once, that this smoke row needs F6-05-02 declared.
+
+        The row keeps the rocker decoder it was created with: a profile is
+        never inferred from a telegram. But a smoke row receiving F6-05-02
+        values under status bits that are neither a press nor a release will
+        never turn on here, and an alarm automation would wait forever.
+        """
+        if self._smoke_profile_hint_raised or getattr(self, "hass", None) is None:
+            return
+        self._smoke_profile_hint_raised = True
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            smoke_profile_issue_id(self.dev_id),
+            is_fixable=False,
+            is_persistent=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=ISSUE_SMOKE_PROFILE_MISSING,
+            translation_placeholders={"name": str(self.dev_name), "eep": SMOKE_EEP},
+        )
 
     @property
     def extra_state_attributes(self) -> dict[str, int]:
@@ -424,6 +473,13 @@ class EnOceanBinarySensor(EnOceanEntity, BinarySensorEntity):
         message_kind = status >> 4
         pushed = 1 if message_kind == 3 else 0 if message_kind == 2 else None
         self.repeated_telegram = status & 0x0F
+
+        if (
+            pushed is None
+            and self._attr_device_class == BinarySensorDeviceClass.SMOKE
+            and packet.data[1] in F6_05_02_VALUES
+        ):
+            self._hint_undeclared_smoke_profile()
 
         if pushed is not None:
             self._attr_is_on = bool(pushed)

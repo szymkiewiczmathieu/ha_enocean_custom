@@ -84,7 +84,11 @@ profile is unknown or was only asserted by hand. The existing entity keeps its
 identity; decoders and companion entities follow the declared profile. The
 typical case is a smoke detector added as a plain `smoke` binary sensor: declare
 `F6-05-02` and it becomes a real detector (alarm from DB0 `0x10`/`0x00`) with a
-diagnostic **Battery low** entity (`0x30`). A profile that would turn the
+diagnostic **Battery low** entity (`0x30`). Until then such a row is decoded as
+a rocker and can stay `unknown` for ever: an F6-05-02 detector is not a rocker,
+and its status bits need not look like a press or a release. When that happens
+a Repair issue names the device and asks for the profile; it clears itself once
+the profile is declared or the device is removed. A profile that would turn the
 entity into a different class is refused; remove and re-add the device instead.
 Instead of typing the EEP, a **Product** picker lists catalog recipes whose
 platform matches the row (e.g. "Nexelec Insafe+ Origin" for a smoke detector,
@@ -197,7 +201,11 @@ own four-byte sender ID.
   never, because many of those models only transmit on events). Contacts,
   smoke detectors and handles additionally raise a Repair issue that clears
   itself on the next telegram. Rockers, relays and climate controllers never
-  time out. The grace period restarts at every reload.
+  time out. The grace period restarts at every reload. For an F6-05-02 smoke
+  detector, EEP 2.6.8 has "Smoke Alarm OFF" repeated every 20 minutes (one
+  Ubiwizz UBILD001 installation showed exactly that: 66 telegrams in 22 hours),
+  so a timeout of 60 to 90 minutes tolerates two or three lost telegrams; the
+  D2-14-30 interval has not been measured.
 - **Devices can be deleted from their device page or from the integration
   page.** Deleting a radio device removes its subentry, its rows and its
   entities immediately; the gateway device and YAML-configured senders refuse
@@ -557,6 +565,10 @@ because their subentry still exists. Delete them again from the device page.
   Only the documented F6-10-00 nibbles map to `open`/`tilt`/`closed`; any other value is deliberately `unknown`.
 - **Repair issue "… has gone silent"** or a sensor/contact is unavailable while the dongle works
   Silence detection is enabled for that category and the timeout elapsed. Check the device's battery/energy harvesting and range (signal strength sensor), or raise/disable the timeout under **Configure → Availability and silent devices**.
+- **Repair issue "… needs its smoke detector profile declared"**
+  The row is a `smoke` binary sensor without a declared profile and it receives F6-05-02 telegrams the rocker decoder cannot interpret, so the entity may never report an alarm. Use **Configure → Declare the profile of an existing device** and enter `F6-05-02`; the entity keeps its identity.
+- **`Message incomplete, buffered_bytes=N` in older logs**
+  A serial read ended inside the six-byte ESP3 header and the next read completed the frame: ordinary fragmentation, nothing was lost. It is no longer logged as a warning (it stays available at debug level) and is counted as `partial_header_reads` under `dongle.esp3_framing` in the integration diagnostics. The other counters there are real link faults and are still logged as errors: `header_crc_errors`, `data_crc_errors`, `invalid_frame_lengths`, `frame_timeouts`. A few of those over weeks are noise; a steady stream points at the cable, a USB hub or interference.
 - **Need details for a bug report**
   Enable debug logging for `custom_components.enocean_custom` and download the diagnostics (identifiers are redacted).
 

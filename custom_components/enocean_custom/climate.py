@@ -383,10 +383,21 @@ def _register_climate_services() -> None:
     )
 
 
+# Home Assistant 2026.11 renamed the temperature members a climate entity
+# provides with a ``native_`` prefix; the unprefixed names log a deprecation
+# warning there and stop working in 2027.11. Older supported cores (2026.7)
+# only read the unprefixed names, so those are served on such a core, and only
+# there: a core that knows the native names never sees a deprecated one.
+_NATIVE_TEMPERATURE_API = hasattr(ClimateEntity, "native_temperature_unit")
+
+
 class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 control
     """Control a legacy SRC-D08 or an A5-20-04 radiator valve."""
 
-    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
+    # Room temperature from the linked sensor or the valve's own feedback.
+    # Declared here because a core before 2026.11 has no such class default.
+    _attr_native_current_temperature: float | None = None
 
     _CONTROL_STATE_ATTRIBUTES = (
         "_attr_hvac_mode",
@@ -395,7 +406,7 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
         "_attr_target_temp_comfort",
         "_attr_target_temp_sleep",
         "_attr_target_temp_away",
-        "_attr_current_temperature",
+        "_attr_native_current_temperature",
         "_sensor_target_temp",
         "_attr_pi_control_output",
         "_pi_control_integrator_state",
@@ -438,7 +449,7 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
         ]
         self._attr_hvac_mode: HVACMode | None = None
         self._attr_preset_mode: str | None = PRESET_NONE
-        self._attr_current_temperature: float | None = None
+        self._attr_native_current_temperature: float | None = None
         self._attr_target_temp: float | None = None
         self._attr_target_temp_comfort: float | None = None
         self._attr_target_temp_sleep: float | None = None
@@ -604,13 +615,31 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
         return HVACAction.HEATING
 
     @property
-    def target_temperature(self) -> float | None:
+    def native_target_temperature(self) -> float | None:
         """Expose frost protection while the entity is off."""
         if self._attr_hvac_mode == HVACMode.OFF:
             off_target = self._target_temp_frost_protection
             return off_target
         visible_target = self._attr_target_temp
         return visible_target
+
+    if not _NATIVE_TEMPERATURE_API:
+        # Home Assistant before 2026.11: the base class reads the unprefixed
+        # members and has no native ones, so both spellings are served here.
+        _attr_temperature_unit = UnitOfTemperature.CELSIUS
+        target_temperature = native_target_temperature
+
+        @property
+        def native_temperature_unit(self) -> str:
+            """Return the unit every temperature of this entity is expressed in."""
+            return self._attr_native_temperature_unit
+
+        @property
+        def native_current_temperature(self) -> float | None:
+            """Return the room temperature the controller works from."""
+            return self._attr_native_current_temperature
+
+        current_temperature = native_current_temperature
 
     @property
     def min_temp(self) -> float:
@@ -682,7 +711,7 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
             current = float(state.state)
             if not math.isfinite(current):
                 raise ValueError("sensor state is not finite")
-            self._attr_current_temperature = current
+            self._attr_native_current_temperature = current
 
             if self._profile in (PROFILE_A5_20_04, *EXPERIMENTAL_VALVE_PROFILES):
                 return True
@@ -869,7 +898,7 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
             )
             return []
 
-        if self._attr_current_temperature is None:
+        if self._attr_native_current_temperature is None:
             if self._attr_hvac_mode == HVACMode.OFF:
                 LOGGER.warning("Temperature unavailable; closing %s", self.dev_name)
                 if getattr(self, "_profile", PROFILE_SRC_D08) == PROFILE_A5_20_04:
@@ -918,7 +947,9 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
 
         setpoint = round((target - self._target_temp_base) * 12.75 + 127.5)
         setpoint = min(max(setpoint, 0), 255)
-        protocol_temperature = 255 - round(6.375 * self._attr_current_temperature)
+        protocol_temperature = 255 - round(
+            6.375 * self._attr_native_current_temperature
+        )
         protocol_temperature = min(max(protocol_temperature, 0), 255)
         thermostat_sent = self.sendPacket(
             [0x00, setpoint, protocol_temperature, 0x09],
@@ -945,7 +976,7 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
             self._pi_control_integrator_state += (
                 elapsed_minutes * self._pi_control_Kp * self._pi_control_error
             )
-        self._pi_control_error = target - self._attr_current_temperature
+        self._pi_control_error = target - self._attr_native_current_temperature
         raw_output = self._pi_control_Kp * (
             self._pi_control_error
             + self._pi_control_integrator_state / self._pi_control_Tn
@@ -1107,7 +1138,7 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
             self._update_valve_failure(db1)
         else:
             self._update_valve_failure(None)
-            self._attr_current_temperature = round(10 + db1 * 20 / 255, 1)
+            self._attr_native_current_temperature = round(10 + db1 * 20 / 255, 1)
         if db0 & 0x02:
             self._attr_target_temp = round(10 + db2 * 20 / 255, 1)
         self.schedule_update_ha_state()
@@ -1131,7 +1162,7 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
             for key, value in asdict(status).items()
             if key != "valve_position"
         }
-        room_temperature = self._attr_current_temperature
+        room_temperature = self._attr_native_current_temperature
         target = (
             self._target_temp_frost_protection
             if self._attr_hvac_mode == HVACMode.OFF

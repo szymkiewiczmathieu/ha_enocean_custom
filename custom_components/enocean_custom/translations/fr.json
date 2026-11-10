@@ -808,6 +808,10 @@
     "user_profiles_skipped": {
       "title": "Certaines définitions de profils EEP utilisateur ont été ignorées",
       "description": "Le fichier {path} a été chargé, mais ces profils ont été refusés et restent inactifs : {eeps}. Un profil déjà décrit par l'EEP.xml embarqué, ou appartenant à une famille disposant d'un décodeur dédié (D2-01, D2-14-30, A5-12-01, A5-14-01, A5-20, A5-38-08, F6, D5), n'est jamais écrasé ; une disposition que le décodeur ne peut pas honorer est refusée avec la raison indiquée. Corrigez le fichier puis rechargez l'intégration."
+    },
+    "smoke_profile_missing": {
+      "title": "Le profil de détecteur de fumée de {name} doit être déclaré",
+      "description": "{name} est configuré comme capteur binaire de fumée sans profil EnOcean déclaré, et il émet des télégrammes du profil détecteur de fumée {eep} que le décodeur générique de bouton ne sait pas interpréter : l'entité peut ne jamais signaler d'alarme. Ouvrez Configurer → Déclarer le profil d'un équipement existant, sélectionnez cet équipement et saisissez {eep}. L'entité conserve son identité et son historique et reçoit une entité « Pile faible ». Cette réparation se ferme d'elle-même une fois le profil déclaré ou l'équipement supprimé."
     }
   }
 }

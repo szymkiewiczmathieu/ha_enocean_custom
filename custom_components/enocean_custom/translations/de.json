@@ -808,6 +808,10 @@
     "user_profiles_skipped": {
       "title": "Einige benutzerdefinierte EEP-Profildefinitionen wurden übersprungen",
       "description": "Die Datei {path} wurde geladen, aber diese Profile wurden abgelehnt und bleiben inaktiv: {eeps}. Ein Profil, das die mitgelieferte EEP.xml bereits beschreibt, oder eine der Familien mit eigenem Decoder (D2-01, D2-14-30, A5-12-01, A5-14-01, A5-20, A5-38-08, F6, D5) wird nie überschrieben; ein Layout, das der Decoder nicht umsetzen kann, wird mit dem angezeigten Grund abgelehnt. Korrigieren Sie die Datei und laden Sie die Integration neu."
+    },
+    "smoke_profile_missing": {
+      "title": "Für {name} muss das Rauchmelder-Profil deklariert werden",
+      "description": "{name} ist als Rauch-Binärsensor ohne deklariertes EnOcean-Profil eingerichtet und sendet Telegramme des Rauchmelder-Profils {eep}, die der generische Taster-Decoder nicht auswerten kann: Die Entität meldet möglicherweise nie einen Alarm. Öffnen Sie Konfigurieren → Profil eines vorhandenen Geräts deklarieren, wählen Sie dieses Gerät und geben Sie {eep} ein. Die Entität behält ihre Identität und ihren Verlauf und erhält eine Entität 'Batterie schwach'. Diese Meldung verschwindet von selbst, sobald das Profil deklariert oder das Gerät entfernt wurde."
     }
   }
 }

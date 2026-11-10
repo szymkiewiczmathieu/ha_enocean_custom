@@ -1,5 +1,86 @@
 # Changelog
 
+## Unreleased
+
+### Home Assistant 2026.11 compatibility
+
+- **Climate entities use the `native_` temperature members.** Home Assistant
+  2026.11 renamed `temperature_unit`, `current_temperature` and
+  `target_temperature` (and the high/low pair) with a `native_` prefix and logs
+  `EnOceanClimate provides the deprecated _attr_temperature_unit` /
+  `... target_temperature` at start-up; the old names stop working in 2027.11.
+  The climate platform now provides the native members on a core that knows
+  them and keeps serving the unprefixed ones on older supported cores
+  (2026.7 to 2026.10). The room temperature moved from
+  `_attr_current_temperature` to `_attr_native_current_temperature`, which
+  also removes a third warning (`writes the deprecated
+  EnOceanClimate._attr_current_temperature`) that only installations with a
+  climate row would have seen. No state, attribute, unit, identifier or radio
+  behavior changes.
+
+### Serial link diagnostics
+
+- **`Message incomplete, buffered_bytes=N` no longer fills the warning log.**
+  The vendored ESP3 parser logs that line whenever a serial read ends inside
+  the six-byte frame header. It is ordinary read fragmentation: the bytes stay
+  buffered and the next read completes the frame (one installation logged it
+  120 times in 22 hours for 1601 telegrams, with no CRC error and no frame
+  time-out). The integration now counts the event, keeps it available at debug
+  level and stops it from reaching the warning log.
+- **New `esp3_framing` block in the integration diagnostics**, counted since
+  the dongle was set up: `partial_header_reads` (the benign case above) and the
+  real link faults `header_crc_errors`, `data_crc_errors`,
+  `invalid_frame_lengths` and `frame_timeouts`. The faults are still logged as
+  errors, exactly as before. The counters hold no identifier.
+- The vendored library is untouched: the counters come from a logging filter
+  owned by the integration, attached to the library's two loggers while the
+  entry is loaded and removed on unload. A test pins every watched log
+  template to the vendored sources so a library update cannot drift silently.
+
+### Smoke detectors
+
+- **New Repair issue "… needs its smoke detector profile declared".** A
+  `smoke` binary sensor row without a declared profile keeps the historical
+  rocker decoder, whose state follows the ERP1 status bits of a press or a
+  release. An F6-05-02 detector is not a rocker: on one installation an
+  Ubiwizz UBILD001 repeated "Smoke Alarm OFF" every 20 minutes (66 telegrams
+  in 22 hours, as EEP 2.6.8 specifies) and the entity never left `unknown`,
+  so an alarm automation waiting for `on` could not be relied upon. Such a row
+  now raises a non-fixable Repair issue naming the device and the profile to
+  declare under **Configure → Declare the profile of an existing device**. It
+  is raised once per entity, only for F6-05-02 values (`0x00`, `0x10`, `0x30`)
+  received with status bits that are neither a press nor a release, and it
+  clears itself when the profile is declared or the device is removed.
+  Translated in English, French, German and Dutch.
+- Decoding is deliberately unchanged: a profile is still never inferred from a
+  telegram, rocker-shaped smoke rows keep working without any issue, and
+  declaring `F6-05-02` keeps the entity's identity as before.
+- README: the 20-minute F6-05-02 repeat interval and a suggested 60 to 90
+  minute silence timeout are documented; the default stays 0 (never).
+
+### Compatibility
+
+- No `unique_id`, entity name, translation key or device identifier changes:
+  an identity dump of 61 row shapes, 51 generic profiles and the 248 entities
+  built from one real installation's rows is identical before and after, on
+  Home Assistant 2026.7.3 and 2026.10.2.
+- No new dependency, no config entry migration (`ConfigFlow.VERSION` stays 1),
+  no new radio transmission. `teach_in=False` is unchanged and no UTE answer is
+  ever sent automatically.
+
+### Not verified on hardware
+
+- The climate change was exercised against the real climate base class of
+  Home Assistant 2026.11.0 laid over a 2026.10.2 environment (three warnings
+  before, none after), not on a running 2026.11 instance, and no A5-20 valve
+  or SRC-D08 thermostat was driven.
+- No smoke was produced: the alarm telegram of an Ubiwizz UBILD001, its status
+  bits and what its test button transmits are unknown. Only the periodic
+  "Alarm OFF" telegram was observed, and its status bits are inferred from the
+  entity staying `unknown`, not read from a capture.
+- The framing counters were driven by the real parser with split and corrupted
+  frames, not by a physical USB 300 on a marginal link.
+
 ## 2.15.1 - 2026-11-09
 
 ### Fixes

@@ -221,7 +221,7 @@ class ClimateIntegrationTests(unittest.TestCase):
         entity = _climate(climate.PROFILE_A5_20_01)
         entity._attr_hvac_mode = HVACMode.HEAT
         entity._attr_target_temp = 21.0
-        entity._attr_current_temperature = 19.0
+        entity._attr_native_current_temperature = 19.0
         sent: list[list[int]] = []
         entity.send_command = Mock(side_effect=_capture_into(sent))
 
@@ -239,7 +239,7 @@ class ClimateIntegrationTests(unittest.TestCase):
         entity = _climate(climate.PROFILE_A5_20_06)
         entity._attr_hvac_mode = HVACMode.HEAT
         entity._attr_target_temp = 21.0
-        entity._attr_current_temperature = 19.0
+        entity._attr_native_current_temperature = 19.0
         sent: list[list[int]] = []
         entity.send_command = Mock(side_effect=_capture_into(sent))
 
@@ -252,7 +252,7 @@ class ClimateIntegrationTests(unittest.TestCase):
     def test_hvac_off_requests_a_closed_valve(self):
         entity = _climate(climate.PROFILE_A5_20_01)
         entity._attr_hvac_mode = HVACMode.OFF
-        entity._attr_current_temperature = 19.0
+        entity._attr_native_current_temperature = 19.0
         sent: list[list[int]] = []
         entity.send_command = Mock(side_effect=_capture_into(sent))
 
@@ -264,7 +264,7 @@ class ClimateIntegrationTests(unittest.TestCase):
         entity = _climate(climate.PROFILE_A5_20_01)
         entity._attr_hvac_mode = HVACMode.HEAT
         entity._attr_target_temp = 21.0
-        entity._attr_current_temperature = None
+        entity._attr_native_current_temperature = None
         entity.send_command = Mock(return_value=True)
 
         entity.value_changed(_frame(20, 0, 0, 0x08))

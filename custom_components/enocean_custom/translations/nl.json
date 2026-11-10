@@ -808,6 +808,10 @@
     "user_profiles_skipped": {
       "title": "Sommige gebruikersgedefinieerde EEP-profieldefinities zijn overgeslagen",
       "description": "Het bestand {path} is geladen, maar deze profielen zijn geweigerd en blijven inactief: {eeps}. Een profiel dat de meegeleverde EEP.xml al beschrijft, of een van de families met een eigen decoder (D2-01, D2-14-30, A5-12-01, A5-14-01, A5-20, A5-38-08, F6, D5), wordt nooit overschreven; een indeling die de decoder niet kan honoreren wordt geweigerd met de getoonde reden. Corrigeer het bestand en herlaad de integratie."
+    },
+    "smoke_profile_missing": {
+      "title": "Voor {name} moet het rookmelderprofiel worden gedeclareerd",
+      "description": "{name} is ingesteld als binaire rooksensor zonder gedeclareerd EnOcean-profiel en verzendt telegrammen van het rookmelderprofiel {eep} die de generieke schakelaardecoder niet kan interpreteren: de entiteit meldt mogelijk nooit een alarm. Open Configureren → Het profiel van een bestaand apparaat declareren, kies dit apparaat en voer {eep} in. De entiteit behoudt haar identiteit en geschiedenis en krijgt een entiteit 'Batterij laag'. Deze melding verdwijnt vanzelf zodra het profiel is gedeclareerd of het apparaat is verwijderd."
     }
   }
 }

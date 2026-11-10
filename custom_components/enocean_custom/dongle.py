@@ -41,6 +41,7 @@ from .enocean_library.protocol.packet import (
     ResponsePacket,
     UTETeachInPacket,
 )
+from .esp3_monitor import Esp3FramingMonitor
 from .inbox import DeviceInbox, packet_observation
 
 _LOGGER = logging.getLogger(__name__)
@@ -224,6 +225,9 @@ class EnOceanDongle:
         self._response_lock = Lock()
         self._transmit_queued_at: dict[int, float] = {}
         self._ute_tracker = RepeatedTeachInTracker()
+        # Counts the framing events the vendored library only logs; attached
+        # to its loggers while this dongle is set up (see esp3_monitor.py).
+        self._framing_monitor = Esp3FramingMonitor()
         self._inbox: DeviceInbox | None = None
         self._queued_response_callbacks: dict[
             int, tuple[Callable[[bool], None] | None, Callable[[], None] | None]
@@ -441,7 +445,16 @@ class EnOceanDongle:
         """Start the serial worker and clear any stale repair issue."""
         self._started_at = datetime.now(UTC)
         self._available = True
-        self._communicator.start()
+        # Read defensively: lifecycle tests build the dongle without __init__.
+        monitor = getattr(self, "_framing_monitor", None)
+        if monitor is not None:
+            monitor.attach()
+        try:
+            self._communicator.start()
+        except BaseException:
+            if monitor is not None:
+                monitor.detach()
+            raise
         self._communicator.request_base_id()
         # Both are dongle-local ESP3 reads: nothing is transmitted on the radio.
         self.request_version()
@@ -476,6 +489,11 @@ class EnOceanDongle:
             _LOGGER.warning(self._last_error)
             self._notify_status()
             return False
+        # The worker is gone: nothing can report a framing event any more. A
+        # refused unload above keeps the monitor of the worker that still runs.
+        monitor = getattr(self, "_framing_monitor", None)
+        if monitor is not None:
+            monitor.detach()
         return True
 
     def send(
@@ -757,6 +775,7 @@ class EnOceanDongle:
         # Read defensively: lifecycle tests build the dongle without __init__.
         info = getattr(self, "_gateway_info", None)
         repeater = getattr(self, "_repeater", None)
+        framing_monitor = getattr(self, "_framing_monitor", None)
         return {
             "serial_device": self.identifier,
             "available": self.available,
@@ -806,6 +825,11 @@ class EnOceanDongle:
             ),
             "last_response_code": self._last_response_code,
             "pending_responses": pending_responses,
+            # Serial-link framing events since this dongle was created: partial
+            # header reads are normal fragmentation, the others are faults.
+            "esp3_framing": (
+                framing_monitor.snapshot() if framing_monitor is not None else None
+            ),
         }
 
 
