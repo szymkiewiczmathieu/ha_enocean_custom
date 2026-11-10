@@ -50,6 +50,11 @@ class PresetTests(unittest.TestCase):
         self.assertEqual((button.data[1], button.status), (0x10, 0x30))
         smoke = simulator.build_simulated_packet("smoke_alarm", SENDER)
         self.assertEqual((smoke.data[1], smoke.status), (0x10, 0x30))
+        # F6-05-02 "Smoke Alarm OFF" (EEP 2.6.8): the end of a drill.
+        smoke_off = simulator.build_simulated_packet("smoke_alarm_off", SENDER)
+        self.assertEqual((smoke_off.data[1], smoke_off.status), (0x00, 0x30))
+        self.assertTrue(smoke_off.simulated)
+        self.assertIn("smoke_alarm_off", simulator.PRESETS)
         cover = simulator.build_simulated_packet("cover_position", SENDER, 40)
         self.assertEqual(cover.data[1:5], [60, 0x7F, 0, 0x04])
         self.assertTrue(cover.simulated)

@@ -46,6 +46,7 @@ simulate:
             - temperature
             - button
             - smoke_alarm
+            - smoke_alarm_off
             - cover_position
     sender_id:
       name: Sender ID

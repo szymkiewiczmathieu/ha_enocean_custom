@@ -9,7 +9,7 @@ and compatible). It provides configuration-entry and YAML setup, guided device
 learning, diagnostics, native rocker triggers, automation blueprints and
 bounded actuator control without cloud services or telemetry.
 
-**Current release:** [v2.16.0](CHANGELOG.md) · Apache-2.0 · available in the HACS default store
+**Current release:** [v2.16.1](CHANGELOG.md) · Apache-2.0 · available in the HACS default store
 
 ![EnOcean admin panel: gateway health, device cards and signal gauges](https://raw.githubusercontent.com/szymkiewiczmathieu/ha_enocean_custom/main/docs/images/panel-devices.png)
 
@@ -254,7 +254,7 @@ own four-byte sender ID.
   - Radio transmission: none
 
 The simulator supports `window_open`, `window_closed`, `temperature`, `button`,
-`smoke_alarm` and `cover_position`. It never creates a teach-in telegram, never
+`smoke_alarm`, `smoke_alarm_off` and `cover_position`. It never creates a teach-in telegram, never
 persists a packet, and never bypasses the configured device's normal decoder.
 
 Every refusal (unknown Base ID, dongle unavailable, missing sender ID,

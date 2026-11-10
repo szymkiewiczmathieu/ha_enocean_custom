@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.16.1 - 2026-11-10
+
+### Smoke detectors
+
+- **A smoke alarm is no longer replayed when a detector comes back.** When a
+  detector had been silent for longer than the silence timeout, or when the
+  dongle dropped, the entity used to republish its previous state before
+  decoding the next telegram. An alarm that was on before the loss of contact
+  therefore produced `unavailable -> on -> off`, and an automation waiting for
+  `on` fired a second, false alert. The entity now forgets its state as soon as
+  contact is lost and takes the next decoded telegram as it comes. A real
+  alarm is unaffected: F6-05-02 repeats "alarm on" every 10 seconds, so it is
+  received again right away. Other entity types keep their last state exactly
+  as before.
+- **New `smoke_alarm_off` preset for the simulated telegrams.** It sends the
+  F6-05-02 "Smoke Alarm OFF" value (EEP 2.6.8) so a simulated alarm can be
+  ended without waiting for the detector's own 20-minute repeat. It is still
+  admin-only, opt-in, marked `simulated: true` and never transmits by radio.
+- No identifier, entity name or option changes; a code-only rollback to 2.16.0
+  remains possible. **Not verified on hardware:** a real detector's behaviour
+  after a long silence; the change is covered by simulated telegrams only.
+
 ## 2.16.0 - 2026-11-10
 
 ### Home Assistant 2026.11 compatibility

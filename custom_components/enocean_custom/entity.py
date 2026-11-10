@@ -212,6 +212,8 @@ class EnOceanEntity(Entity):
     def _dongle_status_changed(self, available: bool) -> None:
         """Mirror serial health and write state on the event loop."""
         self._attr_available = available
+        if not available:
+            self._contact_lost()
         self.async_write_ha_state()
 
     @callback
@@ -269,6 +271,7 @@ class EnOceanEntity(Entity):
         if self._silent or self._silence_timeout is None:
             return
         self._silent = True
+        self._contact_lost()
         minutes = int(self._silence_timeout.total_seconds() // 60)
         LOGGER.warning(
             "%s has not transmitted for %d minutes; marking it unavailable",
@@ -289,6 +292,13 @@ class EnOceanEntity(Entity):
                 },
             )
         self.async_write_ha_state()
+
+    def _contact_lost(self) -> None:
+        """Hook: the sender went silent or the dongle dropped.
+
+        Entities whose last value must not be republished once contact is back
+        (an alarm, for instance) forget it here. The default keeps the state.
+        """
 
     def value_changed(self, packet: Any) -> None:
         """Handle one matching inbound telegram."""

@@ -346,6 +346,15 @@ class EnOceanSmokeDetector(EnOceanEntity, BinarySensorEntity):
         ir.async_delete_issue(self.hass, DOMAIN, smoke_profile_issue_id(self.dev_id))
 
     @override
+    def _contact_lost(self) -> None:
+        """Forget the alarm: a fire alert is never replayed from a stale state.
+
+        F6-05-02 repeats "alarm on" every 10 s while smoke is present, so a
+        real alarm is received again as soon as contact is back.
+        """
+        self._attr_is_on = None
+
+    @override
     def value_changed(self, packet) -> None:
         """Apply the alarm state; an energy-low frame leaves it alone."""
         status = decode_f6_05_02(packet)

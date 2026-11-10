@@ -35,6 +35,7 @@ PRESETS: Final = (
     "temperature",
     "button",
     "smoke_alarm",
+    "smoke_alarm_off",
     "cover_position",
 )
 _SENDER_TEXT = re.compile(
@@ -87,6 +88,10 @@ def build_simulated_packet(
         # Rocker channel 1 upper / F6-05-02 alarm. The same payload is decoded
         # only according to the receiving row's declared profile.
         rorg, payload, status = RORG.RPS, [0x10], 0x30
+    elif preset == "smoke_alarm_off":
+        # F6-05-02 DB0 0x00 "Smoke Alarm OFF" (EEP 2.6.8): ends a simulated
+        # alarm without waiting for the detector's own 20-minute repeat.
+        rorg, payload, status = RORG.RPS, [0x00], 0x30
     elif preset == "cover_position":
         if (
             isinstance(position, bool)
