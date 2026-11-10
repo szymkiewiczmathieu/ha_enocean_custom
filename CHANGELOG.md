@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.16.0 - 2026-11-10
 
 ### Home Assistant 2026.11 compatibility
 
