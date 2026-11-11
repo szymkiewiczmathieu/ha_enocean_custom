@@ -102,8 +102,9 @@ class TeachInTests(unittest.TestCase):
 @unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
 class A52001DecodeTests(unittest.TestCase):
     def test_typical_status(self):
-        # CV=42%, SO+ES+DWO set, TMP raw 128 -> 20.1 degC.
-        status = decode_a5_20_01(_frame(42, 0b10100010, 128, 0x08).data)
+        # CV=42%, SO+ES+DWO set, TMP raw 128 -> 20.1 degC. BCAP (DB2.4) is
+        # set as well: EEP 2.6.8 defines 0, not 1, as "change battery".
+        status = decode_a5_20_01(_frame(42, 0b10110010, 128, 0x08).data)
         self.assertEqual(status.valve_position, 42)
         self.assertTrue(status.service_on)
         self.assertFalse(status.energy_input_enabled)
@@ -130,15 +131,17 @@ class A52001DecodeTests(unittest.TestCase):
 @unittest.skipUnless(HA_AVAILABLE, "Home Assistant not installed")
 class A52001EncodeTests(unittest.TestCase):
     def test_typical_command(self):
+        # EEP 2.6.8, direction 2, DB2: 255...0 for 0...+40 degC.
         self.assertEqual(
-            encode_a5_20_01_command(75, 21.0), [75, round(21 * 255 / 40), 0x00, 0x08]
+            encode_a5_20_01_command(75, 21.0),
+            [75, round((40 - 21) * 255 / 40), 0x00, 0x08],
         )
 
     def test_position_and_temperature_are_clipped(self):
         self.assertEqual(encode_a5_20_01_command(150, 60.0)[0], 100)
         self.assertEqual(encode_a5_20_01_command(-5, -10.0)[0], 0)
-        self.assertEqual(encode_a5_20_01_command(0, 60.0)[1], 255)
-        self.assertEqual(encode_a5_20_01_command(0, -10.0)[1], 0)
+        self.assertEqual(encode_a5_20_01_command(0, 60.0)[1], 0)
+        self.assertEqual(encode_a5_20_01_command(0, -10.0)[1], 255)
 
     def test_lrn_bit_marks_a_data_telegram(self):
         self.assertEqual(encode_a5_20_01_command(0, 0.0)[3], 0x08)

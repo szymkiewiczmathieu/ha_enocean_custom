@@ -65,7 +65,7 @@ from .device_rows import (
 )
 from .enocean_library.protocol.constants import RORG
 from .enocean_library.utils import combine_hex, to_hex_string
-from .entity import EnOceanEntity, build_radio_optional
+from .entity import EnOceanEntity, bs4_data_bytes, build_radio_optional
 from .identity import climate_unique_id
 from .learn import register_known_id
 from .schema import ENOCEAN_ID, exact_finite_int
@@ -1126,13 +1126,13 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
                 packet, decode_a5_20_06, encode_a5_20_06_command
             )
             return
-        if (
-            self._profile != PROFILE_A5_20_04
-            or packet.rorg != RORG.BS4
-            or len(packet.data) < 5
-        ):
+        if self._profile != PROFILE_A5_20_04:
             return
-        db3, db2, db1, db0 = packet.data[1:5]
+        # A teach-in telegram (DB0.3 LRNB = 0) carries FUNC/TYPE/manufacturer,
+        # not a valve position or a room temperature.
+        if (data_bytes := bs4_data_bytes(packet)) is None:
+            return
+        db3, db2, db1, db0 = data_bytes
         self._attr_valve_position = min(db3, 100)
         if db0 & 0x01:
             self._update_valve_failure(db1)
@@ -1141,7 +1141,36 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
             self._attr_native_current_temperature = round(10 + db1 * 20 / 255, 1)
         if db0 & 0x02:
             self._attr_target_temp = round(10 + db2 * 20 / 255, 1)
+        if getattr(packet, "simulated", False) is not True:
+            self._answer_a5_20_04()
         self.schedule_update_ha_state()
+
+    def _answer_a5_20_04(self) -> None:
+        """Answer a status telegram inside the valve's receive window.
+
+        EEP 2.6.8, A5-20-04, direction 2: "A message in this direction has to
+        be sent after receiving a message from the actuator, in order to
+        achieve a successful communication. If the controller message is not
+        received by the actuator in a specific time after a direction 1
+        message, no information will be received by the actuator" (1100 ms
+        with the 4BS teach-in). The valve sleeps between its own telegrams,
+        so the periodic refresh alone reaches it only by chance.
+
+        The answer repeats the committed command, synchronously, from the
+        dispatcher callback. It does not advance the PI controller, which
+        keeps its own period, and it is skipped until the restored control
+        state is known.
+        """
+        heating_off = self._attr_hvac_mode == HVACMode.OFF
+        target = (
+            self._target_temp_frost_protection
+            if heating_off
+            else self._attr_target_temp
+        )
+        if self._attr_hvac_mode is None or target is None:
+            return
+        position = 0 if heating_off else round(self._attr_pi_control_output or 0)
+        self._send_a5_20_04(self._a5_20_04_payload(position, target))
 
     def _handle_experimental_valve(self, packet, decode, encode) -> None:
         """Decode one A5-20-01/06 status telegram and reply within the loop.
@@ -1172,7 +1201,12 @@ class EnOceanClimate(EnOceanEntity, ClimateEntity, RestoreEntity):  # A5/F6 cont
         # entity's own target): neither is guaranteed yet right after
         # startup. Skip this one reply rather than compute against a
         # missing value; the valve simply gets answered on its next poll.
-        if room_temperature is not None and target is not None:
+        # A simulated telegram never makes the radio transmit.
+        if (
+            room_temperature is not None
+            and target is not None
+            and getattr(packet, "simulated", False) is not True
+        ):
             self._update_pi_controller(target)
             position = (
                 0

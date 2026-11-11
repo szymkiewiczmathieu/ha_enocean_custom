@@ -1,27 +1,32 @@
 """D2-14-30: smoke detector with air quality, comfort, temperature and humidity.
 
-The vendored ``EEP.xml`` does not describe this profile and the Alliance sheet
-is an image, so the layout below is taken from two independent, widely used
-implementations that agree bit for bit: the openHAB EnOcean binding
-(``D2_14_30.java``) and FHEM (``10_EnOcean.pm``, ``multiFuncSensor.30``).
-It is a six-byte VLD payload, MSB first::
+The vendored ``EEP.xml`` does not describe this profile. The layout below is
+the table of EEP 2.6.8 (D2-14-30, submitter Nexelec); the bit positions agree
+with the openHAB EnOcean binding (``D2_14_30.java``) and FHEM
+(``10_EnOcean.pm``, ``multiFuncSensor.30``). It is a six-byte VLD payload,
+MSB first::
 
     bit  0      smoke alarm
     bit  1      sensor fault
     bit  2      maintenance not done (maintenance due)
     bit  3      humidity out of the sensor's working range
     bit  4      temperature out of the sensor's working range
-    bits 5-12   weeks since the last maintenance (8 bits)
+    bits 5-12   weeks since the last maintenance (0..250; 251..254 reserved,
+                255 error)
     bits 13-14  energy storage: 0 high, 1 medium, 2 low, 3 critical
-    bits 15-22  remaining product lifetime in months (8 bits, < 121 valid)
-    bits 23-30  temperature, 8 bits, value / 5 °C (< 251 valid)
-    bits 31-38  relative humidity, 8 bits, value / 2 % (< 251 valid)
+    bits 15-22  remaining product lifetime in months (0..120; 121..254
+                reserved, 255 error)
+    bits 23-30  temperature, 0..250 -> 0..50 °C (251..254 reserved, 255 error)
+    bits 31-38  relative humidity, 0..200 -> 0..100 % (201..254 reserved,
+                255 error)
     bits 39-40  hygrothermal comfort: 0 good, 1 medium, 2 bad, 3 error
     bits 41-43  indoor air analysis: 0 optimal, 1 dry, 2 humidity high,
-                3 temperature and humidity high, 6 error
+                3 temperature and humidity high, 4 temperature or humidity
+                out of the analysis range, 5..6 reserved, 7 error
 
-Nothing here has been checked against a real detector yet: the matrix marks
-the profile as implemented, not validated.
+Reserved and error values decode to ``None``: the entity keeps its last
+valid reading. Nothing here has been checked against a real detector yet:
+the matrix marks the profile as implemented, not validated.
 """
 
 from __future__ import annotations
@@ -40,15 +45,23 @@ AIR_QUALITY_STATES: Final = (
     "dry",
     "humidity_high",
     "temperature_humidity_high",
+    "out_of_range",
     "error",
 )
+# EEP 2.6.8, IAQTH (offset 41): 5 and 6 are reserved and decode to nothing.
 _AIR_QUALITY_BY_CODE: Final = {
     0: "optimal",
     1: "dry",
     2: "humidity_high",
     3: "temperature_humidity_high",
-    6: "error",
+    4: "out_of_range",
+    7: "error",
 }
+# Highest valid raw value of each eight-bit field (EEP 2.6.8 valid ranges).
+_MAX_MAINTENANCE_WEEKS: Final = 250
+_MAX_REMAINING_LIFE_MONTHS: Final = 120
+_MAX_TEMPERATURE_RAW: Final = 250
+_MAX_HUMIDITY_RAW: Final = 200
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,7 +73,7 @@ class D21430Status:
     maintenance_due: bool
     humidity_out_of_range: bool
     temperature_out_of_range: bool
-    maintenance_weeks: int
+    maintenance_weeks: int | None
     energy_storage: str
     remaining_life_months: int | None
     temperature: float | None
@@ -83,6 +96,7 @@ def decode_d2_14_30(data: Any) -> D21430Status | None:
     ):
         return None
     b0, b1, b2, b3, b4, b5 = data[1:7]
+    weeks = ((b0 & 0x07) << 5) | (b1 >> 3)
     remaining = ((b1 & 0x01) << 7) | (b2 >> 1)
     temperature_raw = ((b2 & 0x01) << 7) | (b3 >> 1)
     humidity_raw = ((b3 & 0x01) << 7) | (b4 >> 1)
@@ -92,11 +106,15 @@ def decode_d2_14_30(data: Any) -> D21430Status | None:
         maintenance_due=bool(b0 & 0x20),
         humidity_out_of_range=bool(b0 & 0x10),
         temperature_out_of_range=bool(b0 & 0x08),
-        maintenance_weeks=((b0 & 0x07) << 5) | (b1 >> 3),
+        maintenance_weeks=weeks if weeks <= _MAX_MAINTENANCE_WEEKS else None,
         energy_storage=ENERGY_STORAGE_STATES[(b1 & 0x06) >> 1],
-        remaining_life_months=remaining if remaining < 121 else None,
-        temperature=temperature_raw / 5 if temperature_raw < 251 else None,
-        humidity=humidity_raw / 2 if humidity_raw < 251 else None,
+        remaining_life_months=(
+            remaining if remaining <= _MAX_REMAINING_LIFE_MONTHS else None
+        ),
+        temperature=(
+            temperature_raw / 5 if temperature_raw <= _MAX_TEMPERATURE_RAW else None
+        ),
+        humidity=humidity_raw / 2 if humidity_raw <= _MAX_HUMIDITY_RAW else None,
         comfort=COMFORT_STATES[((b4 & 0x01) << 1) | (b5 >> 7)],
         air_quality=_AIR_QUALITY_BY_CODE.get((b5 >> 4) & 0x07),
     )

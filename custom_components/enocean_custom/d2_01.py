@@ -58,7 +58,9 @@ from .entity import build_radio_optional, get_gateway_base_id
 from .identity import SENSOR_DEFAULT_DEVICE_CLASS
 
 # Entry option: query every D2-01 actuator once after start-up. Off by default:
-# enabling it is the only way this integration ever transmits on its own.
+# no D2-01 frame is ever transmitted without a user action unless it is set.
+# (Other platforms have their own, documented automatic frames: one CMD 0x3
+# per D2-05-00 cover after start-up, and the control frames of a climate row.)
 CONF_D2_01_QUERY_ON_START: Final = "d2_01_query_on_start"
 # Opt-in post-command verification: one command plus at most two resends.
 CONF_D2_01_FEEDBACK_CHECK: Final = "d2_01_feedback_check"

@@ -75,6 +75,7 @@
           "dry": "mdi:water-off-outline",
           "humidity_high": "mdi:water-percent",
           "temperature_humidity_high": "mdi:thermometer-water",
+          "out_of_range": "mdi:help-circle-outline",
           "error": "mdi:alert-circle-outline"
         }
       },

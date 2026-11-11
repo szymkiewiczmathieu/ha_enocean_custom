@@ -517,14 +517,18 @@ exactly like A5-20-04 before it), and even in YAML a row is refused unless
 `experimental_valve_ack: true` is set, a typo-proof confirmation that the
 operator has read this section.
 
-Unlike A5-20-04 (which this repository drives from its own periodic
-PI-loop send, `_async_control_heating`), A5-20-01 and A5-20-06 are
-*polled by the valve*: the actuator contacts the controller every radio
-cycle with a direction-1 status telegram and expects a direction-2 reply
-inside one second, or it falls back to running its internal thermostat
-autonomously and stops listening to Home Assistant
-(EEP.xml A5-20-01; the official A5-20-06 EEP proposal, EH4/Micropelt,
+A5-20-01 and A5-20-06 are *polled by the valve*: the actuator contacts
+the controller every radio cycle with a direction-1 status telegram and
+expects a direction-2 reply inside one second, or it falls back to running
+its internal thermostat autonomously and stops listening to Home Assistant
+(EEP 2.6.8 A5-20-01; the official A5-20-06 EEP proposal, EH4/Micropelt,
 V0.6, 2018-02-28, "Maximum response time must be less than 1 second").
+A5-20-04 works the same way on the air (EEP 2.6.8: "A message in this
+direction has to be sent after receiving a message from the actuator", with
+1100 ms for the 4BS teach-in): its PI loop keeps its own period
+(`_async_control_heating`), and each status telegram of the valve is
+additionally answered at once with the last committed command, without
+advancing the controller. That answer has not been validated on hardware.
 That budget rules out the existing async commit machinery (a lock, a
 `Future`, potentially other awaits mid-transaction): `valve_a5_20.py`'s
 decode/encode functions are pure, and `climate.py` calls them directly
@@ -539,7 +543,10 @@ not the alternative 0..40 °C temperature-setpoint mode each profile also
 defines): simpler, and consistent with how this repository already drives
 A5-20-04. Window-open, obstruction, energy and (for A5-20-06) local-offset
 bits are decoded and exposed as diagnostic `extra_state_attributes`, never
-acted on automatically. The 4BS Variation-3 bidirectional teach-in
+acted on automatically. Two A5-20-01 fields follow the tables of EEP 2.6.8
+rather than the vendored `EEP.xml`, which disagrees with them: the battery
+bit (DB2.4) means "change battery" at 0, and the room temperature sent to
+the valve runs 255..0 for 0..40 °C. The 4BS Variation-3 bidirectional teach-in
 response is computed by a single general formula
 (`valve_a5_20.bidirectional_teach_in_response`), cross-checked bit for bit
 against this repository's own, already field-verified A5-20-04 response —

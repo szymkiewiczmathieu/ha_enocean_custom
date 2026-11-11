@@ -33,8 +33,8 @@ try:  # The bare unit-test environment has no Home Assistant installed.
 except ModuleNotFoundError:  # pragma: no cover - exercised by bare CI env
     HA_AVAILABLE = False
 
-SENDER = [0x05, 0x8C, 0x6B, 0x8D]
-SENDER_INT = 0x058C6B8D
+SENDER = [0x01, 0x02, 0x03, 0x04]
+SENDER_INT = 0x01020304
 
 
 def _rps(db0: int):

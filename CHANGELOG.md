@@ -1,5 +1,151 @@
 # Changelog
 
+## 2.16.2 - 2026-11-11
+
+### Specification conformance
+
+- **D2-14-30 follows the table of EEP 2.6.8.** Three fields were decoded from
+  other implementations and disagreed with the specification:
+  - relative humidity: raw values 201 to 250 are reserved and are no longer
+    published (they used to appear as 100.5 to 125 %);
+  - indoor air analysis: code 7 is "error" (code 6, which is reserved, used to
+    be shown as the error and code 7 was dropped), and code 4, "temperature or
+    humidity out of analysis range", is now reported as the new state
+    `out_of_range` (translated in English, French, German and Dutch);
+  - weeks since maintenance: 251 to 255 (reserved, error) are no longer
+    published as a number of weeks.
+- **A 4BS teach-in telegram is never read as a measurement.** The manual-scale
+  temperature and humidity sensors and the A5-12-01 energy counters ignored the
+  LRN bit (DB0.3: 0 = teach-in telegram). A teach-in telegram carries FUNC,
+  TYPE and the manufacturer in its data bytes: sent by an A5-12-01 meter it set
+  both `total_increasing` energy counters to 4 720 653, and sent by a room
+  sensor it produced one wrong temperature, set point and humidity. These
+  telegrams are now ignored, as the A5-14-01 and generic decoders already did.
+  A frame that announces 4BS but is shorter than a 4BS telegram is refused as
+  well, instead of having its sender bytes read as data.
+- **Manual-scale humidity above the valid range is not published.** Raw values
+  251 to 255 (A5-04-01: valid range 0 to 250) used to appear as up to 102 %.
+- **A5-20-04 valves are answered in their receive window.** EEP 2.6.8 has the
+  valve listen only after its own status telegram ("A message in this
+  direction has to be sent after receiving a message from the actuator ...
+  If the controller message is not received by the actuator in a specific
+  time after a direction 1 message, no information will be received", 1100 ms
+  with the 4BS teach-in). The periodic control frame alone reaches a sleeping
+  valve only by chance. Each status telegram is now answered at once with the
+  last committed command (valve position, set point, wake-up cycle); the PI
+  controller keeps its own period and is not advanced by the answer. A
+  teach-in telegram is no longer read as valve feedback (position, room
+  temperature) and is never answered on its own.
+- **A5-20-01 (experimental, YAML only) follows EEP 2.6.8 on two fields** where
+  the vendored `EEP.xml` disagrees with it: the battery bit (DB2.4) means
+  "change battery" at 0, so the `battery_capacity_low` attribute was inverted;
+  and the room temperature sent to the valve runs 255..0 for 0..40 °C, so the
+  value on the air was mirrored around 20 °C.
+- **Switching the dongle's repeater off writes repeater level 0.** ESP3 1.58
+  (CO_WR_REPEATER) defines level 0x00 as "OFF (use if Repeater Mode = 0x00)";
+  the select used to write mode off with level 1.
+
+### Event loop
+
+- **No file read on the event loop when the dongle cannot be opened.** The
+  generic profile catalog was only built once the serial port had been opened.
+  With the dongle unplugged at start-up the entry retries, and opening
+  *Configure* (or migrating the options of a pre-2.11 entry) validated the
+  stored rows against a catalog that was read from disk on the event loop.
+  The catalog is now built in the executor when the integration is set up,
+  and the operator-defined profiles are loaded before the port is opened, so
+  rows that use them stay valid while the entry retries.
+- **A received telegram no longer re-validates every stored row** once more
+  than 64 senders have been heard (configured devices and neighbours
+  together). The passive inbox resolved the configured senders for each
+  telegram in that case; it now does so only when a sender is heard for the
+  first time. Measured on a development machine with 61 devices and 10
+  neighbours: 3.3 ms of event loop per telegram before, 1.4 µs after. A
+  sender removed from the configuration now leaves the inbox with the next
+  new sender rather than immediately.
+- **The admin panel's live stream looks profiles up without re-validating the
+  rows** for each telegram; the lookup is rebuilt when the options or a
+  device subentry change.
+
+### Loss of contact
+
+- **A device that returns after a silence is published once, with what its
+  telegram says.** Every entity used to write the state it held before the
+  silence, then the decoded telegram: a contact that had gone silent open and
+  came back closed produced `unavailable -> on -> off`, a door opening that
+  never happened. 2.16.1 handled this for F6-05-02 smoke alarms only.
+- **A dongle outage is no longer counted as a device's silence.** The silence
+  timers kept running while the dongle was down: after an outage longer than
+  a timeout, every contact, smoke detector and handle raised its own "has gone
+  silent" Repair and stayed unavailable until its next telegram. The timers
+  now stop with the dongle and a full grace period starts when it reconnects.
+  A device that was already silent before the outage stays silent.
+- **A reconnected dongle gets a fresh Base ID retry budget.** The three
+  on-demand retries were documented as per serial worker but were never
+  restored after a reconnection.
+
+### Other fixes
+
+- **A simulated telegram never makes the radio transmit.** With the
+  experimental A5-20-01/06 profiles, a simulated 4BS telegram carrying the
+  valve's sender ID was answered by a real frame. Simulated telegrams still
+  update the entity and are no longer answered.
+- **A `ui_devices` option that is not a list no longer keeps the entry from
+  loading.** With `null`, a number or a boolean stored in `.storage`, set-up
+  ended in `TypeError` (the entry stayed in error) and so did several steps of
+  the options flow, although the row validators already read such a value as
+  "no rows". It is now read as an empty list everywhere; the stored value is
+  left as it is.
+- A D2-05-00 start-up query the dongle refuses ends with a log line instead of
+  an exception in a background task that nothing retrieves.
+- The repeated-UTE-request hint keeps at most 128 senders; one list per
+  sender used to stay in memory for the lifetime of the dongle.
+- README: the cover platform, automatic reconnection and the frames sent
+  without a user action are described as they are.
+
+### Tests
+
+- **Blocking calls on the event loop now fail the test suites.** Home
+  Assistant's own detector skips `open` and `Path.read_text` under a test
+  runner, which is how 2.15.0 shipped a file read on the event loop. A guard
+  owned by the tests wraps the blocking primitives (file access, `glob`,
+  `time.sleep`, `serial_for_url`, `Thread.join`) and reports any call made by
+  integration code on an event loop thread. The whole `unittest` run and every
+  `pytest` test execute under it, the latter from a cold profile catalog.
+  With the catalog warm-up removed, the `pytest` suite fails and the guard
+  names the read (`Path.read_text ... ran inside the event loop`).
+- A static check lists every blocking call site of the integration with the
+  reason it never runs on the event loop; a new one fails until it is audited.
+- New suites: specification conformance (EEP 2.6.8 tables quoted in the
+  tests), loss of contact, receive hot path, simulated-telegram radio silence,
+  corrupted options and error paths. The A5-20-04 answer is also driven end to
+  end through the real parser, serial worker and dongle against the ESP3
+  emulator: 6 ms median, 105 ms at most on the test host, for a 1100 ms
+  window. Coverage of `config_flow.py` and `diagnostics.py` stays at 100 %.
+
+### Compatibility
+
+- No `unique_id`, `entity_id`, option, schema or config entry version change;
+  `ConfigFlow.VERSION` stays 1; the manifest and the vendored library are
+  untouched; no new dependency. A code-only rollback to 2.16.1 remains
+  possible.
+- Visible changes: the D2-14-30 indoor air analysis sensor has one more state
+  (`out_of_range`) and reports `error` for code 7; an A5-20-04 climate row
+  transmits one more frame per status telegram of its valve; entities with
+  silence detection write one state instead of two when their device returns.
+
+### Not verified on hardware
+
+- No A5-20-04, A5-20-01 or D2-14-30 device was available. The A5-20-04 answer
+  follows the specification's timing rule and was exercised against the ESP3
+  emulator only; whether a given valve accepts it, and the round-trip latency
+  on a real dongle, are unknown.
+- The repeater-off write (mode 0, level 0) was checked against ESP3 1.58 and
+  the emulator, not against a USB 300.
+- Reconnection, silence timers and the telegram flood figures come from
+  simulated telegrams and a development machine, not from a dongle being
+  unplugged or from a slow host.
+
 ## 2.16.1 - 2026-11-10
 
 ### Smoke detectors

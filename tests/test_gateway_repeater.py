@@ -142,13 +142,16 @@ class RepeaterWriteReadBackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((state.enabled, state.level), (True, 2))
         self.assertEqual(self.dongle.repeater, state)
 
-    async def test_switching_off_writes_level_one_and_disabled(self):
+    async def test_switching_off_writes_mode_off_with_level_off(self):
+        # ESP3 1.58 Table 42 (CO_WR_REPEATER): Repeater Level 0x00 is "OFF
+        # (use if Repeater Mode = 0x00)"; 0x01/0x02 apply "when enabled".
         task = asyncio.ensure_future(self.dongle.async_set_repeater(False, 2))
         written = await self._answer_next(RETURN_CODE.OK, [])
-        self.assertEqual(written.data, [CO_WR_REPEATER, 0, 1])
-        await self._answer_next(RETURN_CODE.OK, [0, 1])
+        self.assertEqual(written.data, [CO_WR_REPEATER, 0, 0])
+        await self._answer_next(RETURN_CODE.OK, [0, 0])
         state = await asyncio.wait_for(task, 1)
         self.assertFalse(state.enabled)
+        self.assertEqual(state.level, 0)
 
     async def test_refused_write_is_a_translated_error_and_changes_nothing(self):
         self.dongle._repeater = RepeaterState(False, 1, 0)

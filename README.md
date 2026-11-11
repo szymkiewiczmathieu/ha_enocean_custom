@@ -96,8 +96,7 @@ platform matches the row (e.g. "Nexelec Insafe+ Origin" for a smoke detector,
 field and is recorded exactly the same way, `eep_source: manual` included —
 a recipe is a convenience, never proof of what the hardware actually is. The
 bundled catalog (`custom_components/enocean_custom/data/products.json`)
-covers NodOn ASP-2-1-00/01, SIN-2-2-01, SIN-2-RS-01 (documented only — this
-integration has no cover platform), CWS-2-1-01, Eltako FT55, HOPPE
+covers NodOn ASP-2-1-00/01, SIN-2-2-01, SIN-2-RS-01, CWS-2-1-01, Eltako FT55, HOPPE
 SecuSignal, Nexelec Insafe+ Origin, and placeholders for the Micropelt
 MVA005 and Kieback & Peter MD15 valve actuators pending the experimental
 valve item below.
@@ -192,8 +191,19 @@ own four-byte sender ID.
   read-only as `d2_local_control_enabled`; see Known limitations for why the
   local-settings write (CMD 0x2) is not offered.
 - **Availability** mirrors the serial worker: when the dongle stops, every
-  entity becomes unavailable and a Repair issue is raised; when the integration
-  reloads, availability returns.
+  entity becomes unavailable and a Repair issue is raised; availability returns
+  when the link is back (the integration reconnects on its own) or after a
+  reload. Entities then show the last state they received: a telegram missed
+  during the outage is not known. The one exception is an F6-05-02 smoke
+  alarm, which is forgotten rather than shown again.
+- **What is transmitted without a user action.** A D2-05-00 cover sends one
+  position query (CMD 0x3) after each start-up or reload, and one after a
+  stop command. A climate row sends its control frame at its command
+  frequency, and an A5-20-04 valve is additionally answered once after each
+  of its own status telegrams (see Known limitations). The D2-01 start-up
+  query above is off by default. Nothing else is: no teach-in is ever
+  answered automatically, and a simulated telegram never makes the radio
+  transmit.
 - **Silence detection is optional.** Under **Configure → Availability and
   silent devices** you can make sensors, contacts, smoke detectors and handles
   unavailable after a configurable number of minutes without a telegram
@@ -201,7 +211,10 @@ own four-byte sender ID.
   never, because many of those models only transmit on events). Contacts,
   smoke detectors and handles additionally raise a Repair issue that clears
   itself on the next telegram. Rockers, relays and climate controllers never
-  time out. The grace period restarts at every reload. For an F6-05-02 smoke
+  time out. The grace period restarts at every reload and every time the
+  dongle reconnects: nothing can be heard while the dongle is down, so its
+  outage is never counted as a device's silence. A device that returns is
+  published once, with what its telegram says. For an F6-05-02 smoke
   detector, EEP 2.6.8 has "Smoke Alarm OFF" repeated every 20 minutes (one
   Ubiwizz UBILD001 installation showed exactly that: 66 telegrams in 22 hours),
   so a timeout of 60 to 90 minutes tolerates two or three lost telegrams; the
@@ -417,6 +430,11 @@ true`, see [docs/device-intelligence.md](docs/device-intelligence.md#experimenta
   hardware.** They reply to the valve's own status telegram from inside the
   dispatcher callback to respect the EEP's one-second budget; the actual
   round-trip latency has never been measured against a real dongle or valve.
+- **The A5-20-04 answer is unvalidated on real hardware.** EEP 2.6.8 has the
+  valve listen only after its own status telegram (1100 ms with the 4BS
+  teach-in), so each status telegram is answered at once with the current
+  command, in addition to the periodic control frame. No A5-20-04 valve has
+  been driven with it.
 - **D2-05-00 cover support is protocol-tested, not hardware-validated.** Only
   the one-output TYPE 0x00 and channel `0` are accepted. CMD 0x5 motor timing,
   alarm and locking configuration is not written, and slat angle is not exposed
@@ -544,7 +562,7 @@ because their subentry still exists. Delete them again from the device page.
 - **"No valid dongle found for this path"** when adding the integration
   Use the `/dev/serial/by-id/...` alias, make sure no other integration or container opens the port, and that the user running Home Assistant may access it.
 - **Repair issue "The EnOcean serial worker stopped"** and all entities unavailable
-  The dongle was unplugged, the port vanished or a response timed out. Reconnect the dongle, then reload the integration (**Settings → Devices & services → EnOcean Custom → ⋮ → Reload**).
+  The dongle was unplugged, the port vanished or a response timed out. Reconnect the dongle: the integration retries on its own (2 s to 60 s between attempts) and the issue clears itself. Reloading the integration (**Settings → Devices & services → EnOcean Custom → ⋮ → Reload**) retries immediately.
 - **Error "The dongle has not reported its Base ID"** on a switch
   The start-up `CO_RD_IDBASE` read was refused or lost. The integration retries it automatically (three attempts with backoff); wait a few seconds or reload.
 - **Error "The dongle refused to queue the command"**

@@ -12,6 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Final
 
 import voluptuous as vol
@@ -25,7 +26,7 @@ from homeassistant.loader import async_get_integration
 
 from .const import CONF_ALLOW_SIMULATION, DOMAIN, SIGNAL_RECEIVE_MESSAGE
 from .d2_05 import parse_d2_05_00_status
-from .device_rows import configured_rows
+from .device_rows import configured_rows, device_subentries
 from .eep_catalog import generic_profile
 from .enocean_library.protocol.constants import RORG
 from .enocean_library.protocol.d2 import parse_d2_01_actuator_status
@@ -403,15 +404,51 @@ def async_setup_entry_panel(
     if getattr(gateway, "telegram_monitor", None) is not None:
         return
 
+    # Resolving the rows validates every one of them. While the stream is
+    # open that would run for each telegram, so the first row of each sender
+    # is kept for as long as the entry's row sources are the same objects.
+    # Home Assistant never edits ``options`` or a subentry's ``data`` in
+    # place: every write installs a new read-only mapping, so comparing
+    # identities is an exact, O(devices) change test with no listener.
+    cached_sources: tuple[Any, ...] | None = None
+    cached_profiles: dict[int, dict[str, Any]] = {}
+
+    def row_sources() -> tuple[Any, ...] | None:
+        """Return the mappings the rows are read from, or None if mutable."""
+        options = getattr(entry, "options", None)
+        if not isinstance(options, MappingProxyType):
+            return None
+        sources: list[Any] = [options]
+        for subentry in device_subentries(entry).values():
+            if not isinstance(subentry.data, MappingProxyType):
+                return None
+            sources.append(subentry.data)
+        return tuple(sources)
+
     def profile_for_sender(sender: int) -> dict[str, Any] | None:
+        nonlocal cached_sources, cached_profiles
+        sources = row_sources()
+        if (
+            sources is not None
+            and cached_sources is not None
+            and len(sources) == len(cached_sources)
+            and all(
+                new is old for new, old in zip(sources, cached_sources, strict=True)
+            )
+        ):
+            return cached_profiles.get(sender)
+        profiles: dict[int, dict[str, Any]] = {}
         for row in configured_rows(entry):
-            if combine_hex(row["id"]) == sender:
-                return {
+            profiles.setdefault(
+                combine_hex(row["id"]),
+                {
                     "eep": (row.get("radio_metadata") or {}).get("eep"),
                     "platform": row["platform"],
                     "device_class": row.get("device_class"),
-                }
-        return None
+                },
+            )
+        cached_sources, cached_profiles = sources, profiles
+        return profiles.get(sender)
 
     monitor = TelegramMonitor(profile_for_sender)
     gateway.telegram_monitor = monitor

@@ -148,6 +148,9 @@ class RepeatedTeachInTracker:
 
     WINDOW_SECONDS = 300.0
     HINT_THRESHOLD = 4
+    # Senders remembered at once. A pairing retry involves one device; the
+    # bound only matters for a flood of teach-in requests from many senders.
+    MAX_TRACKED_SENDERS = 128
 
     def __init__(self) -> None:
         self._requests: dict[int, deque[float]] = {}
@@ -160,7 +163,35 @@ class RepeatedTeachInTracker:
             while requests and now - requests[0] > self.WINDOW_SECONDS:
                 requests.popleft()
             requests.append(now)
+            if len(self._requests) > self.MAX_TRACKED_SENDERS:
+                self._forget_idle_senders(sender, now)
             return len(requests) == self.HINT_THRESHOLD
+
+    def _forget_idle_senders(self, keep: int, now: float) -> None:
+        """Drop senders outside the window, then the least significant ones.
+
+        Called with the lock held, only when the map is over its bound, so a
+        sender that stopped asking does not stay in memory for the lifetime
+        of the dongle. ``keep`` is the sender being observed right now. Among
+        senders still inside the window, those with the fewest requests go
+        first (then the least recent): a device that is really retrying has
+        several and outlives a burst of one-off requests.
+        """
+        for sender, requests in tuple(self._requests.items()):
+            if sender != keep and now - requests[-1] > self.WINDOW_SECONDS:
+                del self._requests[sender]
+        excess = len(self._requests) - self.MAX_TRACKED_SENDERS
+        if excess <= 0:
+            return
+        least_significant = sorted(
+            (sender for sender in self._requests if sender != keep),
+            key=lambda sender: (
+                len(self._requests[sender]),
+                self._requests[sender][-1],
+            ),
+        )
+        for sender in least_significant[:excess]:
+            del self._requests[sender]
 
     def hinted_senders(self, now: float) -> int:
         """Return the anonymized count of senders currently at the threshold."""
@@ -349,8 +380,10 @@ class EnOceanDongle:
             except RuntimeError:
                 _LOGGER.debug("Home Assistant loop closed before repeater write")
 
+        # ESP3 1.58 Table 42: Repeater Level 0x00 is "OFF (use if Repeater
+        # Mode = 0x00)"; levels 1 and 2 only apply to an enabled repeater.
         if not self.available or not self._communicator.request_common_command(
-            [CO_WR_REPEATER, 1 if enabled else 0, level if enabled else 1],
+            [CO_WR_REPEATER, 1 if enabled else 0, level if enabled else 0],
             write_response,
         ):
             raise HomeAssistantError(
@@ -729,6 +762,12 @@ class EnOceanDongle:
         self._available = True
         self._last_error = None
         self._base_id_write_cycles_remaining = None
+        # The retry budget is granted per worker (BASE_ID_RETRY_LIMIT): a new
+        # worker reads the Base ID again and may have that read refused too.
+        # Plain assignments on purpose: a retry racing in an executor thread
+        # can at worst count one attempt against the fresh budget.
+        self._base_id_retry_count = 0
+        self._base_id_retry_not_before = 0.0
         self._started_at = datetime.now(UTC)
         self._communicator.start()
         self._communicator.request_base_id()

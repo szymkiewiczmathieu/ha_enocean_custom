@@ -60,6 +60,18 @@ def sender_from_identifier(identifier: Any) -> int | None:
         return None
 
 
+def stored_ui_rows(options: Any) -> list[Any]:
+    """Return a copy of the raw ``ui_devices`` list, or ``[]`` if it is not one.
+
+    Options are hand-editable in ``.storage``. ``null``, a number or any other
+    value that is not a list means "no rows", exactly as ``valid_ui_devices``
+    reads it, instead of an exception that keeps the entry from loading. The
+    stored value itself is left as it is: nothing is repaired silently.
+    """
+    value = options.get(CONF_UI_DEVICES) if isinstance(options, Mapping) else None
+    return list(value) if isinstance(value, list) else []
+
+
 def row_key(row: Mapping[str, Any]) -> str:
     """Return a canonical, hashable rendering of one validated row."""
     return json.dumps(row, sort_keys=True, default=str)
@@ -187,10 +199,7 @@ def mirror_rows(entry: Any, drop_senders: Iterable[int] = ()) -> list[Any]:
         for sender, subentry in subentries_by_sender(entry).items()
     }
     dropped = set(drop_senders)
-    options = getattr(entry, "options", None) or {}
-    current = options.get(CONF_UI_DEVICES, [])
-    if not isinstance(current, list):
-        current = []
+    current = stored_ui_rows(getattr(entry, "options", None))
     mirror: list[Any] = []
     seen: set[str] = set()
     for raw in current:
@@ -387,7 +396,7 @@ def async_sync_mirror(
 ) -> bool:
     """Rewrite ``options["ui_devices"]`` from the subentries if it differs."""
     mirror = mirror_rows(entry, drop_senders)
-    if list(entry.options.get(CONF_UI_DEVICES, [])) == mirror:
+    if stored_ui_rows(entry.options) == mirror:
         return False
     hass.config_entries.async_update_entry(
         entry, options={**entry.options, CONF_UI_DEVICES: mirror}

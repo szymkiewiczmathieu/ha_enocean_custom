@@ -149,6 +149,8 @@ class NativeMemberContractTests(unittest.TestCase):
         Valve feedback (room temperature 10 + 115*20/255), a linked-sensor
         update, a control cycle and a transaction snapshot/rollback. What the
         base class publishes from them is covered by the behaviour tests.
+        Two frames leave: the answer to the valve feedback inside its receive
+        window, then the control cycle's own command.
         """
         entity._attr_hvac_mode = HVACMode.HEAT
         entity._attr_target_temp = 21.0
@@ -162,7 +164,7 @@ class NativeMemberContractTests(unittest.TestCase):
         self.assertTrue(asyncio.run(entity._async_get_sensor_update(state)))
         asyncio.run(entity._async_control_heating(response_callback=lambda _ok: None))
         entity._restore_control_state(entity._control_state())
-        self.assertEqual(len(sent), 1)
+        self.assertEqual(len(sent), 2)
 
     @unittest.skipIf(NATIVE_API, "this core reports deprecated members itself")
     def test_instances_never_touch_a_deprecated_attr_shorthand(self):

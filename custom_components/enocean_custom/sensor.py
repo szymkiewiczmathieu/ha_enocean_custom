@@ -60,7 +60,7 @@ from .device_rows import (
 from .eep_catalog import EepField, EepProfile, generic_profile
 from .enocean_library.protocol.constants import RORG
 from .enocean_library.utils import combine_hex, to_hex_string
-from .entity import EnOceanEntity, EnOceanGatewayEntity
+from .entity import EnOceanEntity, EnOceanGatewayEntity, bs4_data_bytes
 from .identity import (
     A514_EEP,
     D2_14_30_EEP,
@@ -881,7 +881,7 @@ class EnOceanPowerSensor(EnOceanSensor):
             self._attr_native_value = decoded[1]
             self.schedule_update_ha_state()
             return
-        if packet.data[0] != RORG.BS4 or len(packet.data) < 5:
+        if bs4_data_bytes(packet) is None:
             return
         packet.parse_eep(0x12, 0x01)
         if packet.parsed["DT"]["raw_value"] != 1:
@@ -902,8 +902,13 @@ class EnOceanA51201EnergySensor(EnOceanSensor):
 
     @override
     def value_changed(self, packet) -> None:
-        """Decode only A5-12-01 cumulative energy, never D2 or power reports."""
-        if not packet.data or packet.data[0] != RORG.BS4 or len(packet.data) < 5:
+        """Decode only A5-12-01 cumulative energy, never D2 or power reports.
+
+        A teach-in telegram has DT = 0 like a cumulative reading; its
+        FUNC/TYPE/manufacturer bytes must not reach a ``total_increasing``
+        counter (EEP 2.6.8 A5-12-01, offset 28: LRN bit).
+        """
+        if bs4_data_bytes(packet) is None:
             return
         packet.parse_eep(0x12, 0x01)
         if packet.parsed["DT"]["raw_value"] != 0:
@@ -929,7 +934,7 @@ class EnOceanEnergySensor(EnOceanSensor):
             self._attr_native_value = decoded[1]
             self.schedule_update_ha_state()
             return
-        if packet.data[0] != RORG.BS4 or len(packet.data) < 5:
+        if bs4_data_bytes(packet) is None:
             return
         packet.parse_eep(0x12, 0x01)
         if packet.parsed["DT"]["raw_value"] != 0:
@@ -986,20 +991,19 @@ class EnOceanTemperatureSensor(EnOceanSensor):
 
     @override
     def value_changed(self, packet) -> None:
-        """Apply the configured linear scale to a complete A5 telegram."""
-        if packet.rorg != RORG.BS4 or len(packet.data) < 5:
+        """Apply the configured linear scale to a complete A5 data telegram."""
+        if (data_bytes := bs4_data_bytes(packet)) is None:
             return
+        _db3, panel_setpoint, raw_temperature, db0 = data_bytes
         raw_span = self.range_to - self.range_from
         temperature_span = self._scale_max - self._scale_min
-        raw_temperature = packet.data[3]
         temperature = (
             temperature_span / raw_span * (raw_temperature - self.range_from)
             + self._scale_min
         )
         self._attr_native_value = round(temperature, 1)
-        panel_setpoint = packet.data[2]
         self.setpoint = panel_setpoint
-        self.slideswitch = packet.data[4] & 1
+        self.slideswitch = db0 & 1
         self.schedule_update_ha_state()
 
 
@@ -1008,10 +1012,17 @@ class EnOceanHumiditySensor(EnOceanSensor):
 
     @override
     def value_changed(self, packet) -> None:
-        """Map the EEP 0..250 humidity field to percent."""
-        if packet.rorg != RORG.BS4 or len(packet.data) < 3:
+        """Map the EEP 0..250 humidity field to percent.
+
+        A5-04-01 and A5-10-10..14, DB2 HUM: valid range 0...250 for 0...100 %.
+        The five values above are not a humidity and are skipped.
+        """
+        if (data_bytes := bs4_data_bytes(packet)) is None:
             return
-        self._attr_native_value = round(packet.data[2] * 100 / 250, 1)
+        raw_humidity = data_bytes[1]
+        if raw_humidity > 250:
+            return
+        self._attr_native_value = round(raw_humidity * 100 / 250, 1)
         self.schedule_update_ha_state()
 
 
@@ -1063,13 +1074,10 @@ class EnOceanA514Voltage(EnOceanSensor):
     @override
     def value_changed(self, packet) -> None:
         """Decode SVC=0..250 linearly as 0..5 V; reject reserved errors."""
-        if packet.rorg != RORG.BS4 or len(packet.data) < 5:
+        # On a teach-in telegram DB3 holds FUNC/TYPE, not a supply voltage.
+        if (data_bytes := bs4_data_bytes(packet)) is None:
             return
-        # DB0 bit 3 is the 4BS LRN bit: on a teach-in telegram DB3 holds
-        # FUNC/TYPE, not a supply voltage.
-        if not packet.data[4] & 0x08:
-            return
-        raw_voltage = packet.data[1]
+        raw_voltage = data_bytes[0]
         if not 0 <= raw_voltage <= 250:
             return
         self._attr_native_value = round(raw_voltage / 50, 2)

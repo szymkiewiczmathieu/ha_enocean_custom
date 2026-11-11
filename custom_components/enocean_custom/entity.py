@@ -22,6 +22,7 @@ from .const import (
     SIGNAL_RECEIVE_MESSAGE,
 )
 from .device_intelligence import resolve_product
+from .enocean_library.protocol.constants import RORG
 from .enocean_library.protocol.packet import Packet as ESP3Packet
 from .enocean_library.utils import combine_hex as enocean_id_as_int
 from .identity import gateway_device_identifier, gateway_unique_id
@@ -32,6 +33,31 @@ def build_radio_optional(destination: list[int] | None = None) -> list[int]:
     """Return the seven optional bytes required by an ERP1 radio frame."""
     radio_destination = destination if destination is not None else [0xFF] * 4
     return [0x03, *radio_destination, 0xFF, 0x00]
+
+
+# ERP1 4BS: RORG, DB3..DB0, four sender bytes, status.
+BS4_TELEGRAM_BYTES = 10
+BS4_LRN_BIT = 0x08
+
+
+def bs4_data_bytes(packet: Any) -> tuple[int, int, int, int] | None:
+    """Return DB3..DB0 of a complete 4BS *data* telegram, else None.
+
+    DB0 bit 3 is the LRN bit of every 4BS profile (EEP 2.6.8: 0 = teach-in
+    telegram, 1 = data telegram). A teach-in telegram carries FUNC, TYPE and
+    the manufacturer in DB3..DB1 and must never be read as a measurement. A
+    frame shorter than a 4BS telegram is refused as well: its sender bytes
+    would otherwise be read as data bytes.
+    """
+    data = getattr(packet, "data", None)
+    if (
+        not isinstance(data, (list, tuple))
+        or len(data) != BS4_TELEGRAM_BYTES
+        or data[0] != RORG.BS4
+        or not data[4] & BS4_LRN_BIT
+    ):
+        return None
+    return data[1], data[2], data[3], data[4]
 
 
 def get_gateway_base_id(gateway: object) -> list[int] | None:
@@ -210,9 +236,18 @@ class EnOceanEntity(Entity):
 
     @callback
     def _dongle_status_changed(self, available: bool) -> None:
-        """Mirror serial health and write state on the event loop."""
+        """Mirror serial health and write state on the event loop.
+
+        Nothing can be heard while the dongle is down, so its outage is not a
+        sender's silence: the silence timer stops with the dongle and a full
+        grace period starts again when the dongle is back.
+        """
         self._attr_available = available
-        if not available:
+        if available:
+            if not self._silent:
+                self._arm_silence_timer()
+        else:
+            self._cancel_silence_timer()
             self._contact_lost()
         self.async_write_ha_state()
 
@@ -221,7 +256,7 @@ class EnOceanEntity(Entity):
         """Route telegrams from this entity's sender only."""
         if not self.dev_id or packet.sender_int != enocean_id_as_int(self.dev_id):
             return
-        self._note_telegram()
+        was_silent = self._note_telegram()
         try:
             self.value_changed(packet)
         except (IndexError, KeyError, TypeError, ValueError, ZeroDivisionError):
@@ -230,13 +265,21 @@ class EnOceanEntity(Entity):
                 self.dev_name,
                 exc_info=True,
             )
+        if was_silent:
+            # Written only now that the telegram is decoded: a sender that
+            # returns is published with what it just said, never first with
+            # the state it had before the silence.
+            self.async_write_ha_state()
 
     @callback
-    def _note_telegram(self) -> None:
-        """Record a telegram from this sender and lift any silence."""
+    def _note_telegram(self) -> bool:
+        """Record a telegram from this sender; return whether it ends a silence.
+
+        The caller writes the state once the telegram has been decoded.
+        """
         self._last_telegram_at = datetime.now(UTC)
         if self._silence_timeout is None:
-            return
+            return False
         was_silent = self._silent
         self._silent = False
         self._arm_silence_timer()
@@ -244,7 +287,7 @@ class EnOceanEntity(Entity):
             LOGGER.info("%s is transmitting again", self.dev_name)
             if self._silence_repair:
                 ir.async_delete_issue(self.hass, DOMAIN, self._silence_issue_id())
-            self.async_write_ha_state()
+        return was_silent
 
     def _silence_issue_id(self) -> str:
         return f"{ISSUE_SILENT_DEVICE}_{''.join(f'{byte:02X}' for byte in self.dev_id)}"
@@ -269,6 +312,9 @@ class EnOceanEntity(Entity):
         """Mark the sender silent once the timeout elapsed without a telegram."""
         self._silence_unsub = None
         if self._silent or self._silence_timeout is None:
+            return
+        if not self._attr_available:
+            # The dongle is down: not hearing a sender proves nothing about it.
             return
         self._silent = True
         self._contact_lost()

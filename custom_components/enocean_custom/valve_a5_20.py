@@ -8,21 +8,24 @@ profiles are *polled by the valve itself*: the actuator contacts the
 controller every RF cycle with a direction-1 status telegram and expects a
 direction-2 reply inside one second, or it falls back to running its
 internal thermostat autonomously, ignoring the controller from then on
-(EEP.xml A5-20-01; the official A5-20-06 EEP proposal, EH4/Micropelt, V0.6,
+(EEP 2.6.8 A5-20-01; the official A5-20-06 EEP proposal, EH4/Micropelt, V0.6,
 2018-02-28, "Maximum response time must be less than 1 second"). That
 budget rules out ``climate.py``'s existing async control-commit machinery
 (a lock, a Future, potentially other awaits): the reply here is built and
 queued synchronously, directly inside the dispatcher callback that decodes
 the status telegram, with no ``await`` and no executor hop in between.
 
-Byte layouts, verbatim from the sources above:
+Byte layouts, from the sources above. A5-20-01 follows the tables of EEP
+2.6.8, which differ from the vendored ``EEP.xml`` on two points: BCAP is true
+at 0, and the direction-2 room temperature runs 255..0:
 
 A5-20-01, direction 1 (ACT -> RCU), DB3..DB0:
     DB3        CV   Current valve position, 0..100 %  (101..255 reserved)
     DB2.7      SO   Service on
     DB2.6      ENIE Energy input enabled
     DB2.5      ES   Energy storage sufficiently charged
-    DB2.4      BCAP Battery capacity low (change battery soon)
+    DB2.4      BCAP Battery capacity: 0 = change battery in the next days,
+                    1 = sufficient (the only status bit that is true at 0)
     DB2.3      CCO  Contact / cover open
     DB2.2      FTS  Temperature sensor failure
     DB2.1      DWO  Window open detected
@@ -31,7 +34,8 @@ A5-20-01, direction 1 (ACT -> RCU), DB3..DB0:
 
 A5-20-01, direction 2 (RCU -> ACT), DB3..DB0, valve-position mode only (SPS=0):
     DB3        SP   Valve position, 0..100 %
-    DB2        TMP  Room temperature from RCU, 0..255 -> 0..40 degC
+    DB2        TMP  Room temperature from RCU, 255..0 -> 0..40 degC (the
+                    scale is inverted in this direction only)
     DB1        all flags 0 (RIN/LFS/VO/VC/SB/SPS/SPN/RCU)
     DB0.3      LRN bit = 1 (data telegram)
 
@@ -133,7 +137,8 @@ def decode_a5_20_01(data: Any) -> A52001Status | None:
         service_on=bool(db2 & 0x80),
         energy_input_enabled=bool(db2 & 0x40),
         energy_storage_charged=bool(db2 & 0x20),
-        battery_capacity_low=bool(db2 & 0x10),
+        # EEP 2.6.8, DB2.4 BCAP: 0 = "change battery next days".
+        battery_capacity_low=not db2 & 0x10,
         contact_cover_open=bool(db2 & 0x08),
         temperature_sensor_failure=bool(db2 & 0x04),
         window_open=bool(db2 & 0x02),
@@ -143,9 +148,13 @@ def decode_a5_20_01(data: Any) -> A52001Status | None:
 
 
 def encode_a5_20_01_command(position: int, room_temperature: float) -> list[int]:
-    """Encode an A5-20-01 direction-2 command: valve-position mode (SPS=0)."""
+    """Encode an A5-20-01 direction-2 command: valve-position mode (SPS=0).
+
+    EEP 2.6.8, direction 2, DB2 "Temperature actual from RCU": valid range
+    255...0 for 0...+40 degC, so the raw value falls as the room warms up.
+    """
     position = min(max(position, 0), 100)
-    temp_raw = min(max(round(room_temperature * 255 / 40), 0), 255)
+    temp_raw = min(max(round((40 - room_temperature) * 255 / 40), 0), 255)
     return [position, temp_raw, 0x00, 0x08]
 
 

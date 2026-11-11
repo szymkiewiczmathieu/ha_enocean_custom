@@ -46,6 +46,7 @@ from .device_rows import (
     device_subentry_id,
     sender_from_identifier,
     sender_identifier,
+    stored_ui_rows,
     subentries_by_sender,
     subentry_rows,
 )
@@ -79,6 +80,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     ``action-setup``): a call made while the entry is unloaded fails with a
     clear error instead of "service not found".
     """
+    # The generic profile catalog is read from disk. Build it in the executor
+    # before anything can validate a row on the event loop: the options
+    # migration, a flow and the admin panel all do, including while the entry
+    # is still retrying a dongle that could not be opened.
+    await async_warm_built_in_profiles(hass)
     async_register_learn_service(hass)
     async_register_simulate_service(hass)
     await async_setup_panel(hass)
@@ -143,6 +149,13 @@ async def async_setup_entry(
     The dongle and its passive inbox live on ``entry.runtime_data`` only;
     platforms and flows resolve them through ``runtime.get_gateway``.
     """
+    # Both catalogs are local files and do not depend on the dongle. They are
+    # published before the port is opened: while the entry retries a dongle
+    # that is unplugged, flows and the panel still validate rows, and must
+    # find the built-in catalog warm (no file read on the event loop) and the
+    # operator-defined profiles (<config>/enocean_custom/profiles.json) loaded.
+    await async_warm_built_in_profiles(hass)
+    await async_load_user_profiles(hass)
     try:
         gateway = await hass.async_add_executor_job(
             EnOceanDongle,
@@ -178,10 +191,6 @@ async def async_setup_entry(
     entry.async_on_unload(
         async_dispatcher_connect(hass, SIGNAL_GATEWAY_UPDATE, _async_gateway_updated)
     )
-    # Operator-defined generic profiles (<config>/enocean_custom/profiles.json)
-    # must be published before any row that declares one is validated.
-    await async_warm_built_in_profiles(hass)
-    await async_load_user_profiles(hass)
     # Rows a 2.10.x release wrote during a downgrade, or hand-edited into
     # ``.storage``, get their subentry before any platform reads the entry.
     # Idempotent: right after the minor-3 migration there is nothing to do.
@@ -309,7 +318,7 @@ async def async_remove_config_entry_device(
         # being gone when they come back to detach it.
         hass.config_entries.async_remove_subentry(entry, subentry_id)
         return True
-    raw_rows = list(entry.options.get(CONF_UI_DEVICES, []))
+    raw_rows = stored_ui_rows(entry.options)
     remaining = [
         raw
         for raw in raw_rows
@@ -362,7 +371,7 @@ def _async_entry_updated(entry: ConfigEntry):
     from the fresh snapshot once it is done, until nothing changes.
     """
     state: dict[str, Any] = {
-        "rows": list(entry.options.get(CONF_UI_DEVICES, [])),
+        "rows": stored_ui_rows(entry.options),
         "subentries": _subentry_snapshot(entry),
         "settings": _settings_snapshot(entry.options),
         "busy": False,
@@ -377,7 +386,7 @@ def _async_entry_updated(entry: ConfigEntry):
         previous_rows = state["rows"]
         previous_subentries = state["subentries"]
         previous_settings = state["settings"]
-        state["rows"] = list(updated.options.get(CONF_UI_DEVICES, []))
+        state["rows"] = stored_ui_rows(updated.options)
         state["subentries"] = _subentry_snapshot(updated)
         state["settings"] = _settings_snapshot(updated.options)
         if state["settings"] != previous_settings:
@@ -388,7 +397,7 @@ def _async_entry_updated(entry: ConfigEntry):
             plan = _async_reconcile_from_rows(hass, updated)
         else:
             plan = _ReconcilePlan()
-        state["rows"] = list(updated.options.get(CONF_UI_DEVICES, []))
+        state["rows"] = stored_ui_rows(updated.options)
         state["subentries"] = _subentry_snapshot(updated)
         return plan
 

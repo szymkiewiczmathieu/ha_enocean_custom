@@ -39,7 +39,7 @@ from .device_rows import (
 from .eep_catalog import EepField, EepProfile, generic_profile
 from .enocean_library.protocol.constants import RORG
 from .enocean_library.utils import combine_hex
-from .entity import EnOceanEntity, EnOceanGatewayEntity
+from .entity import EnOceanEntity, EnOceanGatewayEntity, bs4_data_bytes
 from .identity import (
     A514_EEP,
     D2_14_30_BINARY_SUFFIXES,
@@ -532,12 +532,10 @@ class EnOceanA514Contact(EnOceanEntity, BinarySensorEntity):
     @override
     def value_changed(self, packet) -> None:
         """Decode CT at EEP bit offset 31 (DB0 bit 0)."""
-        if packet.rorg != RORG.BS4 or len(packet.data) < 5:
+        # A teach-in telegram (DB0 bit 3 clear; RadioPacket.learn is its
+        # inverse) carries FUNC/TYPE/manufacturer in DB3..DB1 and no contact
+        # state at all, so it must never move the entity.
+        if (data_bytes := bs4_data_bytes(packet)) is None:
             return
-        # DB0 bit 3 is the 4BS LRN bit (RadioPacket.learn is its inverse). A
-        # teach-in telegram carries FUNC/TYPE/manufacturer in DB3..DB1 and no
-        # contact state at all, so it must never move the entity.
-        if not packet.data[4] & 0x08:
-            return
-        self._attr_is_on = bool(packet.data[4] & 0x01)
+        self._attr_is_on = bool(data_bytes[3] & 0x01)
         self.schedule_update_ha_state()

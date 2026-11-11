@@ -701,6 +701,7 @@
           "dry": "Dry air",
           "humidity_high": "Humidity too high",
           "temperature_humidity_high": "Temperature and humidity too high",
+          "out_of_range": "Out of analysis range",
           "error": "Error"
         }
       },

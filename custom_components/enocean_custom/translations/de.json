@@ -701,6 +701,7 @@
           "dry": "Trockene Luft",
           "humidity_high": "Luftfeuchtigkeit zu hoch",
           "temperature_humidity_high": "Temperatur und Luftfeuchtigkeit zu hoch",
+          "out_of_range": "Außerhalb des Analysebereichs",
           "error": "Fehler"
         }
       },

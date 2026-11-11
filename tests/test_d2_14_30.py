@@ -146,7 +146,10 @@ class DecoderTests(unittest.TestCase):
         self.assertIsNone(status.humidity)
         self.assertIsNone(status.air_quality)
         self.assertEqual(status.energy_storage, "high")
-        self.assertEqual(decode_d2_14_30(_frame(air=6).data).air_quality, "error")
+        # EEP 2.6.8, IAQTH: 5...6 reserved, 7 error (see
+        # test_eep_spec_conformance.py for the whole table).
+        self.assertIsNone(decode_d2_14_30(_frame(air=6).data).air_quality)
+        self.assertEqual(decode_d2_14_30(_frame(air=7).data).air_quality, "error")
 
     def test_malformed_data_is_rejected(self):
         self.assertIsNone(decode_d2_14_30([RORG.VLD, 1, 2, 3, *SENDER, 0]))

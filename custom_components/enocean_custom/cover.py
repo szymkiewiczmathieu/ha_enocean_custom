@@ -153,7 +153,16 @@ class EnOceanCover(EnOceanEntity, CoverEntity, RestoreEntity):
         while loop.time() < deadline:
             gateway = get_gateway(self.hass)
             if get_gateway_base_id(gateway) is not None:
-                self._query_position()
+                try:
+                    self._query_position()
+                except HomeAssistantError:
+                    # Nobody awaits this task: a refusal (worker stopped in
+                    # between, transmit queue full) ends it with a log line
+                    # instead of an exception that is never retrieved.
+                    LOGGER.warning(
+                        "D2-05-00 start-up query for %s was rejected",
+                        self.dev_name,
+                    )
                 return
             await asyncio.sleep(0.05)
         LOGGER.warning(

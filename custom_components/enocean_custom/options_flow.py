@@ -79,6 +79,7 @@ from .device_intelligence import (
     reconcile_commissioning_metadata,
     safe_metadata,
 )
+from .device_rows import stored_ui_rows
 from .enocean_library.protocol.constants import PACKET, RORG
 from .enocean_library.protocol.d2 import is_matching_d2_01_feedback
 from .enocean_library.protocol.packet import (
@@ -513,9 +514,7 @@ class EnOceanOptionsFlow(OptionsFlow):
         rows, _non_importable, _invalid = yaml_inventory(self.hass)
         existing = {
             (row["platform"], _unique_id_for(row))
-            for row in valid_ui_devices(
-                self.config_entry.options.get(CONF_UI_DEVICES, [])
-            )
+            for row in valid_ui_devices(stored_ui_rows(self.config_entry.options))
         }
         return [
             row
@@ -616,7 +615,7 @@ class EnOceanOptionsFlow(OptionsFlow):
                         len(
                             d2_01_targets(
                                 valid_ui_devices(
-                                    self.config_entry.options.get(CONF_UI_DEVICES, [])
+                                    stored_ui_rows(self.config_entry.options)
                                 )
                             )
                         )
@@ -656,7 +655,7 @@ class EnOceanOptionsFlow(OptionsFlow):
     def _undeclared_rows(self) -> dict[int, dict[str, Any]]:
         """Return the valid rows whose profile is unknown or only asserted."""
         rows: dict[int, dict[str, Any]] = {}
-        raw_devices = self.config_entry.options.get(CONF_UI_DEVICES, [])
+        raw_devices = stored_ui_rows(self.config_entry.options)
         if not isinstance(raw_devices, list):
             return rows
         for index, raw in enumerate(raw_devices):
@@ -730,7 +729,7 @@ class EnOceanOptionsFlow(OptionsFlow):
                 {_CONF_MANUAL_EEP: "invalid_eep"},
                 submitted if isinstance(submitted, str) else "",
             )
-        raw_devices = list(self.config_entry.options.get(CONF_UI_DEVICES, []))
+        raw_devices = list(stored_ui_rows(self.config_entry.options))
         # A profile that would re-create the row as a different entity class
         # is a new device, not a declaration on this one; new companion
         # identities must be free (shared with the subentry reconfigure flow).
@@ -1236,7 +1235,7 @@ class EnOceanOptionsFlow(OptionsFlow):
         # Read the options here, with no await before the write below, so a
         # concurrent flow (learn, pairing) can neither be clobbered nor clobber
         # this import. Malformed hand-edited rows are carried over untouched.
-        raw_devices = list(self.config_entry.options.get(CONF_UI_DEVICES, []))
+        raw_devices = list(stored_ui_rows(self.config_entry.options))
         identities = {
             (row["platform"], _unique_id_for(row))
             for row in valid_ui_devices(raw_devices)
@@ -1439,7 +1438,7 @@ class EnOceanOptionsFlow(OptionsFlow):
         ):
             return None
         selected_identity = _unique_id_for(self._pairing_device)
-        raw_devices = self.config_entry.options.get(CONF_UI_DEVICES, [])
+        raw_devices = stored_ui_rows(self.config_entry.options)
         if not isinstance(raw_devices, list):
             return None
         for raw in raw_devices:
@@ -1471,7 +1470,7 @@ class EnOceanOptionsFlow(OptionsFlow):
     async def async_step_commission_existing(self, user_input=None):
         """Select an existing candidate; physical identity is bound next."""
         choices: dict[str, str] = {}
-        raw_devices = self.config_entry.options.get(CONF_UI_DEVICES, [])
+        raw_devices = stored_ui_rows(self.config_entry.options)
         if not isinstance(raw_devices, list):
             return self.async_abort(reason="no_commissionable_devices")
         for raw in raw_devices:
@@ -1742,7 +1741,7 @@ class EnOceanOptionsFlow(OptionsFlow):
         if self._pairing_existing:
             return self._current_existing_commissioning_row() is not None
         unique_id = _unique_id_for(self._pairing_device)
-        devices = self.config_entry.options.get(CONF_UI_DEVICES, [])
+        devices = stored_ui_rows(self.config_entry.options)
         return any(
             valid
             and valid[0]["platform"] == self._pairing_device["platform"]
@@ -1797,7 +1796,7 @@ class EnOceanOptionsFlow(OptionsFlow):
             UI_DEVICE_SCHEMA(updated_raw)
         except vol.Invalid:
             return None
-        raw_devices = self.config_entry.options.get(CONF_UI_DEVICES, [])
+        raw_devices = stored_ui_rows(self.config_entry.options)
         if not isinstance(raw_devices, list):
             return None
         updated_devices = list(raw_devices)
@@ -2091,9 +2090,7 @@ class EnOceanOptionsFlow(OptionsFlow):
             captured_id=self._captured_id,
             name=self._pending_name,
             radio_metadata=self._radio_metadata,
-            used_sender_ids=used_sender_ids(
-                self.config_entry.options.get(CONF_UI_DEVICES, [])
-            ),
+            used_sender_ids=used_sender_ids(stored_ui_rows(self.config_entry.options)),
         )
         if outcome.row is None:
             return self._show_details_form(platform, errors=outcome.errors)
@@ -2113,9 +2110,7 @@ class EnOceanOptionsFlow(OptionsFlow):
         """Reject a duplicate except the one manual row UTE may prove in place."""
         matches = [
             row
-            for row in valid_ui_devices(
-                self.config_entry.options.get(CONF_UI_DEVICES, [])
-            )
+            for row in valid_ui_devices(stored_ui_rows(self.config_entry.options))
             if row["id"] == target_id and row.get("channel") == channel
         ]
         if not matches:
@@ -2135,7 +2130,7 @@ class EnOceanOptionsFlow(OptionsFlow):
         entity registry identity and upgrades its metadata only after UTE evidence.
         """
         unique_id = _unique_id_for(device)
-        raw_devices = list(self.config_entry.options.get(CONF_UI_DEVICES, []))
+        raw_devices = list(stored_ui_rows(self.config_entry.options))
         matching = [
             index
             for index, raw in enumerate(raw_devices)
@@ -2175,9 +2170,7 @@ class EnOceanOptionsFlow(OptionsFlow):
         registry = er.async_get(self.hass)
         stored_identities = {
             identity
-            for existing in valid_ui_devices(
-                self.config_entry.options.get(CONF_UI_DEVICES, [])
-            )
+            for existing in valid_ui_devices(stored_ui_rows(self.config_entry.options))
             for identity in (
                 *ui_device_entity_identities(existing),
                 *additive_ui_device_entity_identities(existing),
@@ -2194,7 +2187,7 @@ class EnOceanOptionsFlow(OptionsFlow):
             return None
         updated_options = dict(self.config_entry.options)
         updated_options[CONF_UI_DEVICES] = [
-            *self.config_entry.options.get(CONF_UI_DEVICES, []),
+            *stored_ui_rows(self.config_entry.options),
             device,
         ]
         return updated_options
@@ -2204,7 +2197,7 @@ class EnOceanOptionsFlow(OptionsFlow):
     ) -> tuple[dict[str, Any], str | None]:
         """Find this flow's persisted pairing device and use the manage path."""
         device = self._pairing_device
-        raw_devices = list(self.config_entry.options.get(CONF_UI_DEVICES, []))
+        raw_devices = list(stored_ui_rows(self.config_entry.options))
         if device is None:
             return dict(self.config_entry.options), "no_ui_devices"
         unique_id = _unique_id_for(device)
@@ -2226,7 +2219,7 @@ class EnOceanOptionsFlow(OptionsFlow):
         self, index: int
     ) -> tuple[dict[str, Any], str | None]:
         """Remove one valid UI device using the protected shared delete path."""
-        raw_devices = list(self.config_entry.options.get(CONF_UI_DEVICES, []))
+        raw_devices = list(stored_ui_rows(self.config_entry.options))
         if index < 0 or index >= len(raw_devices):
             return dict(self.config_entry.options), "no_ui_devices"
         valid = valid_ui_devices([raw_devices[index]])
@@ -2271,7 +2264,7 @@ class EnOceanOptionsFlow(OptionsFlow):
 
     async def async_step_manage(self, user_input=None):
         """List UI devices and let the user pick one to remove."""
-        raw_devices = list(self.config_entry.options.get(CONF_UI_DEVICES, []))
+        raw_devices = list(stored_ui_rows(self.config_entry.options))
         # Filter hand-edited malformed rows out of the list, but keep mapping
         # choices to their RAW index so deletion always pops the right row.
         choices = {}
@@ -2302,7 +2295,7 @@ class EnOceanOptionsFlow(OptionsFlow):
         the freed EnOcean ID on the next learn window because known ids are
         re-seeded from options.
         """
-        raw_devices = list(self.config_entry.options.get(CONF_UI_DEVICES, []))
+        raw_devices = list(stored_ui_rows(self.config_entry.options))
         index = self._manage_index
         if index is None or index >= len(raw_devices):
             return self.async_abort(reason="no_ui_devices")

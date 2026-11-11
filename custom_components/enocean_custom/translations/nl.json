@@ -701,6 +701,7 @@
           "dry": "Droge lucht",
           "humidity_high": "Luchtvochtigheid te hoog",
           "temperature_humidity_high": "Temperatuur en luchtvochtigheid te hoog",
+          "out_of_range": "Buiten analysebereik",
           "error": "Fout"
         }
       },

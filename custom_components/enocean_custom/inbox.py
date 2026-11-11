@@ -116,6 +116,7 @@ class DeviceInbox:
         """Update one observation on Home Assistant's event-loop thread."""
         now = datetime.now(UTC)
         entry = self._entries.pop(observation.sender_id, None)
+        first_seen = entry is None
         if entry is None:
             entry = InboxEntry(now)
         else:
@@ -129,7 +130,13 @@ class DeviceInbox:
         if observation.signal is not None:
             entry.last_signal = observation.signal
         self._entries[observation.sender_id] = entry
-        self._evict_unknown_lru()
+        if first_seen:
+            # Only a sender heard for the first time can grow the registry. A
+            # telegram from a known sender changes recency, never membership,
+            # so nothing can be due for eviction and the configuration is not
+            # resolved for it. A sender dropped from the configuration is
+            # therefore evicted with the next new sender, not immediately.
+            self._evict_unknown_lru()
 
     def _evict_unknown_lru(self) -> None:
         # Resolving the configured set re-validates every UI row, so it must not

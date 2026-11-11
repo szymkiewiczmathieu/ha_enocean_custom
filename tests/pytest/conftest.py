@@ -9,10 +9,37 @@ bare-stdlib ``unittest.IsolatedAsyncioTestCase`` can only approximate.
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import pytest
 from homeassistant.components import frontend
 
+sys.path.insert(0, str(Path(__file__).parents[2]))
+
+from custom_components.enocean_custom import eep_catalog
+from tests.event_loop_guard import forbid_blocking_calls_in_event_loop
+
 pytest_plugins = "pytest_homeassistant_custom_component"
+
+
+@pytest.fixture(autouse=True)
+def event_loop_guard():
+    """Run every test under the blocking-call guard, from a cold catalog.
+
+    Home Assistant's own detector skips ``open``/``Path.read_text`` under a
+    test runner (see ``tests/event_loop_guard.py``), which is how a file read
+    on the event loop once shipped unnoticed. Each test starts with the
+    lazily built profile catalog empty, as after a restart, so a read that
+    only happens on a cold cache cannot hide behind an earlier test.
+    """
+    eep_catalog.built_in_profiles.cache_clear()
+    with forbid_blocking_calls_in_event_loop() as guard:
+        yield guard
+    eep_catalog.built_in_profiles.cache_clear()
+    assert not guard.violations, (
+        "blocking calls ran inside the event loop:\n" + guard.describe()
+    )
 
 
 @pytest.fixture(autouse=True)

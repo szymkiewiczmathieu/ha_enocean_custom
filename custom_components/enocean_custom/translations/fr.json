@@ -701,6 +701,7 @@
           "dry": "Air sec",
           "humidity_high": "Humidité trop élevée",
           "temperature_humidity_high": "Température et humidité trop élevées",
+          "out_of_range": "Hors plage d'analyse",
           "error": "Erreur"
         }
       },
